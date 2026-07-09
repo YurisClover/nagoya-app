@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -20,10 +23,14 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    console.log("submit:", { email }); // <- no log password
-    await new Promise((r) => setTimeout(r, 500)); // Simulate waiting for server
-    setError("（まだ認証は未実装です）");
+    const res = await signIn("credentials", { email, password, redirect: false });
     setLoading(false);
+    if (res?.error) {
+      setError("メールアドレスまたはパスワードが正しくありません");
+      return;
+    }
+    router.push("/dashboard");
+    router.refresh(); // Refresh the page to update the session state
   }
 
   return (
