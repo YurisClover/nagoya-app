@@ -1,8 +1,9 @@
-const { GoogleSpreadsheet } = require('google-spreadsheet');
-const { JWT } = require('google-auth-library');
-const CREDIT = require('./config.json');
-
-const SPREADSHEET_KEY = '1zc3Bs31h0uIm7rhiWXtyV2vaor9lIGrO9PtVTXv0ZIs';
+import { GoogleSpreadsheet } from 'google-spreadsheet';
+import { JWT } from 'google-auth-library';
+const CREDIT = JSON.parse(
+    Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, "base64").toString("utf8")
+);
+const SPREADSHEET_KEY = process.env.GOOGLE_SHEET_ID;
 
 const getSpreadsheetTitleByKey = async (spreasheetKey) => {
     // 1. JWT認証の設定を修正

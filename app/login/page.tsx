@@ -8,7 +8,9 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // e = event
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    // Prevent the default form submission behavior
     e.preventDefault();
     setError("");
 
