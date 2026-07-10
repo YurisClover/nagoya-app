@@ -6,7 +6,7 @@ const MOCK_USER = {
   id: "1",
   email: "test@example.com",
   password: "password123", // will bcrypt hash in Sheets later
-  name: "山田 太郎",
+  name: "Sheldon Cooper", // Sheldon here XD
   role: "general",
   status: "active",
 };
