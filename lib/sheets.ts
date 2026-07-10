@@ -12,7 +12,7 @@ export type SheetUser = {
 };
 
 function getServiceAccountAuth() {
-    const raw = process.env.GOOGLE_CREDENTIALS;
+    const raw = process.env.GOOGLE_CREDENTIALS_BASE64;
     if (!raw) {
         throw new Error("GOOGLE_CREDENTIALS_BASE64 is not set");
     }
