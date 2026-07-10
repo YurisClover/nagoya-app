@@ -41,4 +41,5 @@ yarn-error.log*
 next-env.d.ts
 
 # ignore the configuration file
+config.json*:Zone.Identifier
 config.json
