@@ -1,11 +1,11 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
+import authConfig from "@/auth.config";
 import { getUserByEmail } from "@/lib/sheets";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
+  ...authConfig, // <- spread config edge-safe
   providers: [
     Credentials({
       credentials: {
@@ -26,7 +26,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (user.status !== "active") return null; // inactive user cannot login
 
         // Return user object with id, email, and name
-        return { id: user.member_id, email: user.email, name: user.user_name };
+        return { id: user.member_id, email: user.email, name: user.user_name, role: user.role };
       },
     }),
   ],
