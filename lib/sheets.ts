@@ -38,6 +38,11 @@ async function getUsersSheet() {
     return sheet;
 }
 
+function findRowByEmail(rows: GoogleSpreadsheetRow[], email: string) {
+    const target = email.trim().toLowerCase();
+    return rows.find((r) => String(r.get("email") ?? "").trim().toLowerCase() === target);
+}
+
 function rowToUser(row: GoogleSpreadsheetRow): SheetUser {
     return {
         member_id: String(row.get("member_id") ?? ""),
@@ -59,4 +64,13 @@ export async function getUserByEmail(email: string): Promise<SheetUser | null> {
     );
     if (!row || row.get("deleted_at")) return null;
     return rowToUser(row);
+}
+
+export async function updateUserBarcode(email: string, barcodeData: string) : Promise<void>{
+    const sheet = await getUsersSheet();
+    const row = findRowByEmail(await sheet.getRows(), email);
+    if (!row || row.get("delete_at")) throw new Error("User not found");
+    row.set("barcode_data", barcodeData);
+    row.set("update_at", new Date().toISOString());
+    await row.save();
 }
