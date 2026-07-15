@@ -1,3 +1,4 @@
+import Pagination from "./pagination";
 
 interface PdfFile {
   id: string;
@@ -29,7 +30,7 @@ export default async function PdfListPage() {
     cache: 'no-store' 
   });
 
-  // 2. エラーハンドリング
+  //一覧が取得できなかった場合の処理
   if (!response.ok) {
     return (
       <main className="max-w-4xl mx-auto p-8">
@@ -40,7 +41,8 @@ export default async function PdfListPage() {
       </main>
     );
   }
-
+  //jsonの変換が終わるまで次に行かない
+  //PDFの配列をpdfListに格納する
   const pdfList: PdfFile[] = await response.json();
 
   //完成したHTMLをブラウザに表示
@@ -77,13 +79,17 @@ export default async function PdfListPage() {
               >
                 開く
               </a>
+               
+
             </li>
           ))}
         </ul>
       )}
+      <Pagination />
     </main>
   );
 }
+
 
 
   
