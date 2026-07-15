@@ -1,5 +1,5 @@
 import "server-only";
-import { GoogleSpreadsheet } from "google-spreadsheet";
+import { GoogleSpreadsheet, GoogleSpreadsheetRow } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 
 export type SheetUser = {
@@ -9,6 +9,7 @@ export type SheetUser = {
     email: string;
     role: string;
     status: string;
+    barcode_data?: string;
 };
 
 function getServiceAccountAuth() {
@@ -25,24 +26,19 @@ function getServiceAccountAuth() {
     });
 }
 
-export async function getUserByEmail(email: string): Promise<SheetUser | null> {
+// DRY: This function is used in multiple places, so we can extract it to avoid code duplication.
+// It retrieves the "Users" sheet from the Google Spreadsheet using the provided sheet ID and service account credentials.
+async function getUsersSheet() {
     const sheetId = process.env.GOOGLE_SHEET_ID;
     if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
-
     const doc = new GoogleSpreadsheet(sheetId, getServiceAccountAuth());
     await doc.loadInfo();
-
     const sheet = doc.sheetsByTitle["Users"];
     if (!sheet) throw new Error("'Users' sheet not found");
+    return sheet;
+}
 
-    const rows = await sheet.getRows();
-    const target = email.trim().toLowerCase();
-    const row = rows.find(
-        (r) => String(r.get("email") ?? "").trim().toLowerCase() === target
-    );
-    if (!row) return null;
-    if (row.get("deleted_at")) return null;
-
+function rowToUser(row: GoogleSpreadsheetRow): SheetUser {
     return {
         member_id: String(row.get("member_id") ?? ""),
         user_name: String(row.get("user_name") ?? ""),
@@ -50,5 +46,17 @@ export async function getUserByEmail(email: string): Promise<SheetUser | null> {
         email: String(row.get("email") ?? ""),
         role: String(row.get("role") ?? ""),
         status: String(row.get("status") ?? ""),
+        barcode_data: String(row.get("barcode_data") ?? ""),
     };
+}
+
+export async function getUserByEmail(email: string): Promise<SheetUser | null> {
+    const sheet = await getUsersSheet();
+    const rows = await sheet.getRows();
+    const target = email.trim().toLowerCase();
+    const row = rows.find(
+        (r) => String(r.get("email") ?? "").trim().toLowerCase() === target
+    );
+    if (!row || row.get("deleted_at")) return null;
+    return rowToUser(row);
 }
