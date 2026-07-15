@@ -27,6 +27,7 @@ function getServiceAccountAuth() {
 }
 
 // DRY: This function is used in multiple places, so we can extract it to avoid code duplication.
+// It retrieves the "Users" sheet from the Google Spreadsheet using the provided sheet ID and service account credentials.
 async function getUsersSheet() {
     const sheetId = process.env.GOOGLE_SHEET_ID;
     if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
@@ -39,7 +40,7 @@ async function getUsersSheet() {
 
 function rowToUser(row: GoogleSpreadsheetRow): SheetUser {
     return {
-    member_id: String(row.get("member_id") ?? ""),
+        member_id: String(row.get("member_id") ?? ""),
         user_name: String(row.get("user_name") ?? ""),
         password_hash: String(row.get("password_hash") ?? ""),
         email: String(row.get("email") ?? ""),
