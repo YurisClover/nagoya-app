@@ -1,10 +1,5 @@
+import PdfFile from "./type";
 import Pagination from "./pagination";
-
-interface PdfFile {
-  id: string;
-  name: string;
-  createdTime: string;
-}
 
 function Site() {
   return (
@@ -13,7 +8,7 @@ function Site() {
         href="https://www.taxnaka.com/" 
         className="text-blue-500 hover:underline text-sm font-medium"
       >
-        🔗 支部公式ホームページへ
+        支部公式ホームページへ
       </a>
     </div>
   );
@@ -41,10 +36,9 @@ export default async function PdfListPage() {
       </main>
     );
   }
-  //jsonの変換が終わるまで次に行かない
-  //PDFの配列をpdfListに格納する
-  const pdfList: PdfFile[] = await response.json();
 
+  //jsonの変換が終わるまで次に行かない、PDFの配列をpdfListに格納する
+  const pdfList: PdfFile[] = await response.json();
   //完成したHTMLをブラウザに表示
   return (
     <main className="max-w-4xl mx-auto p-8">
@@ -56,39 +50,13 @@ export default async function PdfListPage() {
       {pdfList.length === 0 ? (
         <p className="text-gray-500">公開されているPDFはありません。</p>
       ) : (
-        <ul className="space-y-3">
-          {pdfList.map((pdf) => (
-            <li 
-              key={pdf.id} 
-              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <div>
-                <span className="font-medium text-blue-600 block mb-1">
-                  {pdf.name}
-                </span>
-                <span className="text-xs text-gray-400">
-                  公開日: {new Date(pdf.createdTime).toLocaleDateString('ja-JP')}
-                </span>
-              </div>
-
-              <a
-                href={`/api/pdf/${pdf.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                開く
-              </a>
-               
-
-            </li>
-          ))}
-        </ul>
+        <Pagination pdfList={pdfList}/>
       )}
-      <Pagination />
     </main>
   );
 }
+
+
 
 
 
