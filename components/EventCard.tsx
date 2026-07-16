@@ -1,25 +1,38 @@
-'use client';
-import { useEvents } from '@/hooks/useEvents'; // 作成したフックをインポート
-import EventCard from '@/components/EventCard'; // 作成したコンポーネントをインポート
+// 💡 まず、受け取るデータの形を定義します
+interface EventCardProps {
+  event: {
+    id: number | null;
+    title: string;
+    event_date: string;
+    form_url: string;
+    is_answered: boolean;
+  };
+}
 
-export default function Home() {
-  const { events, isLoading, isError } = useEvents();
-
-  if (isLoading) return <p>読み込み中...</p>;
-  if (isError) return <div className="error-msg">通信エラーが発生しました。</div>;
-
+// 💡 定義した型をコンポーネントの引数に適用します
+export default function EventCard({ event }: EventCardProps) {
+  const hasLink = event.form_url && event.form_url !== "#";
+  
   return (
-    <main className="container">
-      <h2>イベント案内一覧</h2>
-      <div className="event-grid">
-        {events.length === 0 ? (
-          <p>現在、案内中の一覧はありません。</p>
-        ) : (
-          events.map((event: any, index: number) => (
-            <EventCard key={event.id ?? index} event={event} />
-          ))
-        )}
+    <div className="event-card">
+      {/* 中身はそのまま */}
+      <div>
+        <div className="event-title">{event.title}</div>
+        <div className="event-date-box">
+          <p className="event-date">{event.event_date}</p>
+          {event.is_answered && (
+            <span style={{ color: 'green', fontWeight: 'bold' }}>✅ 回答済み</span>
+          )}
+        </div>
       </div>
-    </main>
+
+      {hasLink ? (
+        <a href={event.form_url} className={`form-btn ${event.is_answered ? 'already-answered' : ''}`} target="_blank" rel="noopener noreferrer">
+          {event.is_answered ? '回答を変更する' : '出席登録フォームへ'}
+        </a>
+      ) : (
+        <span className="form-btn disabled-btn">詳細リンクなし</span>
+      )}
+    </div>
   );
 }

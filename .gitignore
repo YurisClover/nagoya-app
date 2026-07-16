@@ -46,5 +46,5 @@ config.json
 # node keyfileds
 credentials.json
 
-#ignore node_modules folder
-node_modules
+#firebase
+firebase-messaging-sw.js
