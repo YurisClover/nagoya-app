@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ignore the configuration file
+config.json
+
+# node keyfileds
+credentials.json
+
+#ignore node_modules folder
+node_modules
