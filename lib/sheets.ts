@@ -1,6 +1,7 @@
 import "server-only";
 import { GoogleSpreadsheet, GoogleSpreadsheetRow } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
+import { nowJST } from "./datetime";
 
 export type SheetUser = {
   member_id: string;
@@ -70,6 +71,6 @@ export async function updateUserBarcode(
     const row = findRowByEmail(await sheet.getRows(), email);
     if (!row || row.get("deleted_at")) throw new Error("User not found");
     row.set("barcode_data", barcodeData);
-    row.set("updated_at", new Date().toISOString()); // return UTF (JP is UTF + 9)
+    row.set("updated_at", nowJST()); // toISOString() return UTF (JP is UTF + 9) <- create new function
     await row.save();
 }
