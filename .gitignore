@@ -40,6 +40,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+#googlesheet
+config.json
+
+#googledrive
+manegiment-app-2026-310acb72089f.json
+
 # ignore the configuration file
 config.json*:Zone.Identifier
 config.json
