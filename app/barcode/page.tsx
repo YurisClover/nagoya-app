@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getUserByEmail } from "@/lib/sheets";
+import BarcodeUploader from "./BarcodeUploader";
 
 export default async function BarcodePage() {
     const session = await auth();
@@ -21,7 +22,7 @@ export default async function BarcodePage() {
             ) : (
                 <p style={{ marginTop: 32, color: "#666" }}>バーコードが登録されていません</p>
             )}
-
+            <BarcodeUploader />
             <p style={{ fontSize: 11, color: "#c0392b", marginTop: 24}}>
                 ※ バーコードは会員本人のみご使用ください。他者への貸与は禁止です。
             </p>
