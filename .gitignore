@@ -48,3 +48,9 @@ credentials.json
 
 #firebase
 firebase-messaging-sw.js
+
+#service Account Key
+serviceAccountKey.json
+
+#firebase Key
+credentials.json
