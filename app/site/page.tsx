@@ -50,6 +50,7 @@ export default async function PdfListPage() {
       {pdfList.length === 0 ? (
         <p className="text-gray-500">公開されているPDFはありません。</p>
       ) : (
+        //pdf一覧とページネーションのコンポーネント
         <Pagination pdfList={pdfList}/>
       )}
     </main>
