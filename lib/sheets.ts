@@ -1,57 +1,49 @@
 import "server-only";
-import { GoogleSpreadsheet } from "google-spreadsheet";
+import { GoogleSpreadsheet, GoogleSpreadsheetRow } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 
 export type SheetUser = {
-    member_id: string;
-    user_name: string;
-    password_hash: string;
-    email: string;
-    role: string;
-    status: string;
+  member_id: string;
+  user_name: string;
+  password_hash: string;
+  email: string;
+  role: string;
+  status: string;
+  barcode_data: string;
 };
 
 function getServiceAccountAuth() {
     const raw = process.env.GOOGLE_CREDENTIALS_BASE64;
-    if (!raw) {
-        throw new Error("GOOGLE_CREDENTIALS_BASE64 is not set");
-    }
-    const credentials = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
-
+    if (!raw) throw new Error("GOOGLE_CREDENTIALS_BASE64 is not set");
+    const c = JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
     return new JWT({
-        email: credentials.client_email,
-        key: credentials.private_key.replace(/\\n/g, "\n"),
+        email: c.client_email,
+        key: c.private_key.replace(/\\n/g, "\n"),
         scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 }
 
-export async function getUserByEmail(email: string): Promise<SheetUser | null> {
+async function getUsersSheet() {
     const sheetId = process.env.GOOGLE_SHEET_ID;
     if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
-
     const doc = new GoogleSpreadsheet(sheetId, getServiceAccountAuth());
     await doc.loadInfo();
-
     const sheet = doc.sheetsByTitle["Users"];
     if (!sheet) throw new Error("'Users' sheet not found");
+    return sheet;
+}
 
-<<<<<<< HEAD
 function findRowByEmail(rows: GoogleSpreadsheetRow[], email: string) {
     const target = email.trim().toLowerCase();
-    return rows.find((r) => String(r.get("email") ?? "").trim().toLowerCase() === target);
+    return rows.find(
+        (r) =>
+        String(r.get("email") ?? "")
+        .trim()
+        .toLowerCase() === target,
+    );
 }
 
 function rowToUser(row: GoogleSpreadsheetRow): SheetUser {
-=======
-    const rows = await sheet.getRows();
-    const target = email.trim().toLowerCase();
-    const row = rows.find(
-        (r) => String(r.get("email") ?? "").trim().toLowerCase() === target
-    );
-    if (!row) return null;
-    if (row.get("deleted_at")) return null;
-
->>>>>>> develop
     return {
         member_id: String(row.get("member_id") ?? ""),
         user_name: String(row.get("user_name") ?? ""),
@@ -59,28 +51,25 @@ function rowToUser(row: GoogleSpreadsheetRow): SheetUser {
         email: String(row.get("email") ?? ""),
         role: String(row.get("role") ?? ""),
         status: String(row.get("status") ?? ""),
+        barcode_data: String(row.get("barcode_data") ?? ""),
     };
-<<<<<<< HEAD
 }
 
 export async function getUserByEmail(email: string): Promise<SheetUser | null> {
     const sheet = await getUsersSheet();
-    const rows = await sheet.getRows();
-    const target = email.trim().toLowerCase();
-    const row = rows.find(
-        (r) => String(r.get("email") ?? "").trim().toLowerCase() === target
-    );
+    const row = findRowByEmail(await sheet.getRows(), email);
     if (!row || row.get("deleted_at")) return null;
     return rowToUser(row);
 }
 
-export async function updateUserBarcode(email: string, barcodeData: string) : Promise<void>{
+export async function updateUserBarcode(
+    email: string,
+    barcodeData: string,
+): Promise<void> {
     const sheet = await getUsersSheet();
     const row = findRowByEmail(await sheet.getRows(), email);
-    if (!row || row.get("delete_at")) throw new Error("User not found");
+    if (!row || row.get("deleted_at")) throw new Error("User not found");
     row.set("barcode_data", barcodeData);
-    row.set("update_at", new Date().toISOString());
+    row.set("updated_at", new Date().toISOString()); // return UTF (JP is UTF + 9)
     await row.save();
-=======
->>>>>>> develop
 }
