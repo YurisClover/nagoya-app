@@ -1,6 +1,7 @@
 import "server-only";
 import { GoogleSpreadsheet, GoogleSpreadsheetRow } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
+import { getServiceAccountCredentials } from "./google-auth";
 import { nowJST } from "./datetime";
 
 export type SheetUser = {
@@ -13,21 +14,17 @@ export type SheetUser = {
   barcode_data: string;
 };
 
-function getServiceAccountAuth() {
-    const raw = process.env.GOOGLE_CREDENTIALS_BASE64;
-    if (!raw) throw new Error("GOOGLE_CREDENTIALS_BASE64 is not set");
-    const c = JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
-    return new JWT({
-        email: c.client_email,
-        key: c.private_key.replace(/\\n/g, "\n"),
-        scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
+const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheet"];
+
+function getSheetAuth() {
+    const {client_email, private_key} = getServiceAccountCredentials();
+    return new JWT({ email: client_email, key: private_key, scopes: SHEETS_SCOPE});
 }
 
 async function getUsersSheet() {
     const sheetId = process.env.GOOGLE_SHEET_ID;
     if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
-    const doc = new GoogleSpreadsheet(sheetId, getServiceAccountAuth());
+    const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
     await doc.loadInfo();
     const sheet = doc.sheetsByTitle["Users"];
     if (!sheet) throw new Error("'Users' sheet not found");
