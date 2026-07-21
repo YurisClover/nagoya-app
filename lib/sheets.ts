@@ -72,50 +72,109 @@ export async function updateUserBarcode(
     await row.save();
 }
 
-
-
-// export type MemberCounts = {
-//   totalMembers: number;  // 総会員数
-//   activeMembers: number; // 有効会員数 (status === "active")
+// export type DashboardMetrics = {
+//   totalMembers: number;        // 総会員数
+//   activeMembers: number;       // 有効会員数
+//   monthlyEventsCount: number;  // 今月のイベント数
+//   unreadMessagesCount: number; // 未読メッセージ数
 // };
 
 // /**
-//  * ダッシュボード用：総会員数と有効会員数をまとめて取得する
+//  * ダッシュボード用の全指標をまとめて取得する
 //  */
-// export async function getMemberCounts(): Promise<MemberCounts> {
-//   const sheet = await getUsersSheet();
-//   const rows = await sheet.getRows();
+// export async function getDashboardMetrics(): Promise<DashboardMetrics> {
+//   const sheetId = process.env.GOOGLE_SHEET_ID;
+//   if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
 
-//   let total = 0;
-//   let active = 0;
+//   // スプレッドシートへ接続して全シート情報を1回で読み込む
+//   const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
+//   await doc.loadInfo();
 
-//   for (const row of rows) {
-//     const memberId = row.get("member_id");
-//     const deletedAt = row.get("deleted_at");
+//   // -------------------------------------------------------------
+//   // 1. 会員数のカウント (Users)
+//   // -------------------------------------------------------------
+//   let totalMembers = 0;
+//   let activeMembers = 0;
+//   const usersSheet = doc.sheetsByTitle["Users"];
 
-//     // 会員IDが存在し、退会していないユーザーを対象とする
-//     if (memberId && !deletedAt) {
-//       total++;
+//   if (usersSheet) {
+//     const userRows = await usersSheet.getRows();
+//     for (const row of userRows) {
+//       const memberId = row.get("member_id");
+//       const deletedAt = row.get("deleted_at");
 
-//       // status 列が "active" の場合を有効会員としてカウント
-//       const status = String(row.get("status") ?? "").trim().toLowerCase();
-//       if (status === "active") {
-//         active++;
+//       if (memberId && !deletedAt) {
+//         totalMembers++;
+//         const status = String(row.get("status") ?? "").trim().toLowerCase();
+//         if (status === "active") {
+//           activeMembers++;
+//         }
+//       }
+//     }
+//   }
+
+//   // -------------------------------------------------------------
+//   // 2. 今月のイベント数のカウント (Events)
+//   // -------------------------------------------------------------
+//   let monthlyEventsCount = 0;
+//   const eventsSheet = doc.sheetsByTitle["Events"];
+
+//   if (eventsSheet) {
+//     const eventRows = await eventsSheet.getRows();
+//     const now = new Date();
+//     const currentYear = now.getFullYear();
+//     const currentMonth = now.getMonth(); // 0-indexed
+
+//     for (const row of eventRows) {
+//       const eventDateStr = row.get("event_date");
+//       if (!eventDateStr) continue;
+
+//       const eventDate = new Date(eventDateStr);
+//       // 有効な日付かつ、現在の「年」と「月」が一致するかチェック
+//       if (
+//         !isNaN(eventDate.getTime()) &&
+//         eventDate.getFullYear() === currentYear &&
+//         eventDate.getMonth() === currentMonth
+//       ) {
+//         monthlyEventsCount++;
+//       }
+//     }
+//   }
+
+//   // -------------------------------------------------------------
+//   // 3. 未読メッセージ数のカウント (Messages)
+//   // -------------------------------------------------------------
+//   let unreadMessagesCount = 0;
+//   const messagesSheet = doc.sheetsByTitle["Messages"];
+
+//   if (messagesSheet) {
+//     const messageRows = await messagesSheet.getRows();
+//     for (const row of messageRows) {
+//       const isReadRaw = String(row.get("is_read") ?? "").trim().toLowerCase();
+//       // is_read が "false" または "0" のものを未読としてカウント
+//       if (isReadRaw === "false" || isReadRaw === "0") {
+//         unreadMessagesCount++;
 //       }
 //     }
 //   }
 
 //   return {
-//     totalMembers: total,
-//     activeMembers: active,
+//     totalMembers,
+//     activeMembers,
+//     monthlyEventsCount,
+//     unreadMessagesCount,
 //   };
 // }
-// 📄 lib/sheets.ts の一番下に追加
+
+
 
 export type DashboardMetrics = {
   totalMembers: number;        // 総会員数
+  newMembersThisMonth: number; // 今月追加された会員数 (+○今月)
   activeMembers: number;       // 有効会員数
+  inactiveMembers: number;     // 無効会員数 (無効○名)
   monthlyEventsCount: number;  // 今月のイベント数
+  eventRegistrationsCount: number; // 今月のイベントの出席登録件数
   unreadMessagesCount: number; // 未読メッセージ数
 };
 
@@ -126,15 +185,21 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const sheetId = process.env.GOOGLE_SHEET_ID;
   if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
 
-  // スプレッドシートへ接続して全シート情報を1回で読み込む
   const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
   await doc.loadInfo();
 
-  // -------------------------------------------------------------
-  // 1. 会員数のカウント (Users)
-  // -------------------------------------------------------------
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+
+  
+  // 会員数のカウント (Users)
+  
   let totalMembers = 0;
   let activeMembers = 0;
+  let inactiveMembers = 0;
+  let newMembersThisMonth = 0;
+
   const usersSheet = doc.sheetsByTitle["Users"];
 
   if (usersSheet) {
@@ -145,45 +210,73 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
 
       if (memberId && !deletedAt) {
         totalMembers++;
+
+        // status の判定 (active / inactive)
         const status = String(row.get("status") ?? "").trim().toLowerCase();
         if (status === "active") {
           activeMembers++;
+        } else if (status === "inactive") {
+          inactiveMembers++;
+        }
+
+        // created_at 列から今月の新規追加人数をカウント
+        const createdAtStr = row.get("created_at");
+        if (createdAtStr) {
+          const createdAt = new Date(createdAtStr);
+          if (
+            !isNaN(createdAt.getTime()) &&
+            createdAt.getFullYear() === currentYear &&
+            createdAt.getMonth() === currentMonth
+          ) {
+            newMembersThisMonth++;
+          }
         }
       }
     }
   }
 
-  // -------------------------------------------------------------
-  // 2. 今月のイベント数のカウント (Events)
-  // -------------------------------------------------------------
+  
+  // 今月のイベント数 & 各イベントシートからの出席登録数 (Events & 各イベントシート)
+  
   let monthlyEventsCount = 0;
+  let eventRegistrationsCount = 0;
   const eventsSheet = doc.sheetsByTitle["Events"];
 
   if (eventsSheet) {
     const eventRows = await eventsSheet.getRows();
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth(); // 0-indexed
 
     for (const row of eventRows) {
       const eventDateStr = row.get("event_date");
+      const eventTitle = String(row.get("title") ?? "").trim();
       if (!eventDateStr) continue;
 
       const eventDate = new Date(eventDateStr);
-      // 有効な日付かつ、現在の「年」と「月」が一致するかチェック
+      // 今月のイベントか判定
       if (
         !isNaN(eventDate.getTime()) &&
         eventDate.getFullYear() === currentYear &&
         eventDate.getMonth() === currentMonth
       ) {
         monthlyEventsCount++;
+
+        // イベント名（例: "流しそうめん"）と同名のシートが存在するか確認
+        if (eventTitle && doc.sheetsByTitle[eventTitle]) {
+          try {
+            const attendeeSheet = doc.sheetsByTitle[eventTitle];
+            const attendeeRows = await attendeeSheet.getRows();
+            // 出席登録シートのデータ行数を加算
+            eventRegistrationsCount += attendeeRows.length;
+          } catch (e) {
+            console.error(`シート [${eventTitle}] の取得に失敗しました:`, e);
+          }
+        }
       }
     }
   }
 
-  // -------------------------------------------------------------
-  // 3. 未読メッセージ数のカウント (Messages)
-  // -------------------------------------------------------------
+  
+  // 未読メッセージ数のカウント (Messages)
+  
   let unreadMessagesCount = 0;
   const messagesSheet = doc.sheetsByTitle["Messages"];
 
@@ -191,7 +284,6 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     const messageRows = await messagesSheet.getRows();
     for (const row of messageRows) {
       const isReadRaw = String(row.get("is_read") ?? "").trim().toLowerCase();
-      // is_read が "false" または "0" のものを未読としてカウント
       if (isReadRaw === "false" || isReadRaw === "0") {
         unreadMessagesCount++;
       }
@@ -200,8 +292,11 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
 
   return {
     totalMembers,
+    newMembersThisMonth,
     activeMembers,
+    inactiveMembers,
     monthlyEventsCount,
+    eventRegistrationsCount,
     unreadMessagesCount,
   };
 }
