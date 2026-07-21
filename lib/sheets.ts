@@ -14,7 +14,7 @@ export type SheetUser = {
 };
 
 function getServiceAccountAuth() {
-    const raw = process.env.GOOGLE_CREDENTIALS_BASE64;
+    const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
     if (!raw) throw new Error("GOOGLE_CREDENTIALS_BASE64 is not set");
     const c = JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
     return new JWT({
@@ -73,4 +73,43 @@ export async function updateUserBarcode(
     row.set("barcode_data", barcodeData);
     row.set("updated_at", nowJST()); // toISOString() return UTF (JP is UTF + 9) <- create new function
     await row.save();
+}
+
+
+
+export type MemberCounts = {
+  totalMembers: number;  // 総会員数
+  activeMembers: number; // 有効会員数 (status === "active")
+};
+
+/**
+ * ダッシュボード用：総会員数と有効会員数をまとめて取得する
+ */
+export async function getMemberCounts(): Promise<MemberCounts> {
+  const sheet = await getUsersSheet();
+  const rows = await sheet.getRows();
+
+  let total = 0;
+  let active = 0;
+
+  for (const row of rows) {
+    const memberId = row.get("member_id");
+    const deletedAt = row.get("deleted_at");
+
+    // 会員IDが存在し、退会していないユーザーを対象とする
+    if (memberId && !deletedAt) {
+      total++;
+
+      // status 列が "active" の場合を有効会員としてカウント
+      const status = String(row.get("status") ?? "").trim().toLowerCase();
+      if (status === "active") {
+        active++;
+      }
+    }
+  }
+
+  return {
+    totalMembers: total,
+    activeMembers: active,
+  };
 }
