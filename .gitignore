@@ -54,3 +54,10 @@ serviceAccountKey.json
 
 #firebase Key
 credentials.json
+
+# ignore the configuration file
+config.json*:Zone.Identifier
+config.json
+
+#googledrive
+manegiment-app-2026-310acb72089f.json
