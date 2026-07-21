@@ -1,7 +1,7 @@
 import "server-only";
 import { GoogleSpreadsheet, GoogleSpreadsheetRow } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
-import { getServiceAccountCredentials } from "./google-auth";
+import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST } from "./datetime";
 
 export type SheetUser = {
