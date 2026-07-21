@@ -14,7 +14,7 @@ export type SheetUser = {
   barcode_data: string;
 };
 
-const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheet"];
+const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
 
 function getSheetAuth() {
     const {client_email, private_key} = getServiceAccountCredentials();
