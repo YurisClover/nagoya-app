@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-:root {
+/*:root {
   --bg-color: #f0f4f8;
   --card-bg: #ffffff;
   --card-border: #e2e8f0;
@@ -8,7 +8,7 @@
   --text-sub: #8ca3a6;
   --accent-green: #e8f1dd;
   --btn-color: #1b3a5c;
-}
+}*/
 
 /* 💡 body の代わりに .attendance-wrapper にするだけ */
 .attendance-wrapper { 
@@ -25,7 +25,7 @@
   width: 100%;
 }
 
-h2 {
+s1 {
   font-size: 22px; 
   font-weight: 700;
   color: var(--text-main);
@@ -34,7 +34,7 @@ h2 {
   position: relative;
 }
 
-h2::after {
+s2 {
   content: '';
   position: absolute;
   bottom: -8px;

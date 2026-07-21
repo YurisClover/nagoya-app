@@ -1,7 +1,7 @@
 // app/event-attendance/layout.tsx
 
 import type { Metadata } from "next";
-import "./globals.css"; // CSSはそのまま読み込む
+import ".././globals.css"; // CSSはそのまま読み込む
 
 export const metadata: Metadata = {
   title: "イベント案内一覧",

@@ -3,6 +3,13 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --bg-color: #f0f4f8;
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --text-main: #1b3a5c;
+  --text-sub: #8ca3a6;
+  --accent-green: #e8f1dd;
+  --btn-color: #1b3a5c;
 }
 
 @theme inline {
@@ -23,4 +30,138 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* 💡 body の代わりに .attendance-wrapper にするだけ */
+.attendance-wrapper { 
+  background: var(--bg-color);
+  color: var(--text-main);
+  padding: 30px 16px; 
+  box-sizing: border-box;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+h2 {
+  font-size: 22px; 
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 30px;
+  letter-spacing: 1.5px;
+  position: relative;
+}
+
+h2::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 35px;
+  height: 3px;
+  background: var(--text-main);
+  border-radius: 2px;
+}
+
+/* 💡 スマホサイズ（縦1列）に固定するコンテナ */
+.event-grid { 
+  display: flex;
+  flex-direction: column;
+  gap: 20px; 
+  width: 100%;
+  max-width: 420px; 
+  margin: 0 auto;
+}
+
+.event-card { 
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 20px; 
+  box-shadow: 0 8px 24px rgba(27, 58, 92, 0.04); 
+  padding: 30px 24px; 
+  box-sizing: border-box; 
+  text-align: center; 
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.event-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(27, 58, 92, 0.08);
+}
+
+.event-title { 
+  font-size: 19px; 
+  font-weight: 700; 
+  margin-top: 0; 
+  margin-bottom: 12px; 
+  color: var(--text-main); 
+  line-height: 1.4;
+}
+
+.event-date-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-green);
+  padding: 6px 16px;
+  border-radius: 30px;
+  margin-bottom: 24px; 
+  align-self: center;
+}
+
+.event-date { 
+  font-size: 13px; 
+  color: var(--text-main); 
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.form-btn { 
+  background: var(--btn-color); 
+  color: #ffffff; 
+  text-decoration: none; 
+  font-weight: 700; 
+  font-size: 15px;
+  padding: 14px; 
+  border-radius: 12px; 
+  transition: all 0.2s ease; 
+  box-shadow: 0 4px 12px rgba(27, 58, 92, 0.12);
+  letter-spacing: 0.5px;
+  display: block;
+  margin-top: auto;
+}
+
+.form-btn:hover {
+  background: #244d7a;
+}
+
+.form-btn:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+.disabled-btn {
+  background: #e2e8f0; 
+  color: var(--text-sub); 
+  box-shadow: none; 
+  pointer-events: none;
+}
+
+.no-events, .error-msg {
+  text-align: center;
+  color: var(--text-sub);
+  font-weight: 500;
+  font-size: 14px;
+}
+.error-msg {
+  color: #d9383a;
 }
