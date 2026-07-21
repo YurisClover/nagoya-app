@@ -34,7 +34,7 @@ export async function getEventsData(userName?: string) {
   await doc.loadInfo();
   
   const eventRows = await doc.sheetsByTitle['Events'].getRows();
-  const today = new Date('2026-07-17');
+  const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   // イベントごとのデータ処理
