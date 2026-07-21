@@ -1,10 +1,14 @@
-import { getMemberCounts } from "@/lib/sheets";
+import { getDashboardMetrics } from "@/lib/sheets";
 
 export const revalidate = 0; // リアルタイム取得
 
 export default async function Metrics() {
-  // 総会員数と有効会員数を一括取得
-  const { totalMembers, activeMembers } = await getMemberCounts();
+  const {
+    totalMembers,
+    activeMembers,
+    monthlyEventsCount,
+    unreadMessagesCount,
+  } = await getDashboardMetrics();
 
   return (
     <div className="flex gap-6">
@@ -21,7 +25,12 @@ export default async function Metrics() {
   <p>
     今月のイベント
     <br />
-    {} 
+    {monthlyEventsCount} 
+  </p>
+  <p>
+    未読メッセージ
+    <br />
+    {unreadMessagesCount} 
   </p>
 </div>
   );
