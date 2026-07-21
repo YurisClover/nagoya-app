@@ -23,7 +23,7 @@ async function checkParticipation(sheet: GoogleSpreadsheetWorksheet, userName: s
 }
 
 export async function getEventsData(userName?: string) {
-  const creds = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64!, 'base64').toString());
+  const creds = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY!, 'base64').toString());
   const serviceAccountAuth = new JWT({
     email: creds.client_email,
     key: creds.private_key,
