@@ -3,13 +3,14 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  --bg-color: #f0f4f8;
+  /*--bg-color: #f0f4f8;
   --card-bg: #ffffff;
   --card-border: #e2e8f0;
   --text-main: #1b3a5c;
   --text-sub: #8ca3a6;
   --accent-green: #e8f1dd;
   --btn-color: #1b3a5c;
+  */
 }
 
 @theme inline {
