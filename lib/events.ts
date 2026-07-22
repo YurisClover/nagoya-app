@@ -3,12 +3,19 @@ import { JWT } from "google-auth-library";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 
-// 1. 日付文字列を Date オブジェクトに変換するヘルパー
+// 1. 日付文字列からDate オブジェクトに変換するヘルパー
 const parseDate = (dateStr: string): Date => {
-  const match = dateStr.match(/^(\d+)\/(\d+)/);
-  return match 
-    ? new Date(2026, parseInt(match[1]) - 1, parseInt(match[2])) 
-    : new Date(0);
+  if (!dateStr) return new Date(0);
+
+  // 先頭の "YYYY/MM/DD" (または "YYYY-MM-DD") 部分を抽出する
+  const match = dateStr.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+  if (!match) return new Date(0);
+
+  const year = parseInt(match[1]);
+  const month = parseInt(match[2]) - 1;
+  const day = parseInt(match[3]);
+
+  return new Date(year, month, day);
 };
 
 // 2. ユーザーが回答済みかチェックするヘルパー
