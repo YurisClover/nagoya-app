@@ -43,9 +43,6 @@ next-env.d.ts
 # ignore the configuration file
 config.json
 
-# node keyfileds
-credentials.json
-
 #firebase
 firebase-messaging-sw.js
 
