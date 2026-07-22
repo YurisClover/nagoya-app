@@ -1,8 +1,12 @@
-import { getDashboardMetrics } from "@/lib/sheets";
+import { DashboardMetrics } from "@/lib/sheets";
 
-export const revalidate = 0; // リアルタイム取得
+// Props の型定義
+type MetricsProps = {
+  data: DashboardMetrics;
+};
 
-export default async function Metrics() {
+// 💡 async を外し、Props から { data } を受け取る
+export default function Metrics({ data }: MetricsProps) {
   const {
     totalMembers,
     newMembersThisMonth,
@@ -11,7 +15,7 @@ export default async function Metrics() {
     monthlyEventsCount,
     eventRegistrationsCount,
     unreadMessagesCount,
-  } = await getDashboardMetrics();
+  } = data; // 💡 受け取った data から展開
 
   return (
     <div className="flex gap-4 flex-wrap">
