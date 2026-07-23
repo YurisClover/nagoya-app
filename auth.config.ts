@@ -23,7 +23,7 @@ export default {
       const { pathname } = nextUrl;
 
       if (pathname.startsWith("/login")) {
-        if (isLoggedIn) return Response.redirect(new URL("/dashboard", nextUrl));
+        if (isLoggedIn) return Response.redirect(new URL("/", nextUrl));
         return true;
       }
       if (!isLoggedIn) return false; // → NextAuth will redirect to /login
