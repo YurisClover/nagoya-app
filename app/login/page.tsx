@@ -29,7 +29,7 @@ export default function LoginPage() {
       setError("メールアドレスまたはパスワードが正しくありません");
       return;
     }
-    router.push("/dashboard");
+    router.push("/");
     router.refresh(); // Refresh the page to update the session state
   }
 
