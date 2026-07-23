@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getUserByEmail } from "@/lib/sheets";
 import BarcodeUploader from "./BarcodeUploader";
+import AppShell from "@/components/AppShell";
 
 export default async function BarcodePage() {
     const session = await auth();
@@ -12,7 +13,7 @@ export default async function BarcodePage() {
     const src = raw ? (raw.startsWith("data:") ? raw: `data:image/png;base64,${raw}`) : "";
     
     return (
-        <main style={{ maxWidth: 360, margin: "40px auto", padding: 24, textAlign: "center"}}>
+        <AppShell>
             <p style= {{ fontSize: 13 }}>{user?.user_name} 会員番号: {user?.member_id}</p>
 
             {src ? (
@@ -26,6 +27,6 @@ export default async function BarcodePage() {
             <p style={{ fontSize: 11, color: "#c0392b", marginTop: 24}}>
                 ※ バーコードは会員本人のみご使用ください。他者への貸与は禁止です。
             </p>
-        </main>
+        </AppShell>
     );
 }
