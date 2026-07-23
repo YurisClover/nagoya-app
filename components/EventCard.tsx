@@ -1,29 +1,27 @@
-"use client"; // まだ使いますが、中身はシンプルになります
+"use client";
+
+import type { EventWithStatus } from "@/types/event";
 
 interface EventCardProps {
-  event: {
-    id: number | null;
-    title: string;
-    event_date: string;
-    form_url: string;
-    is_answered: boolean; // サーバーからの値を確実に受け取る
-  };
+  event: EventWithStatus; // true=回答済み / false=未回答 / null=確認できず
 }
 
 export default function EventCard({ event }: EventCardProps) {
-
   const hasLink = event.form_url && event.form_url !== "#";
-  
+
   return (
     <div className="event-card">
       <div>
         <div className="event-title">{event.title}</div>
         <div className="event-date-box">
           <p className="event-date">{event.event_date}</p>
-          
+
           {/* サーバーからの正確な情報で判定 */}
-          {event.is_answered && (
+          {event.is_answered === true && (
             <span style={{ color: 'green', fontWeight: 'bold' }}>✅ 回答済み</span>
+          )}
+          {event.is_answered === null && (
+            <span style={{ color: '#888' }}>― 回答状況を確認できません</span>
           )}
         </div>
       </div>

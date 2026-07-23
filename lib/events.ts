@@ -1,76 +1,118 @@
-import { GoogleSpreadsheet, GoogleSpreadsheetWorksheet } from "google-spreadsheet";
+import "server-only";
+import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
+import { getServiceAccountCredentials } from "@/lib/google-auth";
+import type { EventWithStatus } from "@/types/event";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || "";
+const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
+const PARTICIPANT_MEMBER_ID_COLUMN = "会員IDをご記入ください。";
+const TTL_MS = 60_000;
 
-// 1. 日付文字列からDate オブジェクトに変換するヘルパー
-const parseDate = (dateStr: string): Date => {
-  if (!dateStr) return new Date(0);
-
-  // 先頭の "YYYY/MM/DD" (または "YYYY-MM-DD") 部分を抽出する
-  const match = dateStr.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
-  if (!match) return new Date(0);
-
-  const year = parseInt(match[1]);
-  const month = parseInt(match[2]) - 1;
-  const day = parseInt(match[3]);
-
-  return new Date(year, month, day);
+type EventItem = Omit<EventWithStatus, "is_answered">;
+type Snapshot = {
+  events: EventItem[];
+  // title → Set member_id that answered | null = can't read sheet | no key = no sheet
+  answers: Map<string, Set<string> | null>;
 };
 
-// 2. ユーザーが回答済みかチェックするヘルパー
-async function checkParticipation(sheet: GoogleSpreadsheetWorksheet, userName: string): Promise<boolean> {
-  try {
-    const rows = await sheet.getRows();
-    const targetName = userName.trim();
-    return rows.some(row => (row.get('参加者の名前をご記入ください。') || '').trim() === targetName);
-  } catch (e) {
-    return false;
-  }
+let cached: { data: Snapshot; expires: number } | null = null;
+let inflight: Promise<Snapshot> | null = null;
+
+function parseEventDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const timeMatch = dateStr.match(/(\d{1,2}):(\d{2})/);
+  const hour = timeMatch ? parseInt(timeMatch[1], 10) : 0;
+  const minute = timeMatch ? parseInt(timeMatch[2], 10) : 0;
+  const withYear = dateStr.match(/(20\d{2})\/(\d{1,2})\/(\d{1,2})/);
+  if (withYear) return new Date(+withYear[1], +withYear[2] - 1, +withYear[3], hour, minute);
+  const md = dateStr.match(/(\d{1,2})\/(\d{1,2})/);
+  if (!md) return null;
+  const month = +md[1] - 1, day = +md[2];
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let d = new Date(now.getFullYear(), month, day, hour, minute);
+  if (d < today) d = new Date(now.getFullYear() + 1, month, day, hour, minute);
+  return d;
 }
 
-export async function getEventsData(userName?: string) {
-  const creds = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY!, 'base64').toString());
-  const serviceAccountAuth = new JWT({
-    email: creds.client_email,
-    key: creds.private_key,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
+/** read Sheet — call once per TTL then share to all user */
+async function loadSnapshot(): Promise<Snapshot> {
+  const { client_email, private_key } = getServiceAccountCredentials();
+  const auth = new JWT({ email: client_email, key: private_key, scopes: SHEETS_SCOPE });
+  const doc = new GoogleSpreadsheet(SPREADSHEET_ID, auth);
 
-  const doc = new GoogleSpreadsheet(SPREADSHEET_ID, serviceAccountAuth);
-  await doc.loadInfo();
-  
-  const eventRows = await doc.sheetsByTitle['Events'].getRows();
+  await doc.loadInfo(); // read 1
+  const eventRows = await doc.sheetsByTitle["Events"].getRows(); // read 2
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // イベントごとのデータ処理
-  const events = await Promise.all(eventRows.map(async (row, index) => {
-    const title = row.get('title') || 'タイトル未設定';
-    const dateStr = row.get('event_date') || "";
-    
-    // 回答状況の判定
-    let is_answered = false;
-    if (userName) {
-      const participantSheet = doc.sheetsByTitle[title];
-      if (participantSheet) {
-        is_answered = await checkParticipation(participantSheet, userName);
-      }
-    }
-
-    return {
+  const upcoming = eventRows
+    .map((row, index) => ({
       id: index,
-      title,
-      event_date: dateStr,
-      form_url: row.get('form_url') || '#',
-      _dateObj: parseDate(dateStr),
-      is_answered,
-    };
-  }));
+      title: (row.get("title") || "タイトル未設定") as string,
+      event_date: (row.get("event_date") || "") as string,
+      form_url: (row.get("form_url") || "#") as string,
+      _dateObj: parseEventDate(row.get("event_date") || ""),
+    }))
+    .filter((e): e is typeof e & { _dateObj: Date } => e._dateObj !== null && e._dateObj >= today)
+    .sort((a, b) => a._dateObj.getTime() - b._dateObj.getTime());
 
-  // フィルタリングと並び替え
-  return events
-    .filter(event => event._dateObj >= today)
-    .sort((a, b) => a._dateObj.getTime() - b._dateObj.getTime())
-    .map(({ _dateObj, ...rest }) => rest);
+  // read all event sheet once → store as set (member_id) (all user)
+  const answers = new Map<string, Set<string> | null>();
+  await Promise.all(
+    upcoming.map(async (e) => {
+      const sheet = doc.sheetsByTitle[e.title];
+      if (!sheet) return; // no sheet → no one answer
+      try {
+        const rows = await sheet.getRows(); // read 3..N
+        const ids = new Set(
+          rows.map((r) => String(r.get(PARTICIPANT_MEMBER_ID_COLUMN) || "").trim()).filter(Boolean)
+        );
+        answers.set(e.title, ids);
+      } catch {
+        answers.set(e.title, null); // can't read → unknown status
+      }
+    })
+  );
+
+  return { events: upcoming.map(({ _dateObj, ...rest }) => rest), answers };
+}
+
+/** cache + single-flight */
+async function getSnapshot(): Promise<Snapshot> {
+  if (cached && cached.expires > Date.now()) return cached.data;
+  if (inflight) return inflight;
+  inflight = loadSnapshot()
+    .then((data) => {
+      cached = { data, expires: Date.now() + TTL_MS };
+      return data;
+    })
+    .finally(() => {
+      inflight = null;
+    });
+  return inflight;
+}
+
+/** build result user — compare member_id in memory (0 API call) */
+function buildResult(snap: Snapshot, memberId?: string): EventWithStatus[] {
+  const target = memberId ? String(memberId).trim() : "";
+  return snap.events.map((e) => {
+    let is_answered: boolean | null = false;
+    if (target) {
+      const ids = snap.answers.get(e.title);
+      is_answered = ids === null ? null : (ids?.has(target) ?? false);
+    }
+    return { ...e, is_answered };
+  });
+}
+
+export async function getEventsData(memberId?: string): Promise<EventWithStatus[]> {
+  try {
+    return buildResult(await getSnapshot(), memberId);
+  } catch (error) {
+    if (cached) return buildResult(cached.data, memberId); // Sheet failed/429 → use past one
+    throw error;
+  }
 }
