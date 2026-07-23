@@ -164,3 +164,94 @@ body {
 .error-msg {
   color: #d9383a;
 }
+
+/* ══════════════════════════════════════════════════════════
+   DESIGN TOKENS
+   ══════════════════════════════════════════════════════════ */
+@theme {
+  /* brand color */
+  --color-brand: #1a3a5c;
+  --color-brand-light: #244d7a;
+  --color-danger: #e24b4a;
+
+  /* surface / outline / font-color */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f7f9;
+  --color-line: #e3e5e8;
+  --color-ink: #1c1e21;
+  --color-ink-muted: #6b7280;
+
+  /* menu icon tone */
+  --color-tone-blue: #e6f1fb;   --color-tone-blue-ink: #185fa5;
+  --color-tone-green: #eaf3de;  --color-tone-green-ink: #3b6d11;
+  --color-tone-amber: #faeeda;  --color-tone-amber-ink: #854f0b;
+  --color-tone-teal: #e1f5ee;   --color-tone-teal-ink: #0f6e56;
+  --color-tone-purple: #eeedfe; --color-tone-purple-ink: #534ab7;
+  --color-tone-copper: #faece7; --color-tone-copper-ink: #993c1d;
+  --color-tone-navy: #d6e8f7;   --color-tone-navy-ink: #1a3a5c;
+  --color-tone-gray: #e8e8ea;   --color-tone-gray-ink: #44444a;
+
+  /* radius */
+  --radius-card: 12px;
+  --radius-control: 8px;
+}
+
+.theme-body {
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+}
+
+/* ══════════════════════════════════════════════════════════
+   COMPONENT CLASSES
+   ex) <button className="btn btn-primary">
+   ══════════════════════════════════════════════════════════ */
+@layer components {
+
+  /* ── mainframe ── */
+  .app-frame   { @apply mx-auto min-h-screen w-full max-w-5xl bg-surface shadow-sm; }
+  .app-header  { @apply flex items-center justify-between bg-brand px-4 py-3 text-white; }
+  .app-main    { @apply p-3 sm:p-5 lg:p-6; }
+
+  /* ── nav-tab ── */
+  .app-nav     { @apply flex overflow-x-auto border-b border-line bg-surface-muted; }
+  .nav-tab     { @apply flex min-w-[52px] flex-1 flex-col items-center gap-[2px] whitespace-nowrap border-b-2 border-transparent px-1 py-2 text-[9px] text-ink-muted transition hover:text-ink sm:text-[11px]; }
+  .nav-tab-on  { @apply border-brand font-medium text-brand; }
+
+  /* ── card ── */
+  .card          { @apply rounded-card border border-line bg-surface p-3 sm:p-4; }
+  .card-tap      { @apply rounded-card border border-line bg-surface p-3 transition hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand sm:p-4; }
+  .card-disabled { @apply relative rounded-card border border-line bg-surface-muted p-3 opacity-60 sm:p-4; }
+  .card-brand    { @apply rounded-card bg-brand p-4 text-white sm:p-6; }
+
+  /* ── menu card square icon ── */
+  .icon-tile { @apply mb-2 flex h-9 w-9 items-center justify-center rounded-lg sm:h-11 sm:w-11; }
+  .tone-blue   { @apply bg-tone-blue text-tone-blue-ink; }
+  .tone-green  { @apply bg-tone-green text-tone-green-ink; }
+  .tone-amber  { @apply bg-tone-amber text-tone-amber-ink; }
+  .tone-teal   { @apply bg-tone-teal text-tone-teal-ink; }
+  .tone-purple { @apply bg-tone-purple text-tone-purple-ink; }
+  .tone-copper { @apply bg-tone-copper text-tone-copper-ink; }
+  .tone-navy   { @apply bg-tone-navy text-tone-navy-ink; }
+  .tone-gray   { @apply bg-tone-gray text-tone-gray-ink; }
+
+  /* ── button ── */
+  .btn           { @apply inline-flex items-center justify-center gap-1.5 rounded-control px-4 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary   { @apply bg-brand text-white hover:bg-brand-light; }
+  .btn-secondary { @apply border border-line bg-surface-muted text-ink hover:bg-line; }
+  .btn-ghost     { @apply text-white/90 hover:bg-white/15; }
+  .btn-block     { @apply w-full; }
+
+  /* ── badge ── */
+  .badge       { @apply rounded-full bg-danger px-[6px] py-[1px] text-[9px] font-medium text-white; }
+  .badge-muted { @apply rounded-full bg-line px-[6px] py-[1px] text-[9px] font-medium text-ink-muted; }
+  .chip        { @apply inline-block rounded-full bg-white/20 px-3 py-1 text-[11px] sm:text-sm; }
+
+  /* ── text ── */
+  .section-title { @apply mb-2 text-xs font-medium text-ink sm:text-sm; }
+  .text-meta     { @apply text-[11px] text-ink-muted sm:text-xs; }
+
+  /* ── form ── */
+  .field-label { @apply mb-1 block text-xs font-medium text-ink-muted; }
+  .field-input { @apply w-full rounded-control border border-line bg-surface px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-1 focus:ring-brand; }
+  .field-error { @apply mt-2 text-xs text-danger; }
+}

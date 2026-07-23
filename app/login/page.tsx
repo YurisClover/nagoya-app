@@ -29,53 +29,52 @@ export default function LoginPage() {
       setError("メールアドレスまたはパスワードが正しくありません");
       return;
     }
-    router.push("/dashboard");
+    router.push("/");
     router.refresh(); // Refresh the page to update the session state
   }
 
   return (
-    <main style={{ maxWidth: 360, margin: "60px auto", padding: 24 }}>
-      <h1 style={{ fontSize: 20, marginBottom: 24 }}>名古屋中支部</h1>
+    // flex center
+    <main className="theme-body flex min-h-screen items-center justify-center p-4">
+      <div className="card w-full max-w-sm shadow-md">
+        <h1 className="text-center font-medium text-brand">名古屋中支部</h1>
 
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="email" style={{ display: "block", fontSize: 12 }}>
-          メールアドレス
-        </label>
-        <input
-          id="email"
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ width: "100%", padding: 8, margin: "4px 0 16px" }}
-        />
+        <form onSubmit={handleSubmit}>
+          <label htmlFor="email" className="field-label">
+            メールアドレス
+          </label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="field-input mb-4"
+          />
 
-        <label htmlFor="password" style={{ display: "block", fontSize: 12 }}>
-          パスワード
-        </label>
-        <input
-          id="password"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ width: "100%", padding: 8, margin: "4px 0 16px" }}
-        />
+          <label htmlFor="password" className="field-label">
+            パスワード
+          </label>
+          <input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="field-input"
+          />
 
-        {error && <p style={{ color: "crimson", fontSize: 13 }}>{error}</p>}
+          {error && <p className="field-error">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{ width: "100%", padding: 10, marginTop: 8 }}
-        >
-          {loading ? "..." : "ログイン"}
-        </button>
-      </form>
+          <button type="submit" disabled={loading} className="btn btn-primary btn-block mt-6">
+            {loading ? "..." : "ログイン"}
+          </button>
+        </form>
 
-      <p style={{ fontSize: 11, color: "#666", marginTop: 16 }}>
-        パスワードを忘れた場合は、管理者（事務局）にご連絡ください。
-      </p>
+        <p className="text-meta mt-4">
+          パスワードを忘れた場合は、管理者（事務局）にご連絡ください。
+        </p>
+      </div>
     </main>
   );
 }
