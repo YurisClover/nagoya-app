@@ -11,7 +11,10 @@ export default {
       return token;
     },
     session({ session, token }) {
-      if (session.user) session.user.role = token.role as string | undefined; // token → session
+      if (session.user) {
+        session.user.role = token.role as string | undefined; // token → session
+        if (token.sub) session.user.id = token.sub; // token.sub = member_id
+      }
       return session;
     },
     // authorized proxy for every request that matches the matcher
