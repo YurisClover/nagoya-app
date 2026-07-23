@@ -3,6 +3,7 @@ import { GoogleSpreadsheet, GoogleSpreadsheetRow } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST } from "./datetime";
+import { unstable_cache } from "next/cache";
 
 export type SheetUser = {
   member_id: string;
@@ -72,231 +73,250 @@ export async function updateUserBarcode(
     await row.save();
 }
 
-// export type DashboardMetrics = {
-//   totalMembers: number;        // 総会員数
-//   activeMembers: number;       // 有効会員数
-//   monthlyEventsCount: number;  // 今月のイベント数
-//   unreadMessagesCount: number; // 未読メッセージ数
-// };
-
-// /**
-//  * ダッシュボード用の全指標をまとめて取得する
-//  */
-// export async function getDashboardMetrics(): Promise<DashboardMetrics> {
-//   const sheetId = process.env.GOOGLE_SHEET_ID;
-//   if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
-
-//   // スプレッドシートへ接続して全シート情報を1回で読み込む
-//   const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
-//   await doc.loadInfo();
-
-//   // -------------------------------------------------------------
-//   // 1. 会員数のカウント (Users)
-//   // -------------------------------------------------------------
-//   let totalMembers = 0;
-//   let activeMembers = 0;
-//   const usersSheet = doc.sheetsByTitle["Users"];
-
-//   if (usersSheet) {
-//     const userRows = await usersSheet.getRows();
-//     for (const row of userRows) {
-//       const memberId = row.get("member_id");
-//       const deletedAt = row.get("deleted_at");
-
-//       if (memberId && !deletedAt) {
-//         totalMembers++;
-//         const status = String(row.get("status") ?? "").trim().toLowerCase();
-//         if (status === "active") {
-//           activeMembers++;
-//         }
-//       }
-//     }
-//   }
-
-//   // -------------------------------------------------------------
-//   // 2. 今月のイベント数のカウント (Events)
-//   // -------------------------------------------------------------
-//   let monthlyEventsCount = 0;
-//   const eventsSheet = doc.sheetsByTitle["Events"];
-
-//   if (eventsSheet) {
-//     const eventRows = await eventsSheet.getRows();
-//     const now = new Date();
-//     const currentYear = now.getFullYear();
-//     const currentMonth = now.getMonth(); // 0-indexed
-
-//     for (const row of eventRows) {
-//       const eventDateStr = row.get("event_date");
-//       if (!eventDateStr) continue;
-
-//       const eventDate = new Date(eventDateStr);
-//       // 有効な日付かつ、現在の「年」と「月」が一致するかチェック
-//       if (
-//         !isNaN(eventDate.getTime()) &&
-//         eventDate.getFullYear() === currentYear &&
-//         eventDate.getMonth() === currentMonth
-//       ) {
-//         monthlyEventsCount++;
-//       }
-//     }
-//   }
-
-//   // -------------------------------------------------------------
-//   // 3. 未読メッセージ数のカウント (Messages)
-//   // -------------------------------------------------------------
-//   let unreadMessagesCount = 0;
-//   const messagesSheet = doc.sheetsByTitle["Messages"];
-
-//   if (messagesSheet) {
-//     const messageRows = await messagesSheet.getRows();
-//     for (const row of messageRows) {
-//       const isReadRaw = String(row.get("is_read") ?? "").trim().toLowerCase();
-//       // is_read が "false" または "0" のものを未読としてカウント
-//       if (isReadRaw === "false" || isReadRaw === "0") {
-//         unreadMessagesCount++;
-//       }
-//     }
-//   }
-
-//   return {
-//     totalMembers,
-//     activeMembers,
-//     monthlyEventsCount,
-//     unreadMessagesCount,
-//   };
-// }
-
-
-
 export type DashboardMetrics = {
-  totalMembers: number;        // 総会員数
-  newMembersThisMonth: number; // 今月追加された会員数 (+○今月)
-  activeMembers: number;       // 有効会員数
-  inactiveMembers: number;     // 無効会員数 (無効○名)
-  monthlyEventsCount: number;  // 今月のイベント数
-  eventRegistrationsCount: number; // 今月のイベントの出席登録件数
-  unreadMessagesCount: number; // 未読メッセージ数
+  totalMembers: number;
+  newMembersThisMonth: number;
+  activeMembers: number;
+  inactiveMembers: number;
+  monthlyEventsCount: number;
+  eventRegistrationsCount: number;
+  unreadMessagesCount: number;
 };
 
-/**
- * ダッシュボード用の全指標をまとめて取得する
- */
-export async function getDashboardMetrics(): Promise<DashboardMetrics> {
-  const sheetId = process.env.GOOGLE_SHEET_ID;
-  if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
+export type ActivityItem = {
+  id: string;
+  description: string;
+  timestamp: string;
+  type: string;
+};
 
-  const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
-  await doc.loadInfo();
+export type EventAttendanceItem = {
+  eventId: string;
+  title: string;
+  eventDate: string;
+  registrationCount: number;
+  formUrl: string;
+};
 
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
+// 1. ダッシュボード指標の取得（1分間キャッシュ ＆ 既存の getSheetAuth を利用）
+export const getDashboardMetrics = unstable_cache(
+  async (): Promise<DashboardMetrics> => {
+    const sheetId = process.env.GOOGLE_SHEET_ID;
+    if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
 
-  
-  // 会員数のカウント (Users)
-  
-  let totalMembers = 0;
-  let activeMembers = 0;
-  let inactiveMembers = 0;
-  let newMembersThisMonth = 0;
+    const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
+    await doc.loadInfo();
 
-  const usersSheet = doc.sheetsByTitle["Users"];
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
 
-  if (usersSheet) {
-    const userRows = await usersSheet.getRows();
-    for (const row of userRows) {
-      const memberId = row.get("member_id");
-      const deletedAt = row.get("deleted_at");
+    // 1. ユーザー情報の集計 Promise
+    const usersSheet = doc.sheetsByTitle["Users"];
+    const usersPromise = usersSheet
+      ? usersSheet.getRows().then((rows) => {
+          let total = 0;
+          let active = 0;
+          let inactive = 0;
+          let newThisMonth = 0;
 
-      if (memberId && !deletedAt) {
-        totalMembers++;
+          for (const row of rows) {
+            const memberId = row.get("member_id");
+            const deletedAt = row.get("deleted_at");
 
-        // status の判定 (active / inactive)
-        const status = String(row.get("status") ?? "").trim().toLowerCase();
-        if (status === "active") {
-          activeMembers++;
-        } else if (status === "inactive") {
-          inactiveMembers++;
-        }
+            if (memberId && !deletedAt) {
+              total++;
+              const status = String(row.get("status") ?? "").trim().toLowerCase();
+              if (status === "active") active++;
+              else if (status === "inactive") inactive++;
 
-        // created_at 列から今月の新規追加人数をカウント
-        const createdAtStr = row.get("created_at");
-        if (createdAtStr) {
-          const createdAt = new Date(createdAtStr);
-          if (
-            !isNaN(createdAt.getTime()) &&
-            createdAt.getFullYear() === currentYear &&
-            createdAt.getMonth() === currentMonth
-          ) {
-            newMembersThisMonth++;
+              const createdAtStr = row.get("created_at");
+              if (createdAtStr) {
+                const createdAt = new Date(createdAtStr);
+                if (
+                  !isNaN(createdAt.getTime()) &&
+                  createdAt.getFullYear() === currentYear &&
+                  createdAt.getMonth() === currentMonth
+                ) {
+                  newThisMonth++;
+                }
+              }
+            }
           }
+          return { total, active, inactive, newThisMonth };
+        })
+      : Promise.resolve({ total: 0, active: 0, inactive: 0, newThisMonth: 0 });
+
+    // 2. 未読メッセージ数の集計 Promise
+    const messagesSheet = doc.sheetsByTitle["Messages"];
+    const messagesPromise = messagesSheet
+      ? messagesSheet.getRows().then((rows) => {
+          let unreadCount = 0;
+          for (const row of rows) {
+            const isReadRaw = String(row.get("is_read") ?? "").trim().toLowerCase();
+            if (isReadRaw === "false" || isReadRaw === "0") {
+              unreadCount++;
+            }
+          }
+          return unreadCount;
+        })
+      : Promise.resolve(0);
+
+    // 3. 今月のイベント数・参加者数の集計 Promise
+    const eventsSheet = doc.sheetsByTitle["Events"];
+    const eventsPromise = eventsSheet
+      ? eventsSheet.getRows().then((eventRows) => {
+          const currentMonthEvents = eventRows.filter((row) => {
+            const eventDateStr = row.get("event_date");
+            if (!eventDateStr) return false;
+            const eventDate = new Date(eventDateStr);
+            return (
+              !isNaN(eventDate.getTime()) &&
+              eventDate.getFullYear() === currentYear &&
+              eventDate.getMonth() === currentMonth
+            );
+          });
+
+          const monthlyEventsCount = currentMonthEvents.length;
+          const eventRegistrationsCount = currentMonthEvents.reduce((sum, row) => {
+            const count = parseInt(row.get("registration_count") || "0", 10);
+            return sum + count;
+          }, 0);
+
+          return { monthlyEventsCount, eventRegistrationsCount };
+        })
+      : Promise.resolve({ monthlyEventsCount: 0, eventRegistrationsCount: 0 });
+
+    // ★ 並列実行して各結果を受け取る
+    const [usersData, unreadMessagesCount, eventsData] = await Promise.all([
+      usersPromise,
+      messagesPromise,
+      eventsPromise,
+    ]);
+
+    // ★ まとめて返す
+    return {
+      totalMembers: usersData.total,
+      newMembersThisMonth: usersData.newThisMonth,
+      activeMembers: usersData.active,
+      inactiveMembers: usersData.inactive,
+      monthlyEventsCount: eventsData.monthlyEventsCount,
+      eventRegistrationsCount: eventsData.eventRegistrationsCount,
+      unreadMessagesCount,
+    };
+  },
+  ["dashboard", "metrics", "v1"],
+  { revalidate: 60, tags: ["dashboard-metrics"] }
+);
+
+// 2. 最近のアクティビティ取得（1分間キャッシュ）
+export const getRecentActivities = unstable_cache(
+  async (): Promise<ActivityItem[]> => {
+    const sheetId = process.env.GOOGLE_SHEET_ID;
+    if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
+
+    const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
+    await doc.loadInfo();
+
+    const sheet = doc.sheetsByTitle["Activities"];
+    if (!sheet) return [];
+
+    const fetchedRows = await sheet.getRows();
+
+    // 実際に値（created_at または action または description）が入っている行だけを抽出
+    const validRows = fetchedRows.filter(
+      (row) => row.get("created_at") || row.get("action") || row.get("description")
+    );
+    
+    // 末尾5件を取り出して、新しい順（降順）に並べ替える
+    const recentRows = validRows.slice(-5).reverse();
+
+    const now = new Date();
+    const todayStr = now.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+
+    return recentRows.map((row) => {
+      const rawDateStr = row.get("created_at") || "";
+      let formattedTime = "";
+
+      if (rawDateStr) {
+        const date = new Date(rawDateStr);
+        if (!isNaN(date.getTime())) {
+          const dateStr = date.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+          const hours = date.toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", hour12: false });
+          const minutes = date.toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", minute: "2-digit" });
+
+          if (dateStr === todayStr) {
+            formattedTime = `本日 ${hours}:${minutes}`;
+          } else {
+            const month = date.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric" });
+            const day = date.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", day: "numeric" });
+            formattedTime = `${month}月${day}日`;
         }
       }
     }
-  }
 
-  
-  // 今月のイベント数 & 各イベントシートからの出席登録数 (Events & 各イベントシート)
-  
-  let monthlyEventsCount = 0;
-  let eventRegistrationsCount = 0;
-  const eventsSheet = doc.sheetsByTitle["Events"];
+      return {
+        id: String(row.get("activity_id") ?? Math.random().toString()),
+        description: String(row.get("description") ?? ""),
+        type: String(row.get("type") ?? "default"),
+        timestamp: formattedTime || "直近",
+      };
+    });
+  },
+  ["recent-activities"],
+  { revalidate: 60, tags: ["recent-activities"] }
+);
 
-  if (eventsSheet) {
+// 3. イベント出席状況のリスト取得（1分間キャッシュ）
+export const getEventAttendanceList = unstable_cache(
+  async (): Promise<EventAttendanceItem[]> => {
+    const sheetId = process.env.GOOGLE_SHEET_ID;
+    if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
+
+    const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
+    await doc.loadInfo();
+
+    const eventsSheet = doc.sheetsByTitle["Events"];
+    if (!eventsSheet) return [];
+
     const eventRows = await eventsSheet.getRows();
 
-    for (const row of eventRows) {
-      const eventDateStr = row.get("event_date");
-      const eventTitle = String(row.get("title") ?? "").trim();
-      if (!eventDateStr) continue;
+    // 各イベントのシートを開かずに、Events シートの registration_count をそのまま読む
+    return eventRows.map((row) => {
+      const eventId = String(row.get("event_id") ?? "");
+      const title = String(row.get("title") ?? "").trim();
+      const eventDate = String(row.get("event_date") ?? "");
+      const formUrl = String(row.get("form_url") ?? "");
+      
+      // ★ ここが改善ポイント！個別のタブを開かず、列から直接取得
+      const registrationCount = parseInt(row.get("registration_count") || "0", 10);
 
-      const eventDate = new Date(eventDateStr);
-      // 今月のイベントか判定
-      if (
-        !isNaN(eventDate.getTime()) &&
-        eventDate.getFullYear() === currentYear &&
-        eventDate.getMonth() === currentMonth
-      ) {
-        monthlyEventsCount++;
+      return { eventId, title, eventDate, registrationCount, formUrl };
+    });
+  },
+  ["event-attendance-list"],
+  { revalidate: 60, tags: ["event-attendance-list"] }
+);
 
-        // イベント名（例: "流しそうめん"）と同名のシートが存在するか確認
-        if (eventTitle && doc.sheetsByTitle[eventTitle]) {
-          try {
-            const attendeeSheet = doc.sheetsByTitle[eventTitle];
-            const attendeeRows = await attendeeSheet.getRows();
-            // 出席登録シートのデータ行数を加算
-            eventRegistrationsCount += attendeeRows.length;
-          } catch (e) {
-            console.error(`シート [${eventTitle}] の取得に失敗しました:`, e);
-          }
-        }
-      }
-    }
+// ログ記録（書き込み時は既存の nowJST をそのまま利用）
+export async function logActivity(type: string, description: string): Promise<void> {
+  try {
+    const sheetId = process.env.GOOGLE_SHEET_ID;
+    if (!sheetId) return;
+
+    const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
+    await doc.loadInfo();
+
+    const sheet = doc.sheetsByTitle["Activities"];
+    if (!sheet) return;
+
+    await sheet.addRow({
+      activity_id: `act_${Date.now()}`,
+      type: type,
+      description: description,
+      created_at: nowJST(),
+    });
+  } catch (error) {
+    console.error("アクティビティログの記録に失敗しました:", error);
   }
-
-  
-  // 未読メッセージ数のカウント (Messages)
-  
-  let unreadMessagesCount = 0;
-  const messagesSheet = doc.sheetsByTitle["Messages"];
-
-  if (messagesSheet) {
-    const messageRows = await messagesSheet.getRows();
-    for (const row of messageRows) {
-      const isReadRaw = String(row.get("is_read") ?? "").trim().toLowerCase();
-      if (isReadRaw === "false" || isReadRaw === "0") {
-        unreadMessagesCount++;
-      }
-    }
-  }
-
-  return {
-    totalMembers,
-    newMembersThisMonth,
-    activeMembers,
-    inactiveMembers,
-    monthlyEventsCount,
-    eventRegistrationsCount,
-    unreadMessagesCount,
-  };
 }
