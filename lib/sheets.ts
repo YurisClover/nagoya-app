@@ -320,3 +320,95 @@ export async function logActivity(type: string, description: string): Promise<vo
     console.error("アクティビティログの記録に失敗しました:", error);
   }
 }
+
+//adminのユーザー管理画面の処理
+// ----------------------------------------------------
+// 会員管理（一覧・検索・ページネーション用）
+// ----------------------------------------------------
+
+// 1. 一覧表示用に型を拡張（created_at, deleted_at を含む）
+export type Member = SheetUser & {
+  created_at?: string;
+  deleted_at?: string | null;
+};
+
+// 2. 【全会員データを取得する内部関数】
+// 既存の getUsersSheet() を活用してシートを取得
+async function fetchAllMembersFromSheet(): Promise<Member[]> {
+  try {
+    const sheet = await getUsersSheet(); 
+    const rows = await sheet.getRows();
+
+    return rows.map((row) => ({
+      member_id: String(row.get("member_id") ?? ""),
+      user_name: String(row.get("user_name") ?? ""),
+      password_hash: String(row.get("password_hash") ?? ""),
+      email: String(row.get("email") ?? ""),
+      role: String(row.get("role") ?? "一般会員"),
+      status: String(row.get("status") ?? "有効"),
+      barcode_data: String(row.get("barcode_data") ?? ""),
+      created_at: String(row.get("created_at") ?? ""),
+      deleted_at: row.get("deleted_at") ? String(row.get("deleted_at")) : null,
+    }));
+  } catch (error) {
+    console.error("Failed to fetch members from sheet:", error);
+    return [];
+  }
+}
+
+// 3. 【キャッシュ付き会員一覧取得】
+// 60秒間はGoogle APIを叩かずキャッシュを返す
+export const getCachedMembers = unstable_cache(
+  async () => {
+    return await fetchAllMembersFromSheet();
+  },
+  ["members-list-cache"],
+  {
+    revalidate: 60,
+    tags: ["members"], // 新規登録や更新時に revalidateTag("members") で即時キャッシュ破棄が可能
+  }
+);
+
+// 4. 【サーバー側での検索・絞り込み・ページネーション処理】
+export async function getPaginatedMembers(params: {
+  query: string;
+  role: string;
+  status: string;
+  page: number;
+  limit: number;
+}) {
+  const allMembers = await getCachedMembers();
+
+  // 物理削除 (deleted_at に値が入っているもの) を自動除外
+  const activeMembers = allMembers.filter((m) => !m.deleted_at);
+
+  // 検索窓・フィルター絞り込み
+  const filtered = activeMembers.filter((m) => {
+    const q = params.query.toLowerCase();
+    const matchesSearch =
+      !params.query ||
+      m.user_name.toLowerCase().includes(q) ||
+      m.member_id.toLowerCase().includes(q) ||
+      m.email.toLowerCase().includes(q);
+
+    const matchesRole = params.role === "all" || m.role === params.role;
+    const matchesStatus = params.status === "all" || m.status === params.status;
+
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+
+  // 10件分切り出しとページネーション計算
+  const totalItems = filtered.length;
+  const totalPages = Math.ceil(totalItems / params.limit) || 1;
+  const startIndex = (params.page - 1) * params.limit;
+  const endIndex = Math.min(startIndex + params.limit, totalItems);
+  const items = filtered.slice(startIndex, endIndex);
+
+  return {
+    items,
+    totalItems,
+    totalPages,
+    startIndex: totalItems > 0 ? startIndex + 1 : 0,
+    endIndex,
+  };
+}
