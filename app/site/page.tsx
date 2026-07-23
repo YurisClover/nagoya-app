@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { listNewsletterPdfs } from "@/lib/drive";
 import Pagination from "./pagination";
+import AppShell from "@/components/AppShell";
 
 function SiteLink() {
   return (
@@ -31,12 +32,12 @@ export default async function PdfListPage() {
   }
 
   return (
-    <main className="max-w-4xl mx-auto p-8">
+    <AppShell>
       <SiteLink />
       <h1 className="text-2xl font-bold mb-6 border-b pb-2">📄 配布されたPDF（支部報）一覧</h1>
       {pdfList.length === 0
         ? <p className="text-gray-500">公開されているPDFはありません。</p>
         : <Pagination pdfList={pdfList} />}
-    </main>
+    </AppShell>
   );
 }
