@@ -98,7 +98,7 @@ export type EventAttendanceItem = {
   formUrl: string;
 };
 
-// 1. ダッシュボード指標の取得（1分間キャッシュ ＆ 既存の getSheetAuth を利用）
+// 1. ダッシュボード指標の取得（1分間キャッシュ,既存の getSheetAuth を利用）
 export const getDashboardMetrics = unstable_cache(
   async (): Promise<DashboardMetrics> => {
     const sheetId = process.env.GOOGLE_SHEET_ID;
@@ -111,7 +111,7 @@ export const getDashboardMetrics = unstable_cache(
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
 
-    // 1. ユーザー情報の集計 Promise
+    // 1. ユーザー情報の集計
     const usersSheet = doc.sheetsByTitle["Users"];
     const usersPromise = usersSheet
       ? usersSheet.getRows().then((rows) => {
@@ -147,7 +147,7 @@ export const getDashboardMetrics = unstable_cache(
         })
       : Promise.resolve({ total: 0, active: 0, inactive: 0, newThisMonth: 0 });
 
-    // 2. 未読メッセージ数の集計 Promise
+    // 2. 未読メッセージ数の集計 
     const messagesSheet = doc.sheetsByTitle["Messages"];
     const messagesPromise = messagesSheet
       ? messagesSheet.getRows().then((rows) => {
@@ -162,7 +162,7 @@ export const getDashboardMetrics = unstable_cache(
         })
       : Promise.resolve(0);
 
-    // 3. 今月のイベント数・参加者数の集計 Promise
+    // 3. 今月のイベント数・参加者数の集計 
     const eventsSheet = doc.sheetsByTitle["Events"];
     const eventsPromise = eventsSheet
       ? eventsSheet.getRows().then((eventRows) => {
@@ -187,14 +187,14 @@ export const getDashboardMetrics = unstable_cache(
         })
       : Promise.resolve({ monthlyEventsCount: 0, eventRegistrationsCount: 0 });
 
-    // ★ 並列実行して各結果を受け取る
+    // 並列実行して各結果を受け取る
     const [usersData, unreadMessagesCount, eventsData] = await Promise.all([
       usersPromise,
       messagesPromise,
       eventsPromise,
     ]);
 
-    // ★ まとめて返す
+    // まとめて返す
     return {
       totalMembers: usersData.total,
       newMembersThisMonth: usersData.newThisMonth,
@@ -288,7 +288,7 @@ export const getEventAttendanceList = unstable_cache(
       const eventDate = String(row.get("event_date") ?? "");
       const formUrl = String(row.get("form_url") ?? "");
       
-      // ★ ここが改善ポイント！個別のタブを開かず、列から直接取得
+      // 列から取得
       const registrationCount = parseInt(row.get("registration_count") || "0", 10);
 
       return { eventId, title, eventDate, registrationCount, formUrl };
@@ -298,7 +298,7 @@ export const getEventAttendanceList = unstable_cache(
   { revalidate: 60, tags: ["event-attendance-list"] }
 );
 
-// ログ記録（書き込み時は既存の nowJST をそのまま利用）
+// ログ記録
 export async function logActivity(type: string, description: string): Promise<void> {
   try {
     const sheetId = process.env.GOOGLE_SHEET_ID;
