@@ -5,7 +5,7 @@ import QuickAction from "./quickAction";
 import EventAttendance from "./eventAttendance";
 
 export default async function AdminHomePage() {
-  // 💡 親で3つのデータを同時に並列取得（爆速）
+  // 親で3つのデータを同時に並列取得
   const [metricsData, activityData, eventAttendanceData] = await Promise.all([
     getDashboardMetrics(),
     getRecentActivities(),

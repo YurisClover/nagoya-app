@@ -10,7 +10,7 @@ export default async function AdminLayout({
   const metrics = await getDashboardMetrics();
   const unreadCount = metrics.unreadMessagesCount;
 
-  // 💡 getServerSession の代わりに await auth() を呼び出すだけ！引数(authOptions)も不要です
+  // セッションからユーザーネームを取り出す
   const session = await auth();
 
   return (

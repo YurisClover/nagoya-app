@@ -5,7 +5,7 @@ type MetricsProps = {
   data: DashboardMetrics;
 };
 
-// 💡 async を外し、Props から { data } を受け取る
+// Props から { data } を受け取る
 export default function Metrics({ data }: MetricsProps) {
   const {
     totalMembers,
@@ -15,7 +15,7 @@ export default function Metrics({ data }: MetricsProps) {
     monthlyEventsCount,
     eventRegistrationsCount,
     unreadMessagesCount,
-  } = data; // 💡 受け取った data から展開
+  } = data; // 受け取った data から展開
 
   return (
     <div className="flex gap-4 flex-wrap">
