@@ -4,6 +4,7 @@ import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST } from "./datetime";
 import { unstable_cache } from "next/cache";
+import { revalidateTag } from "next/cache";
 
 export type SheetUser = {
   member_id: string;
@@ -411,4 +412,42 @@ export async function getPaginatedMembers(params: {
     startIndex: totalItems > 0 ? startIndex + 1 : 0,
     endIndex,
   };
+}
+
+// ----------------------------------------------------
+// 新規会員の追加処理
+// ----------------------------------------------------
+export async function addMemberToSheet(newMember: {
+  member_id: string;
+  user_name: string;
+  email: string;
+  password_hash: string;
+  role: string;
+  status: string;
+  created_at: string;
+}) {
+  try {
+    const sheet = await getUsersSheet();
+
+    // スプレッドシートの末尾に1行追加
+    await sheet.addRow({
+      member_id: newMember.member_id,
+      user_name: newMember.user_name,
+      password_hash: newMember.password_hash, // ハッシュ化された文字列を書き込む
+      email: newMember.email,
+      role: newMember.role,
+      status: newMember.status,
+      barcode_data: "",
+      created_at: newMember.created_at,
+      deleted_at: "",
+    });
+
+    // キャッシュを破棄して即時反映
+    revalidateTag("members", "default");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to add member to sheet:", error);
+    return { success: false, error: "スプレッドシートの更新に失敗しました。" };
+  }
 }
