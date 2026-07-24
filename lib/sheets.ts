@@ -2,7 +2,7 @@ import "server-only";
 import { GoogleSpreadsheet, GoogleSpreadsheetRow } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
-import { nowJST } from "./datetime";
+import { nowJST, parseSheetDate, jstYearMonth } from "./datetime";
 import { unstable_cache } from "next/cache";
 
 export type SheetUser = {
@@ -107,9 +107,7 @@ export const getDashboardMetrics = unstable_cache(
     const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
     await doc.loadInfo();
 
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
+    const currentMonthKey = jstYearMonth(new Date()); // "YYYY-MM" ตามเวลาญี่ปุ่น
 
     // 1. ユーザー情報の集計
     const usersSheet = doc.sheetsByTitle["Users"];
@@ -132,12 +130,8 @@ export const getDashboardMetrics = unstable_cache(
 
               const createdAtStr = row.get("created_at");
               if (createdAtStr) {
-                const createdAt = new Date(createdAtStr);
-                if (
-                  !isNaN(createdAt.getTime()) &&
-                  createdAt.getFullYear() === currentYear &&
-                  createdAt.getMonth() === currentMonth
-                ) {
+                const createdAt = parseSheetDate(createdAtStr, { yearHint: "past" });
+                if (createdAt && jstYearMonth(createdAt) === currentMonthKey) {
                   newThisMonth++;
                 }
               }
@@ -169,12 +163,8 @@ export const getDashboardMetrics = unstable_cache(
           const currentMonthEvents = eventRows.filter((row) => {
             const eventDateStr = row.get("event_date");
             if (!eventDateStr) return false;
-            const eventDate = new Date(eventDateStr);
-            return (
-              !isNaN(eventDate.getTime()) &&
-              eventDate.getFullYear() === currentYear &&
-              eventDate.getMonth() === currentMonth
-            );
+            const eventDate = parseSheetDate(eventDateStr, { yearHint: "current" });
+            return eventDate !== null && jstYearMonth(eventDate) === currentMonthKey;
           });
 
           const monthlyEventsCount = currentMonthEvents.length;
@@ -239,8 +229,8 @@ export const getRecentActivities = unstable_cache(
       let formattedTime = "";
 
       if (rawDateStr) {
-        const date = new Date(rawDateStr);
-        if (!isNaN(date.getTime())) {
+        const date = parseSheetDate(rawDateStr, { yearHint: "past" });
+        if (date) {
           const dateStr = date.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
           const hours = date.toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", hour12: false });
           const minutes = date.toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", minute: "2-digit" });
