@@ -3,6 +3,7 @@ import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import type { EventWithStatus } from "@/types/event";
+import { parseSheetDate } from "./datetime";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
@@ -18,23 +19,6 @@ type Snapshot = {
 
 let cached: { data: Snapshot; expires: number } | null = null;
 let inflight: Promise<Snapshot> | null = null;
-
-function parseEventDate(dateStr: string): Date | null {
-  if (!dateStr) return null;
-  const timeMatch = dateStr.match(/(\d{1,2}):(\d{2})/);
-  const hour = timeMatch ? parseInt(timeMatch[1], 10) : 0;
-  const minute = timeMatch ? parseInt(timeMatch[2], 10) : 0;
-  const withYear = dateStr.match(/(20\d{2})\/(\d{1,2})\/(\d{1,2})/);
-  if (withYear) return new Date(+withYear[1], +withYear[2] - 1, +withYear[3], hour, minute);
-  const md = dateStr.match(/(\d{1,2})\/(\d{1,2})/);
-  if (!md) return null;
-  const month = +md[1] - 1, day = +md[2];
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  let d = new Date(now.getFullYear(), month, day, hour, minute);
-  if (d < today) d = new Date(now.getFullYear() + 1, month, day, hour, minute);
-  return d;
-}
 
 /** read Sheet — call once per TTL then share to all user */
 async function loadSnapshot(): Promise<Snapshot> {
@@ -54,7 +38,7 @@ async function loadSnapshot(): Promise<Snapshot> {
       title: (row.get("title") || "タイトル未設定") as string,
       event_date: (row.get("event_date") || "") as string,
       form_url: (row.get("form_url") || "#") as string,
-      _dateObj: parseEventDate(row.get("event_date") || ""),
+      _dateObj: parseSheetDate(row.get("event_date") || "", { yearHint: "future" }),
     }))
     .filter((e): e is typeof e & { _dateObj: Date } => e._dateObj !== null && e._dateObj >= today)
     .sort((a, b) => a._dateObj.getTime() - b._dateObj.getTime());
