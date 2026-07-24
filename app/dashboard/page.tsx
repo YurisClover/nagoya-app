@@ -1,50 +1,54 @@
-/*import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import AppShell from "@/components/AppShell";
+import { MENU, type MenuItem } from "@/lib/menu";
 
-export default async function DashboardPage() {
-    const session = await auth();
-    if (!session) redirect("/login");
+function MenuCard({ item }: { item: MenuItem }) {
+  const { Icon } = item;
+  const span = item.wide ? "col-span-2" : "";
+
+  const inner = (
+    <>
+      <div className={`icon-tile ${item.tone}`}>
+        <Icon className="h-[17px] w-[17px] sm:h-5 sm:w-5" aria-hidden="true" />
+      </div>
+      <p className="text-xs font-medium text-ink sm:text-sm">{item.label}</p>
+      <p className="mt-[2px] text-[10px] text-ink-muted sm:text-xs">{item.desc}</p>
+    </>
+  );
+
+  if (!item.ready) {
     return (
-    <main style={{ maxWidth: 360, margin: "60px auto", padding: 24 }}>
-        <h1 style={{ fontSize: 20 }}>ダッシュボード</h1>
-        <p>ようこそ、{session.user?.name} さん</p>
-        <p style={{ fontSize: 12, color: "#666" }}>{session.user?.email} ({session.user?.role})</p>
-        { session.user?.role === "admin" && (
-            <p style={{ marginTop: 12 }}><Link href="/admin">管理者パネル</Link></p>
-        )}
-        <form action={async () => { "use server"; await signOut({ redirectTo: "/login" }); }}>
-          <button type="submit" style={{ marginTop: 24, padding: "8px 16px" }}>ログアウト</button>
-        </form>
-    </main>
+      <div aria-disabled="true" className={`card-disabled ${span}`}>
+        <span className="badge-muted absolute right-2 top-2">準備中</span>
+        {inner}
+      </div>
     );
-}*/
-// app/dashboard/page.tsx
-import { auth, signOut } from "@/auth";
-import { redirect } from "next/navigation";
-import Link from "next/link";
-import NotificationInitializer from "@/components/NotificationInitializer"; // ★追加
+  }
 
-export default async function DashboardPage() {
-    const session = await auth();
-    if (!session) redirect("/login");
+  return <Link href={item.href} className={`card-tap ${span}`}>{inner}</Link>;
+}
 
-    return (
-    <main style={{ maxWidth: 360, margin: "60px auto", padding: 24 }}>
-        {/* ★ここでログイン中のユーザーに紐づけて初期化を実行 */}
-        <NotificationInitializer />
+export default async function HomePage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
 
-        <h1 style={{ fontSize: 20 }}>ダッシュボード</h1>
-        <p>ようこそ、{session.user?.name} さん</p>
-        <p style={{ fontSize: 12, color: "#666" }}>{session.user?.email} ({session.user?.role})</p>
-        
-        { session.user?.role === "admin" && (
-            <p style={{ marginTop: 12 }}><Link href="/admin">管理者パネル</Link></p>
-        )}
-        
-        <form action={async () => { "use server"; await signOut({ redirectTo: "/login" }); }}>
-          <button type="submit" style={{ marginTop: 24, padding: "8px 16px" }}>ログアウト</button>
-        </form>
-    </main>
-    );
+  const isAdmin = session.user.role === "admin";
+  const items = MENU.filter((m) => !m.adminOnly || isAdmin);
+
+  return (
+    <AppShell>
+      <section className="card-brand mb-4">
+        <p className="text-[15px] font-medium sm:text-lg">{session.user.name} 様</p>
+        <p className="mt-1 text-[11px] opacity-80 sm:text-sm">名古屋中支部 会員</p>
+        <span className="chip mt-2">会員番号：{session.user.id}</span>
+      </section>
+
+      <h2 className="section-title">メニュー</h2>
+      <div className="grid grid-cols-2 gap-[9px] sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
+        {items.map((item) => <MenuCard key={item.href} item={item} />)}
+      </div>
+    </AppShell>
+  );
 }
