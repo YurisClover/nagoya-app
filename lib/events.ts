@@ -80,6 +80,7 @@ async function loadSnapshot(): Promise<Snapshot> {
     .filter((e): e is typeof e & { _dateObj: Date } => e._dateObj !== null && e._dateObj >= today)
     .sort((a, b) => a._dateObj.getTime() - b._dateObj.getTime());
 
+  // read all event sheet once → store as set (member_id) (all user)
   const answers = new Map<string, Set<string> | null>();
   await Promise.all(
     upcoming.map(async (e) => {
@@ -99,6 +100,7 @@ async function loadSnapshot(): Promise<Snapshot> {
   };
 }
 
+/** cache + single-flight */
 async function getSnapshot(): Promise<Snapshot> {
   if (cached && cached.expires > Date.now()) return cached.data;
   if (inflight) return inflight;
@@ -113,6 +115,7 @@ async function getSnapshot(): Promise<Snapshot> {
   return inflight;
 }
 
+/** build result user — compare member_id in memory (0 API call) */
 function buildResult(snap: Snapshot, memberId?: string): EventWithStatus[] {
   const target = normalizeMemberId(memberId);
   return snap.events.map((e) => {
@@ -130,7 +133,7 @@ export async function getEventsData(memberId?: string): Promise<EventWithStatus[
   try {
     return buildResult(await getSnapshot(), memberId);
   } catch (error) {
-    if (cached) return buildResult(cached.data, memberId);
+    if (cached) return buildResult(cached.data, memberId); // Sheet failed/429 → use past one
     throw error;
   }
 }
