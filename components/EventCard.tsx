@@ -1,6 +1,5 @@
 "use client";
 
-import { formatEventDateJP } from "@/lib/datetime";
 import type { EventWithStatus } from "@/types/event";
 
 interface EventCardProps {
@@ -14,10 +13,14 @@ export default function EventCard({ event }: EventCardProps) {
     <div className="event-card">
       <div>
         <div className="event-title">{event.title}</div>
+        
+        {/* 日付のブロック */}
         <div className="event-date-box">
-          <p className="event-date">{formatEventDateJP(event.event_date, { yearHint: "future" })}</p>
+          <p className="event-date">{event.event_date}</p>
+        </div>
 
-          {/* サーバーからの正確な情報で判定 */}
+        {/* ★ 「回答済み」のブロックを event-date-box の外に出して独立させました */}
+        <div className="text-center mt-2 mb-4">
           {event.is_answered === true && (
             <span style={{ color: 'green', fontWeight: 'bold' }}>✅ 回答済み</span>
           )}
