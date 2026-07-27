@@ -13,7 +13,7 @@ export type SheetUser = {
   email: string;
   role: string;
   status: string;
-  barcode_data: string;
+  expiration_date: string;
 };
 
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
@@ -51,7 +51,7 @@ function rowToUser(row: GoogleSpreadsheetRow): SheetUser {
         email: String(row.get("email") ?? ""),
         role: String(row.get("role") ?? ""),
         status: String(row.get("status") ?? ""),
-        barcode_data: String(row.get("barcode_data") ?? ""),
+        expiration_date: String(row.get("expiration_date") ?? ""),
     };
 }
 
@@ -60,18 +60,6 @@ export async function getUserByEmail(email: string): Promise<SheetUser | null> {
     const row = findRowByEmail(await sheet.getRows(), email);
     if (!row || row.get("deleted_at")) return null;
     return rowToUser(row);
-}
-
-export async function updateUserBarcode(
-    email: string,
-    barcodeData: string,
-): Promise<void> {
-    const sheet = await getUsersSheet();
-    const row = findRowByEmail(await sheet.getRows(), email);
-    if (!row || row.get("deleted_at")) throw new Error("User not found");
-    row.set("barcode_data", barcodeData);
-    row.set("updated_at", nowJST()); // toISOString() return UTF (JP is UTF + 9) <- create new function
-    await row.save();
 }
 
 export type DashboardMetrics = {
@@ -318,7 +306,7 @@ export async function logActivity(type: string, description: string): Promise<vo
 // ----------------------------------------------------
 
 // 1. 一覧表示用に型を拡張（created_at, deleted_at を含む）
-export type Member = SheetUser & {
+export type Member = Omit<SheetUser, "password_hash"> & {
   created_at?: string;
   deleted_at?: string | null;
 };
@@ -335,9 +323,9 @@ async function fetchAllMembersFromSheet(): Promise<Member[]> {
       user_name: String(row.get("user_name") ?? ""),
       password_hash: String(row.get("password_hash") ?? ""),
       email: String(row.get("email") ?? ""),
-      role: String(row.get("role") ?? "一般会員"),
-      status: String(row.get("status") ?? "有効"),
-      barcode_data: String(row.get("barcode_data") ?? ""),
+      role: String(row.get("role") ?? "general"),
+      status: String(row.get("status") ?? "active"),
+      expiration_date: String(row.get("expiration_date") ?? ""),
       created_at: String(row.get("created_at") ?? ""),
       deleted_at: row.get("deleted_at") ? String(row.get("deleted_at")) : null,
     }));
