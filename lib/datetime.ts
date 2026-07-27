@@ -103,3 +103,22 @@ export function formatJapaneseDate(value: string): string | null {
   const g = (t: string) => p.find((x) => x.type === t)?.value ?? "";
   return `${g("year")}年${g("month")}月${g("day")}日`;
 }
+
+function jstDateKey(d: Date): string {
+    const p = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(d);
+    const g = (t: string) => p.find((x) => x.type === t)!.value;
+    return `${g("year")}-${g("month")}-${g("day")}`;
+}
+
+export function isExpired(value: string, now = new Date()): boolean {
+    const raw = String(value ?? "").trim();
+    if(!raw) return false;
+    const exp = parseSheetDate(raw);
+    if(!exp) {
+        console.warn(`[isExpired] cannot parse expiration_date: ${raw}`);
+        return false;
+    }
+    return jstDateKey(now) > jstDateKey(exp);
+}
