@@ -2,6 +2,7 @@
 
 import { useState, useActionState } from "react";
 import Link from "next/link";
+import { Member } from "@/lib/sheets";
 import { SheetUser } from "@/lib/sheets";
 
 type Props = {
@@ -10,7 +11,7 @@ type Props = {
     group_name: string;
     members: SheetUser[];
   };
-  allUsers: SheetUser[];
+  allUsers: Member[];
   action: (prevState: any, formData: FormData) => Promise<any>;
   isEdit?: boolean;
 };
