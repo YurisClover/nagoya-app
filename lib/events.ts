@@ -169,11 +169,12 @@ async function loadSnapshot(): Promise<Snapshot> {
         event_date: formatEventDate(rawDateStr),
         form_url: (row.get("form_url") || "#") as string,
         _sheetName: resolveSheetName(row),
-        _dateObj: parsed ? parsed.start : null,
+        _startDate: parsed ? parsed.start : null,
+        _endDate: parsed ? parsed.end : null,
       };
     })
-    .filter((e): e is typeof e & { _dateObj: Date } => e._dateObj !== null && e._dateObj >= today)
-    .sort((a, b) => a._dateObj.getTime() - b._dateObj.getTime());
+    .filter((e): e is typeof e & { _startDate: Date; _endDate: Date } => e._endDate !== null && e._endDate >= today)
+    .sort((a, b) => a._startDate.getTime() - b._startDate.getTime());
 
   const answers = new Map<string, Set<string> | null>();
   await Promise.all(
@@ -189,7 +190,7 @@ async function loadSnapshot(): Promise<Snapshot> {
   );
 
   return {
-    events: upcoming.map(({ _dateObj, _sheetName, ...rest }) => rest),
+    events: upcoming.map(({ _startDate, _endDate, _sheetName, ...rest }) => rest),
     answers,
   };
 }

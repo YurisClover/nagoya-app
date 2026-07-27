@@ -14,7 +14,7 @@ export default function NotificationInitializer() {
   const initialized = useRef(false);
   const [toast, setToast] = useState<ToastData | null>(null);
 
-// アプリ起動中・画面復帰時にバッジを消去するフック
+  // アプリ起動中・画面復帰時にバッジを消去するフック
   useEffect(() => {
     const clearBadge = () => {
       if ('clearAppBadge' in navigator) {
@@ -57,7 +57,7 @@ export default function NotificationInitializer() {
         const messaging = await getClientMessaging();
         if (!messaging) return;
 
-        // 🌟 4. アプリ起動中（フォアグラウンド）の通知受信リスナー
+        // 4. アプリ起動中（フォアグラウンド）の通知受信リスナー
         onMessage(messaging, (payload) => {
           console.log('🔔 アプリ起動中に通知を受信しました:', payload);
 
@@ -78,7 +78,19 @@ export default function NotificationInitializer() {
 
         if (!token) return;
 
-        // 6. 保存済みトークンと一致する場合は API 送信をスキップ
+        // 🌟 6. 一斉受信用 ('all') トピックへ登録
+        try {
+          await fetch('/api/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+          });
+          console.log("✅ 'all' トピックへの自動登録が完了しました");
+        } catch (e) {
+          console.error('トピック登録失敗:', e);
+        }
+
+        // 7. 保存済みトークンと一致する場合は API 送信をスキップ
         const savedToken = localStorage.getItem('fcm_token');
         if (savedToken === token) {
           console.log('ℹ️ すでに保存済みのトークンのため、送信をスキップしました');
@@ -87,14 +99,14 @@ export default function NotificationInitializer() {
 
         console.log('🔑 新しいトークンを取得しました:', token);
 
-        // 7. バックエンドへ送信（スプレッドシート保存）
+        // 8. バックエンドへ送信（スプレッドシート保存）
         const res = await fetch('/api/save-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
         });
 
-        // 8. 保存成功時のみ localStorage へ記録
+        // 9. 保存成功時のみ localStorage へ記録
         if (res.ok) {
           localStorage.setItem('fcm_token', token);
         }
@@ -106,7 +118,7 @@ export default function NotificationInitializer() {
     initializeNotification();
   }, []);
 
-  // 🌟 アプリ起動中に届いた時のポップアップ（トースト UI）
+  // アプリ起動中に届いた時のポップアップ（トースト UI）
   if (!toast) return null;
 
   return (
