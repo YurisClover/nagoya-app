@@ -90,3 +90,16 @@ export function jstYearMonth(date: Date): string {
   const g = (t: string) => p.find((x) => x.type === t)!.value;
   return `${g("year")}-${g("month")}`;
 }
+
+export function formatJapaneseDate(value: string): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (raw.includes("年")) return raw;
+  const d = parseSheetDate(raw, { yearHint: "future" });
+  if (!d) return raw;
+  const p = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo", year: "numeric", month: "numeric", day: "numeric",
+  }).formatToParts(d);
+  const g = (t: string) => p.find((x) => x.type === t)?.value ?? "";
+  return `${g("year")}年${g("month")}月${g("day")}日`;
+}
