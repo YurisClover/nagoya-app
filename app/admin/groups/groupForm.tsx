@@ -3,13 +3,12 @@
 import { useState, useActionState } from "react";
 import Link from "next/link";
 import { Member } from "@/lib/sheets";
-import { SheetUser } from "@/lib/sheets";
 
 type Props = {
   initialData?: {
     group_id?: string;
     group_name: string;
-    members: SheetUser[];
+    members:  Member[];
   };
   allUsers: Member[];
   action: (prevState: any, formData: FormData) => Promise<any>;
@@ -19,7 +18,7 @@ type Props = {
 export default function GroupForm({ initialData, allUsers, action, isEdit = false }: Props) {
   const [state, formAction, isPending] = useActionState(action, null);
   const [groupName, setGroupName] = useState(initialData?.group_name || "");
-  const [selectedMembers, setSelectedMembers] = useState<SheetUser[]>(initialData?.members || []);
+  const [selectedMembers, setSelectedMembers] = useState< Member[]>(initialData?.members || []);
   const [searchQuery, setSearchQuery] = useState("");
 
   // 検索クエリで未選択ユーザーを絞り込み
@@ -31,7 +30,7 @@ export default function GroupForm({ initialData, allUsers, action, isEdit = fals
       )
     : [];
 
-  const handleAddMember = (user: SheetUser) => {
+  const handleAddMember = (user:  Member) => {
     setSelectedMembers([...selectedMembers, user]);
     setSearchQuery("");
   };
