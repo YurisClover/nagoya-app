@@ -21,7 +21,7 @@ export default function NotificationInitializer() {
   const initialized = useRef(false);
   const [toast, setToast] = useState<ToastData | null>(null);
 
-  // アプリ起動中・画面復帰時にバッジを消去するフック
+  /* アプリ起動中・画面復帰時にバッジを消去するフック
   useEffect(() => {
     const clearBadge = () => {
       if ('clearAppBadge' in navigator) {
@@ -38,6 +38,7 @@ export default function NotificationInitializer() {
     window.addEventListener('focus', clearBadge);
     return () => window.removeEventListener('focus', clearBadge);
   }, []);
+*/
 
   useEffect(() => {
     // React 18 (Strict Mode) での2回実行を防止
