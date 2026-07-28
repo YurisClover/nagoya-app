@@ -3,8 +3,11 @@ import Metrics from "./metrics";
 import Activity from "./activity";
 import QuickAction from "./quickAction";
 import EventAttendance from "./eventAttendance";
+import { requireAdmin } from "@/lib/guards";
 
 export default async function AdminHomePage() {
+  // check isAdmin
+  await requireAdmin();
   // 親で3つのデータを同時に並列取得
   const [metricsData, activityData, eventAttendanceData] = await Promise.all([
     getDashboardMetrics(),

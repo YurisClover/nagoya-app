@@ -28,7 +28,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // check isExpired
         if(isExpired(user.expiration_date)) return null;
         // Return user object with id, email, and name
-        return { id: user.member_id, email: user.email, name: user.user_name, role: user.role };
+        return { id: user.member_id, email: user.email, name: user.user_name, role: user.role , expiration_date: user.expiration_date};
       },
     }),
   ],
