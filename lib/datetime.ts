@@ -64,22 +64,50 @@ export function parseSheetDate(
   return d;
 }
 
-/** display as "7/22 (金) 16:00〜" */
-export function formatEventDateJP(
-  value: string,
+// YYYY/MM/DD HH:MM ~ HH:MM
+export function formatEventSchedule(
+  startRaw: string,
+  endRaw?: string,
   opts: { yearHint?: "current" | "future" | "past" } = {}
 ): string {
-  const d = parseSheetDate(value, opts);
-  if (!d) return value;
-  const parts = new Intl.DateTimeFormat("ja-JP", {
-    timeZone: "Asia/Tokyo",
-    month: "numeric", day: "numeric", weekday: "short",
-    hour: "2-digit", minute: "2-digit", hour12: false,
-  }).formatToParts(d);
-  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  const base = `${g("month")}/${g("day")} (${g("weekday")})`;
-  const hh = g("hour"), mm = g("minute");
-  return hh === "00" && mm === "00" ? base : `${base} ${hh}:${mm}〜`;
+  const start = parseSheetDate(startRaw, { yearHint: opts.yearHint ?? "future" });
+  if (!start) return startRaw || "";
+  const fp = (d: Date, o: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", ...o }).formatToParts(d);
+  const g = (p: Intl.DateTimeFormatPart[], t: string) => p.find((x) => x.type === t)?.value ?? "";
+
+  const dp = fp(start, { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
+  const datePart = `${g(dp, "year")}/${g(dp, "month")}/${g(dp, "day")} (${g(dp, "weekday")})`;
+  if (!/\d{1,2}:\d{2}/.test(String(startRaw))) return datePart; // no time -> display only date
+
+  const tp = fp(start, { hour: "2-digit", minute: "2-digit", hour12: false });
+  let out = `${datePart} ${g(tp, "hour")}:${g(tp, "minute")}`;
+
+  // create end time from "Start date JST"
+  const mkSameDay = (hh: number, mm: number) =>
+    jstInstant(+g(dp, "year"), +g(dp, "month"), +g(dp, "day"), hh, mm);
+
+  let end: Date | null = null;
+  const hm = String(endRaw ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (hm) end = mkSameDay(+hm[1], +hm[2]);
+  else if (endRaw) end = parseSheetDate(endRaw);
+  else {
+    const emb = String(startRaw).match(/\d{1,2}:\d{2}\s*[〜~～]\s*(\d{1,2}):(\d{2})/);
+    if (emb) end = mkSameDay(+emb[1], +emb[2]);
+  }
+
+  if (end && !isNaN(end.getTime())) {
+    const key = (d: Date) => fp(d, { year: "numeric", month: "2-digit", day: "2-digit" }).map((p) => p.value).join("");
+    const ep = fp(end, { hour: "2-digit", minute: "2-digit", hour12: false });
+    if (key(start) === key(end)) out += `〜${g(ep, "hour")}:${g(ep, "minute")}`;
+    else {
+      const edp = fp(end, { month: "2-digit", day: "2-digit" });
+      out += `〜${g(edp, "month")}/${g(edp, "day")} ${g(ep, "hour")}:${g(ep, "minute")}`; // if next day
+    }
+  } else {
+    out += "〜"; // if start time only
+  }
+  return out;
 }
 
 /** "YYYY-MM" */
@@ -89,36 +117,4 @@ export function jstYearMonth(date: Date): string {
   }).formatToParts(date);
   const g = (t: string) => p.find((x) => x.type === t)!.value;
   return `${g("year")}-${g("month")}`;
-}
-
-export function formatJapaneseDate(value: string): string | null {
-  const raw = String(value ?? "").trim();
-  if (!raw) return null;
-  if (raw.includes("年")) return raw;
-  const d = parseSheetDate(raw, { yearHint: "future" });
-  if (!d) return raw;
-  const p = new Intl.DateTimeFormat("ja-JP", {
-    timeZone: "Asia/Tokyo", year: "numeric", month: "numeric", day: "numeric",
-  }).formatToParts(d);
-  const g = (t: string) => p.find((x) => x.type === t)?.value ?? "";
-  return `${g("year")}年${g("month")}月${g("day")}日`;
-}
-
-function jstDateKey(d: Date): string {
-    const p = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
-    }).formatToParts(d);
-    const g = (t: string) => p.find((x) => x.type === t)!.value;
-    return `${g("year")}-${g("month")}-${g("day")}`;
-}
-
-export function isExpired(value: string, now = new Date()): boolean {
-    const raw = String(value ?? "").trim();
-    if(!raw) return false;
-    const exp = parseSheetDate(raw);
-    if(!exp) {
-        console.warn(`[isExpired] cannot parse expiration_date: ${raw}`);
-        return false;
-    }
-    return jstDateKey(now) > jstDateKey(exp);
 }
