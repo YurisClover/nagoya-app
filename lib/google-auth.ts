@@ -1,4 +1,5 @@
 import "server-only";
+import {google} from "googleapis";
 
 export type ServiceAccountCredentials = {
     client_email: string;
@@ -16,3 +17,22 @@ export function getServiceAccountCredentials(): ServiceAccountCredentials {
         private_key: String(c.private_key).replace(/\\n/g, "\n"),
     };
 }
+
+//googleformの環境変数の取得
+export function createGoogleFormsOAuthClient(){
+    const clientId = process.env.GOOGLE_FORMS_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_FORMS_CLIENT_SECRET;
+    const redirectUri = process.env.GOOGLE_FORMS_REDIRECT_URI;
+
+    if(!clientId || !clientSecret || !redirectUri){
+        throw new Error("google Forms OAuthの環境変数が不足しています。");
+    }
+
+    //認証情報を取得しているOAuthクライアントの作成
+    return new google.auth.OAuth2(
+        clientId,
+        clientSecret,
+        redirectUri,
+    );
+}
+
