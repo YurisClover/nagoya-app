@@ -171,9 +171,16 @@ async function loadSnapshot(): Promise<Snapshot> {
         _sheetName: resolveSheetName(row),
         _startDate: parsed ? parsed.start : null,
         _endDate: parsed ? parsed.end : null,
+        // statusカラムの値を取得（小文字化して判定を安全にする）
+        _status: String(row.get("status") ?? "").trim().toLowerCase(),
       };
     })
-    .filter((e): e is typeof e & { _startDate: Date; _endDate: Date } => e._endDate !== null && e._endDate >= today)
+    // 終了日が今日以降 かつ statusが 'published' のものだけ残す
+    .filter((e): e is typeof e & { _startDate: Date; _endDate: Date } => 
+      e._endDate !== null && 
+      e._endDate >= today && 
+      e._status === "published"
+    )
     .sort((a, b) => a._startDate.getTime() - b._startDate.getTime());
 
   const answers = new Map<string, Set<string> | null>();
@@ -190,7 +197,8 @@ async function loadSnapshot(): Promise<Snapshot> {
   );
 
   return {
-    events: upcoming.map(({ _startDate, _endDate, _sheetName, ...rest }) => rest),
+    // フロントエンドには _status を送る必要がないので除外する
+    events: upcoming.map(({ _startDate, _endDate, _sheetName, _status, ...rest }) => rest),
     answers,
   };
 }

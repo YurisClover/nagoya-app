@@ -32,57 +32,80 @@ const auth = new google.auth.GoogleAuth({
 
 const sheets = google.sheets({ version: 'v4', auth });
 
-// 🌟 recipientId（送信先種別）に応じて対象会員の member_id 配列を返す関数
+// 🌟 recipientId（'all' / 'G0001' 等 / member_id / ユーザー名）に応じて対象会員の member_id 配列を抽出する関数
 async function getTargetMemberIds(sheetsApi: typeof sheets, spreadsheetIdStr: string, recipientId: string): Promise<string[]> {
-  // 個人IDが直接指定されている場合（例: 'MEM_001'）
-  if (!['all', 'executive'].includes(recipientId) && !recipientId.startsWith('GRP_')) {
-    return [recipientId];
+  // ----------------------------------------------------
+  // CASE 1: 全会員 ('all') の場合 -> Users シートの A列(member_id) を取得
+  // ----------------------------------------------------
+  if (recipientId === 'all') {
+    try {
+      const res = await sheetsApi.spreadsheets.values.get({
+        spreadsheetId: spreadsheetIdStr,
+        range: 'Users!A2:A',
+      });
+      const rows = res.data.values || [];
+      const memberIds = rows.map((row) => row[0]?.toString().trim()).filter(Boolean);
+      return memberIds.length > 0 ? memberIds : ['all'];
+    } catch (err) {
+      console.error('⚠️ Usersシート読み込みエラー:', err);
+      return ['all'];
+    }
   }
 
-  try {
-    // 1. 全会員 'all' または 執行部 'executive' の場合 -> Users シートを参照
-    if (recipientId === 'all' || recipientId === 'executive') {
+  // ----------------------------------------------------
+  // CASE 2: グループ指定の場合 ('G' から始まるID)
+  // -> Groups シートの C列 (member_ids: カンマ区切り) を分解して取得
+  // ----------------------------------------------------
+  if (recipientId.startsWith('G')) {
+    try {
       const res = await sheetsApi.spreadsheets.values.get({
         spreadsheetId: spreadsheetIdStr,
-        range: 'Users!A2:C', // A列: member_id, C列: is_executive と想定
+        range: 'Groups!A2:C', // A: group_id, B: group_name, C: member_ids
       });
       const rows = res.data.values || [];
 
-      if (recipientId === 'all') {
-        // A列 (row[0]) の member_id を全員分取得
-        const memberIds = rows.map((row) => row[0]).filter(Boolean);
-        return memberIds.length > 0 ? memberIds : [recipientId];
-      }
+      // A列 (group_id) が一致する行を検索
+      const targetRow = rows.find((row) => row[0] === recipientId);
 
-      if (recipientId === 'executive') {
-        // C列 (row[2]) が true の member_id のみ取得
-        const executiveIds = rows
-          .filter((row) => row[2] === 'true' || row[2] === true || row[2] === 'TRUE')
-          .map((row) => row[0])
+      if (targetRow && targetRow[2]) {
+        // C列のカンマ区切り文字列 (例: "10001234, 10001235") を分解・トリム
+        const memberIds = targetRow[2]
+          .toString()
+          .split(',')
+          .map((id: string) => id.trim())
           .filter(Boolean);
-        return executiveIds.length > 0 ? executiveIds : [recipientId];
+
+        if (memberIds.length > 0) {
+          return memberIds;
+        }
       }
+    } catch (err) {
+      console.error('⚠️ Groupsシート読み込みエラー:', err);
     }
+  }
 
-    // 2. グループ 'GRP_...' の場合 -> Groups シートを参照
-    if (recipientId.startsWith('GRP_')) {
-      const res = await sheetsApi.spreadsheets.values.get({
-        spreadsheetId: spreadsheetIdStr,
-        range: 'Groups!A2:B', // A列: group_id, B列: member_id と想定
-      });
-      const rows = res.data.values || [];
+  // ----------------------------------------------------
+  // CASE 3: 個人指定の場合 (member_id または ユーザー名 が入力された場合)
+  // -> Users シートを参照して、一致する member_id を返す
+  // ----------------------------------------------------
+  try {
+    const res = await sheetsApi.spreadsheets.values.get({
+      spreadsheetId: spreadsheetIdStr,
+      range: 'Users!A2:B', // A: member_id, B: user_name
+    });
+    const rows = res.data.values || [];
 
-      const groupMemberIds = rows
-        .filter((row) => row[0] === recipientId)
-        .map((row) => row[1])
-        .filter(Boolean);
+    // A列 (member_id) または B列 (user_name) に一致する行を検索
+    const matchedUser = rows.find((row) => row[0] === recipientId || row[1] === recipientId);
 
-      return groupMemberIds.length > 0 ? groupMemberIds : [recipientId];
+    if (matchedUser && matchedUser[0]) {
+      return [matchedUser[0].toString().trim()];
     }
   } catch (err) {
-    console.error('⚠️ 会員情報の取得に失敗したため、受け取ったIDで実行します:', err);
+    console.error('⚠️ Usersシート個人検索エラー:', err);
   }
 
+  // 一致するものがない場合は入力値をそのまま返す
   return [recipientId];
 }
 
@@ -111,19 +134,19 @@ export async function POST(request: Request) {
     const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 
     // ----------------------------------------------------
-    // ステップ 2: C列 (recipient_id) に各会員の member_id をセットして行を作成
+    // ステップ 2: 各会員の member_id ごとに行を作成して保存
     // ----------------------------------------------------
     const rowsToAppend = targetMemberIds.map((memberId) => [
       randomUUID(), // A: message_id
       senderId,     // B: sender_id
-      memberId,     // 🌟 C: recipient_id (個人の member_id)
-      title,        // D: subject
+      memberId,     // C: recipient_id (個人の member_id)
+      title,        // D: subject (例: "(全会員) 研修のお知らせ" / "(執行部) 次回会議について")
       body,         // E: body
       false,        // F: is_read
       now,          // G: created_at
     ]);
 
-    // Google スプレッドシート (Messagesシート) へ保存
+    // Google スプレッドシート (Messagesシート) へ一括保存
     await sheets.spreadsheets.values.append({
       spreadsheetId: spreadsheetId,
       range: 'Messages!A:G',
