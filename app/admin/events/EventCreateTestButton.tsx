@@ -1,46 +1,91 @@
 "use client";
 
 export function EventCreateTestButton() {
+
   async function handleTest() {
-    try {
-      const response = await fetch("/api/events/create", {
+  // ボタンを押した瞬間に空のタブを開く
+  const formEditWindow = window.open(
+    "about:blank",
+    "_blank",
+  );
+
+  if (formEditWindow) {
+    formEditWindow.opener = null;
+    formEditWindow.document.title =
+      "Googleフォームを作成しています";
+  }
+
+  try {
+    const response = await fetch(
+      "/api/events/create",
+      {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type":
+            "application/json",
         },
         body: JSON.stringify({
-          title: "本番イベント作成テスト",
-          eventDate: "2026-08-15T10:00:00+09:00",
-          location: "名古屋市内",
+          title:
+            "本番イベント作成テスト",
+          eventDate:
+            "2026-08-15T10:00:00+09:00",
+          location:
+            "名古屋市内",
         }),
-      });
+      },
+    );
 
-      const result = await response.json();
+    const result = await response.json();
 
-      console.log("イベント作成結果:", result);
+    console.log(
+      "イベント作成結果:",
+      result,
+    );
 
-      if (!response.ok) {
-        alert(
-          result.error ??
-            "イベントの作成に失敗しました。",
-        );
-        return;
-      }
+    if (!response.ok) {
+      formEditWindow?.close();
 
-      alert("イベントを作成しました。");
+      alert(
+        result.error ??
+          "イベントの作成に失敗しました。",
+      );
 
-      if (result.event?.formEditUrl) {
-        window.open(
-          result.event.formEditUrl,
-          "_blank",
-          "noopener,noreferrer",
-        );
-      }
-    } catch (error) {
-      console.error("イベント作成テストエラー:", error);
-      alert("通信中にエラーが発生しました。");
+      return;
     }
+
+    const formEditUrl =
+      result.event?.formEditUrl;
+
+    if (formEditUrl) {
+      if (formEditWindow) {
+        // 先に開いた空タブを編集画面へ移動
+        formEditWindow.location.href =
+          formEditUrl;
+      } else {
+        // ポップアップ自体が許可されなかった場合
+        window.location.href =
+          formEditUrl;
+      }
+    } else {
+      formEditWindow?.close();
+
+      alert(
+        "イベントは作成されましたが、Googleフォームの編集URLを取得できませんでした。",
+      );
+    }
+  } catch (error) {
+    formEditWindow?.close();
+
+    console.error(
+      "イベント作成テストエラー:",
+      error,
+    );
+
+    alert(
+      "通信中にエラーが発生しました。",
+    );
   }
+}
 
   return (
     <button
