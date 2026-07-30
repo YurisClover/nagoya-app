@@ -14,11 +14,12 @@ type ReceivedMessage = {
   userName: string;
   subject: string;
   body: string;
+  isRead: boolean; // 既読フラグ (未読は false)
   createdAt: string;
 };
 
 export default function AdminMessagePage() {
-  // 送信フォーム状態
+  // --- 状態管理 (送信フォーム) ---
   const [targetType, setTargetType] = useState<'all' | 'group' | 'individual'>('all');
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
@@ -29,11 +30,11 @@ export default function AdminMessagePage() {
   const [body, setBody] = useState<string>('');
   const [isSending, setIsSending] = useState<boolean>(false);
 
-  // 受信メッセージ一覧
+  // --- 状態管理 (受信メッセージ) ---
   const [inquiries, setInquiries] = useState<ReceivedMessage[]>([]);
   const [isLoadingInquiries, setIsLoadingInquiries] = useState<boolean>(true);
 
-  // 1. 初回描画時に Groups 一覧 & Messages (問い合わせ一覧) を取得
+  // 1. 初回描画時に Groups 一覧 & 管理者宛てメッセージ を取得
   useEffect(() => {
     async function fetchData() {
       // グループ一覧取得
@@ -41,7 +42,6 @@ export default function AdminMessagePage() {
         const res = await fetch('/api/groups');
         const data = await res.json();
         if (data.success && Array.isArray(data.groups)) {
-          // どの形式でAPIからデータが渡されても吸収できるようにフォーマット
           const formattedGroups = data.groups.map((g: any) => ({
             group_id: g.group_id || g.id || '',
             group_name: g.group_name || g.name || '名称未設定グループ',
@@ -52,7 +52,7 @@ export default function AdminMessagePage() {
         console.error('グループ一覧の取得に失敗しました:', err);
       }
 
-      // 受信メッセージ一覧取得
+      // 受信メッセージ（管理者宛て問い合わせ）取得
       try {
         setIsLoadingInquiries(true);
         const res = await fetch('/api/admin/inquiries');
@@ -115,20 +115,19 @@ export default function AdminMessagePage() {
 
     setIsSending(true);
 
-   try {
+    try {
       const res = await fetch('/api/send-notification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          senderId: 'admin',
-          recipientId: recipientId,
+          // sender_id は送らず、API 側で auth() から自動取得
+          recipient_id: recipientId,
           title: getFormattedTitle(),
           body: body,
           url: '/messages',
         }),
       });
 
-      // エラーレスポンスでもJSONを読み取って詳細を表示できるようにする
       const data = await res.json();
 
       if (res.ok && data.success) {
@@ -154,12 +153,15 @@ export default function AdminMessagePage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // ★ 未読件数の算出
+  const unreadCount = inquiries.filter((item) => !item.isRead).length;
+
   return (
-    <div className="p-8 max-w-5xl">
-      <h2 className="text-2xl font-bold text-slate-900 mb-6">メッセージ送信</h2>
+    <div className="p-8 max-w-5xl space-y-8">
+      <h2 className="text-2xl font-bold text-slate-900">メッセージ管理</h2>
 
       {/* --- カード1: メッセージを作成・送信 --- */}
-      <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
+      <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <h3 className="text-base font-bold text-slate-800 mb-4">メッセージを作成・送信</h3>
 
         <form onSubmit={handleSend} className="space-y-5">
@@ -275,35 +277,57 @@ export default function AdminMessagePage() {
 
       {/* --- カード2: 受信メッセージ（会員からの問い合わせ） --- */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h3 className="text-base font-bold text-slate-800 mb-4">
-          受信メッセージ（会員からの問い合わせ）
-        </h3>
+        <div className="flex items-center space-x-3 mb-4">
+          <h3 className="text-base font-bold text-slate-800">
+            受信メッセージ（会員からの問い合わせ）
+          </h3>
+
+          {/* 未読が1件以上あれば全体カウントバッジを表示 */}
+          {unreadCount > 0 && (
+            <span className="px-2.5 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">
+              未読 {unreadCount}件
+            </span>
+          )}
+        </div>
 
         {isLoadingInquiries ? (
           <p className="text-sm text-slate-500 py-4">読み込み中...</p>
         ) : inquiries.length === 0 ? (
-          <p className="text-sm text-slate-500 py-4">メッセージはありません</p>
+          <p className="text-sm text-slate-500 py-4">管理者宛てのメッセージはありません</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {inquiries.map((item) => (
-              <div key={item.id} className="py-4 flex items-start justify-between">
+              <div
+                key={item.id}
+                className={`py-4 flex items-start justify-between px-3 rounded-lg transition ${
+                  !item.isRead ? 'bg-amber-50/50' : ''
+                }`}
+              >
                 <div className="flex items-start space-x-3">
-                  {/* アバター（苗字の先頭1文字） */}
+                  {/* アバター */}
                   <div className="w-10 h-10 rounded-full bg-[#1b365d] text-white font-bold flex items-center justify-center flex-shrink-0 text-sm">
                     {item.userName ? item.userName.charAt(0) : 'U'}
                   </div>
 
                   <div>
-                    {/* 1行目: user_name (member_id) */}
+                    {/* 1行目: 送信者情報 + 未読バッジ */}
                     <div className="flex items-center space-x-2">
                       <span className="font-bold text-sm text-slate-900">{item.userName}</span>
                       <span className="text-xs text-slate-500">（{item.senderId}）</span>
+
+                      {!item.isRead && (
+                        <span className="px-2 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded">
+                          未読
+                        </span>
+                      )}
                     </div>
 
-                    {/* 2行目: 件名 (subject) */}
-                    <p className="text-sm text-slate-800 mt-1">{item.subject}</p>
+                    {/* 2行目: 件名 */}
+                    <p className={`text-sm mt-1 ${!item.isRead ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
+                      {item.subject}
+                    </p>
 
-                    {/* 3行目: 送信時刻 (created_at) */}
+                    {/* 3行目: 日時 */}
                     <span className="text-xs text-slate-400 mt-1 block">{item.createdAt}</span>
                   </div>
                 </div>
@@ -311,7 +335,7 @@ export default function AdminMessagePage() {
                 {/* 返信ボタン */}
                 <button
                   onClick={() => handleReply(item)}
-                  className="text-xs font-medium text-slate-600 hover:text-slate-900 border border-slate-200 px-3 py-1.5 rounded hover:bg-slate-50 transition"
+                  className="text-xs font-medium text-slate-600 hover:text-slate-900 border border-slate-200 px-3 py-1.5 rounded bg-white hover:bg-slate-50 transition"
                 >
                   返信
                 </button>
