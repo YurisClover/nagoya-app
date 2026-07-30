@@ -1,5 +1,5 @@
-import { formatEventDateJP } from "@/lib/datetime";
 import { EventAttendanceItem } from "@/lib/sheets";
+import { formatEventSchedule } from "@/lib/datetime";
 
 type EventAttendanceProps = {
   items: EventAttendanceItem[];
@@ -47,7 +47,7 @@ export default function EventAttendance({ items }: EventAttendanceProps) {
 
                   {/* 2. 開催日 */}
                   <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap">
-                    {formatEventDateJP(item.eventDate, { yearHint: "current" })}
+                    {formatEventSchedule(item.eventDate, undefined, { yearHint: "current" })}
                   </td>
 
                   {/* 3. 登録数 */}

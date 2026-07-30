@@ -4,6 +4,8 @@ export type EventWithStatus = {
     title: string;
     event_date: string;
     form_url: string;
+    location: string;
+    event_end_date: string;
     is_answered: boolean | null;
 }
 

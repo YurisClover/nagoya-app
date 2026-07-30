@@ -74,6 +74,8 @@ async function loadSnapshot(): Promise<Snapshot> {
       title: (row.get("title") || "タイトル未設定") as string,
       event_date: (row.get("event_date") || "") as string,
       form_url: (row.get("form_url") || "#") as string,
+      location: (row.get("location") || "") as string,
+      event_end_date: (row.get("event_end_date") || "") as string,
       _sheetName: resolveSheetName(row),
       _dateObj: parseSheetDate(row.get("event_date") || "", { yearHint: "future" }),
     }))

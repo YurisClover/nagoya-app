@@ -13,7 +13,6 @@ export type SheetUser = {
   email: string;
   role: string;
   status: string;
-  expiration_date: string;
 };
 
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
@@ -51,7 +50,6 @@ function rowToUser(row: GoogleSpreadsheetRow): SheetUser {
         email: String(row.get("email") ?? ""),
         role: String(row.get("role") ?? ""),
         status: String(row.get("status") ?? ""),
-        expiration_date: String(row.get("expiration_date") ?? ""),
     };
 }
 
@@ -325,7 +323,6 @@ async function fetchAllMembersFromSheet(): Promise<Member[]> {
       email: String(row.get("email") ?? ""),
       role: String(row.get("role") ?? "general"),
       status: String(row.get("status") ?? "active"),
-      expiration_date: String(row.get("expiration_date") ?? ""),
       created_at: String(row.get("created_at") ?? ""),
       deleted_at: row.get("deleted_at") ? String(row.get("deleted_at")) : null,
     }));

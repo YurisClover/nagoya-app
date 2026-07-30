@@ -2,7 +2,10 @@ import type { NextAuthConfig } from "next-auth";
 
 // ── edge-safe: not import google-spreadsheet/bcrypt → can use proxy
 export default {
-  session: { strategy: "jwt" },
+  session: { 
+    strategy: "jwt",
+    maxAge: 60 * 60 * 24, // timeout in 24 hrs.
+  },
   pages: { signIn: "/login" },
   providers: [], // real providers are in auth.ts
   callbacks: {
