@@ -1,24 +1,33 @@
-import {google} from "googleapis";
-import {NextRequest, NextResponse} from "next/server";
-import {createGoogleFormsOAuthClient} from "@/lib/google-auth";
+import { NextRequest, NextResponse } from "next/server";
+import { createGoogleFormsOAuthClient } from "@/lib/google-auth";
 
-export async function GET (request:NextRequest){
-    try{
-        //Googleから返されたURLのクエリパラメータを取得
-        const searchParams = request.nextUrl.searchParams;
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
 
-        //認可に成功した場合に返される一時的な認可コード
-        const code = searchParams.get("code");
+    const code = searchParams.get("code");
+    const returnedState = searchParams.get("state");
+    const oauthError = searchParams.get("error");
 
-        //ユーザーが拒否した場合などに返されるエラー
-        const oauthError = searchParams.get("error");
-    
-        if (oauthError) {
+    // 認可開始時にCookieへ保存したstate
+    const savedState = request.cookies.get("google_oauth_state")?.value;
+
+    if (oauthError) {
       return NextResponse.json(
         {
           success: false,
           error: "Googleの認可が許可されませんでした。",
           detail: oauthError,
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!returnedState || !savedState || returnedState !== savedState) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Google OAuthのstate確認に失敗しました。",
         },
         { status: 400 },
       );
@@ -35,28 +44,7 @@ export async function GET (request:NextRequest){
     }
 
     const oauth2Client = createGoogleFormsOAuthClient();
-    // const clientId = process.env.GOOGLE_FORMS_CLIENT_ID;
-    // const clientSecret = process.env.GOOGLE_FORMS_CLIENT_SECRET;
-    // const redirectUri = process.env.GOOGLE_FORMS_REDIRECT_URI;
 
-    // if (!clientId || !clientSecret || !redirectUri) {
-    //   return NextResponse.json(
-    //     {
-    //       success: false,
-    //       error: "Google OAuthの環境変数が設定されていません。",
-    //     },
-    //     { status: 500 },
-    //   );
-    // }
-
-    // // 認可開始時と同じ情報でOAuthクライアントを作成
-    // const oauth2Client = new google.auth.OAuth2(
-    //   clientId,
-    //   clientSecret,
-    //   redirectUri,
-    // );
-
-    // 認可コードをアクセストークン・リフレッシュトークンに交換
     const { tokens } = await oauth2Client.getToken(code);
 
     if (!tokens.refresh_token) {
@@ -71,12 +59,6 @@ export async function GET (request:NextRequest){
       );
     }
 
-    /*
-     * 今回はローカル開発でリフレッシュトークンを1回取得するため、
-     * 開発環境でのみターミナルに表示する。
-     *
-     * 本番環境ではログへ出力しない。
-     */
     if (process.env.NODE_ENV === "development") {
       console.log("========================================");
       console.log("Google Forms OAuth認可成功");
@@ -85,11 +67,16 @@ export async function GET (request:NextRequest){
       console.log("========================================");
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message:
         "Googleの認可に成功しました。VS Codeのターミナルを確認してください。",
     });
+
+    // 使用済みstateを削除
+    response.cookies.delete("google_oauth_state");
+
+    return response;
   } catch (error) {
     console.error("Google OAuth callback error:", error);
 
