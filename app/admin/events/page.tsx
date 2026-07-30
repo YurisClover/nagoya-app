@@ -1,5 +1,10 @@
-function Page(){
-    return <div>テスト表示</div>
-}
+ import { EventCreateTestButton } from "./EventCreateTestButton";
+ 
+ export default  function EventsPage(){
+     return (
+      <main>
+       <EventCreateTestButton/>
+      </main>
+     );
+ }
 
-export default Page;
