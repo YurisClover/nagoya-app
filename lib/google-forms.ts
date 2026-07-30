@@ -36,19 +36,16 @@ export async function setGoogleFormStatus(
     );
   }
 
-  const auth =
-    createAuthenticatedGoogleFormsOAuthClient();
+  const auth = createAuthenticatedGoogleFormsOAuthClient();
 
   const forms = google.forms({
     version: "v1",
     auth,
   });
 
-  const publishState =
-    FORM_STATUS_SETTINGS[status];
+  const publishState = FORM_STATUS_SETTINGS[status];
 
-  const response =
-    await forms.forms.setPublishSettings({
+  const response = await forms.forms.setPublishSettings({
       formId,
 
       requestBody: {
