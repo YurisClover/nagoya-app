@@ -33,8 +33,8 @@ export default function Sidebar({ user }: SidebarProps) {
 
     fetchUnreadCount();
 
-    // 30秒周期でバックグラウンド更新
-    const interval = setInterval(fetchUnreadCount, 30000);
+    // 60秒周期でバックグラウンド更新
+    const interval = setInterval(fetchUnreadCount, 60000);
     return () => clearInterval(interval);
   }, []);
 

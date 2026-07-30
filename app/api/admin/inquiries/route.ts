@@ -24,7 +24,6 @@ export async function GET() {
 
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // UsersシートとMessagesシートを取得
     const [usersRes, messagesRes] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Users!A1:Z' }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Messages!A1:Z' }),
@@ -33,7 +32,7 @@ export async function GET() {
     const userRows = usersRes.data.values || [];
     const messageRows = messagesRes.data.values || [];
 
-    // --- 1. 管理者の member_id を収集 ---
+    // --- 1. ユーザーマッピング & 管理者IDの一覧取得 ---
     const userHeader = (userRows[0] || []).map((h: any) => String(h).toLowerCase().trim());
     let uMemberIdIdx = userHeader.findIndex((h: string) => h === 'member_id' || h === 'id');
     let uNameIdx = userHeader.findIndex((h: string) => h === 'user_name' || h === 'username' || h === 'name');
@@ -42,8 +41,9 @@ export async function GET() {
     if (uMemberIdIdx === -1) uMemberIdIdx = 0;
     if (uNameIdx === -1) uNameIdx = 1;
 
-    const adminMemberIds = new Set<string>(['admin']); // デフォルトで 'admin' を含める
-    const userMap = new Map<string, string>(); // member_id -> user_name のマップ
+    // 管理者ロールまたは特定IDを管理者判定用に保持
+    const adminMemberIds = new Set<string>(['admin']);
+    const userMap = new Map<string, string>();
 
     userRows.slice(1).forEach((row: any[]) => {
       const mId = row[uMemberIdIdx]?.toString().trim();
@@ -56,7 +56,7 @@ export async function GET() {
       }
     });
 
-    // --- 2. Messagesシートから管理者宛てのメッセージのみ抽出 ---
+    // --- 2. メッセージデータのパース ---
     const msgHeader = (messageRows[0] || []).map((h: any) => String(h).toLowerCase().trim());
     let mIdIdx = msgHeader.findIndex((h: string) => h === 'message_id' || h === 'id');
     let senderIdIdx = msgHeader.findIndex((h: string) => h === 'sender_id' || h === 'senderid');
@@ -74,35 +74,51 @@ export async function GET() {
     if (isReadIdx === -1) isReadIdx = 5;
     if (createdAtIdx === -1) createdAtIdx = 6;
 
-    const inquiries = messageRows
-      .slice(1)
-      .filter((row: any[]) => {
-        const recipientId = row[recipientIdIdx]?.toString().trim();
-        // recipient_id が admin または 管理者ユーザーの member_id と一致するもののみ
-        return recipientId && adminMemberIds.has(recipientId);
-      })
-      .map((row: any[]) => {
-        const senderId = row[senderIdIdx]?.toString().trim() || '不明';
-        const isReadVal = row[isReadIdx]?.toString().trim().toLowerCase();
+    const allMessages = messageRows.slice(1).map((row: any[]) => {
+      const senderId = row[senderIdIdx]?.toString().trim() || '不明';
+      const recipientId = row[recipientIdIdx]?.toString().trim() || '';
+      const isReadVal = row[isReadIdx]?.toString().trim().toLowerCase();
+      const isRead = ['read', 'true', '1', '既読'].includes(isReadVal);
 
-        // 'read', 'true', '1', '既読' の場合のみ true (既読) と判定
-        const isRead =
-          isReadVal === 'read' ||
-          isReadVal === 'true' ||
-          isReadVal === '1' ||
-          isReadVal === '既読';
+      return {
+        id: row[mIdIdx]?.toString() || crypto.randomUUID(),
+        senderId,
+        recipientId,
+        userName: userMap.get(senderId) || senderId,
+        subject: row[titleIdx]?.toString() || '（無題）',
+        body: row[bodyIdx]?.toString() || '',
+        isRead,
+        createdAt: row[createdAtIdx]?.toString() || '',
+      };
+    });
 
-        return {
-          id: row[mIdIdx]?.toString() || crypto.randomUUID(),
-          senderId: senderId,
-          userName: userMap.get(senderId) || senderId,
-          subject: row[titleIdx]?.toString() || '（無題）',
-          body: row[bodyIdx]?.toString() || '',
-          isRead: isRead, // boolean型で返す
-          createdAt: row[createdAtIdx]?.toString() || '',
-        };
-      })
-      .reverse(); // 新しい順に並び替え
+    // --- 3. 親メッセージの抽出（管理者宛て & Re: で始まらないもの） ---
+    const parentInquiries = allMessages.filter((msg) => {
+      const isReply = /^Re:\s*/i.test(msg.subject.trim());
+      
+      // 宛先が管理者宛（'admin' または 管理者ユーザーのID）であるかをチェック
+      const isToAdmin = adminMemberIds.has(msg.recipientId) || msg.recipientId.toLowerCase() === 'admin';
+
+      return !isReply && isToAdmin;
+    });
+
+    // --- 4. 返信メッセージ (Re: で始まるメッセージ) の紐付け ---
+    const inquiries = parentInquiries.map((parent) => {
+      const parentSubjectClean = parent.subject.trim();
+
+      // 件名が一致する Re: メッセージをこの親メッセージの返信履歴（replies）に追加
+      const replies = allMessages.filter((msg) => {
+        const isReply = /^Re:\s*/i.test(msg.subject.trim());
+        const replySubjectClean = msg.subject.replace(/^Re:\s*/i, '').trim();
+
+        return isReply && replySubjectClean === parentSubjectClean;
+      });
+
+      return {
+        ...parent,
+        replies,
+      };
+    }).reverse();
 
     return NextResponse.json({ success: true, inquiries });
   } catch (error: any) {

@@ -24,9 +24,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!ok) return null;
 
         if (user.status !== "active") return null; // inactive user cannot login
-
         // Return user object with id, email, and name
-        return { id: user.member_id, email: user.email, name: user.user_name, role: user.role };
+        return { id: user.member_id, email: user.email, name: user.user_name, role: user.role};
       },
     }),
   ],

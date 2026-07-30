@@ -6,6 +6,8 @@ import type { EventWithStatus, EventSheetHealth } from "@/types/event";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
+
+// 60秒キャッシュ（スプレッドシートへのアクセス過多エラーを防ぐ）
 const TTL_MS = 60_000;
 
 const MEMBER_ID_HEADERS = [
@@ -160,27 +162,32 @@ async function loadSnapshot(): Promise<Snapshot> {
 
   const upcoming = eventRows
     .map((row, index) => {
+      // スプレッドシートから取得した日付文字列を解析
       const rawDateStr = String(row.get("event_date") || "");
       const parsed = parseEventDateTime(rawDateStr);
+
       return {
         id: index,
         event_id: String(row.get("event_id") ?? "").trim(),
         title: (row.get("title") || "タイトル未設定") as string,
-        event_date: formatEventDate(rawDateStr),
+        event_date: formatEventDate(rawDateStr), // 表示用に整形
         form_url: (row.get("form_url") || "#") as string,
+        location: (row.get("location") || "") as string,
+        event_end_date: (row.get("event_end_date") || "") as string,
+        
         _sheetName: resolveSheetName(row),
         _startDate: parsed ? parsed.start : null,
         _endDate: parsed ? parsed.end : null,
-        // statusカラムの値を取得（小文字化して判定を安全にする）
         _status: String(row.get("status") ?? "").trim().toLowerCase(),
       };
     })
-    // 終了日が今日以降 かつ statusが 'published' のものだけ残す
+    // 終了日が今日以降、かつステータスが published のものを残す
     .filter((e): e is typeof e & { _startDate: Date; _endDate: Date } => 
       e._endDate !== null && 
       e._endDate >= today && 
       e._status === "published"
     )
+    // 開始日が近い順に並び替え
     .sort((a, b) => a._startDate.getTime() - b._startDate.getTime());
 
   const answers = new Map<string, Set<string> | null>();
@@ -197,7 +204,7 @@ async function loadSnapshot(): Promise<Snapshot> {
   );
 
   return {
-    // フロントエンドには _status を送る必要がないので除外する
+    // 内部計算用のプロパティ（_startDateなど）を除外してフロントエンドに渡す
     events: upcoming.map(({ _startDate, _endDate, _sheetName, _status, ...rest }) => rest),
     answers,
   };

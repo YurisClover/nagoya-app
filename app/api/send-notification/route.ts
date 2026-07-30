@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { auth } from '@/auth';
+import dns from 'node:dns';
+
+// ローカル開発環境（npm run dev）の時だけ IPv4 を優先にし、デプロイ環境（IPv6-Only等）では設定しない
+if (process.env.NODE_ENV === 'development') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 export async function POST(request: Request) {
   try {
@@ -82,11 +88,11 @@ export async function POST(request: Request) {
           isGroupMatch = true;
           const rawMemberIdsStr = matchedGroup[gMemberIdsIdx].toString();
 
-          // カンマ（半角・全角）で分割し、トリム＆空文字除去
+          // カンマ（半角・全角）で分割し、トリム＆空文字除去、★自分（送信者）を除外
           targetMemberIds = rawMemberIdsStr
             .split(/[,，、]/)
             .map((id: string) => id.trim())
-            .filter((id: string) => id.length > 0);
+            .filter((id: string) => id.length > 0 && id !== targetSenderId);
         }
       }
     } catch (gErr) {
@@ -118,12 +124,12 @@ export async function POST(request: Request) {
       const userRows = rows.slice(1);
 
       if (rawRecipient === 'all') {
-        // 全体配信：Usersシートの全員の member_id
+        // 全体配信：Usersシートの全員の member_id（★自分を除外）
         targetMemberIds = userRows
           .map((row: string[]) => row[memberIdIdx]?.toString().trim())
-          .filter((mId): mId is string => Boolean(mId));
+          .filter((mId): mId is string => Boolean(mId) && mId !== targetSenderId);
       } else {
-        // 個別配信：user_name または member_id から該当する member_id を特定
+        // 個別配信：user_name または member_id から該当する member_id を特定（テスト送信考慮のため自分宛てでも除外しない）
         const matchedUser = userRows.find((row) => {
           const mId = row[memberIdIdx]?.toString().trim();
           const uName = row[userNameIdx]?.toString().trim();
@@ -138,9 +144,13 @@ export async function POST(request: Request) {
       }
     }
 
+    // 重複IDの除去
+    targetMemberIds = Array.from(new Set(targetMemberIds));
+
+    // 送信対象が0名になった場合の処理
     if (targetMemberIds.length === 0) {
       return NextResponse.json(
-        { success: false, error: '対象のユーザー（member_id）が見つかりませんでした' },
+        { success: false, error: '対象のユーザー（member_id）が見つかりませんでした（送信者自身を除外した結果0名となりました）' },
         { status: 400 }
       );
     }

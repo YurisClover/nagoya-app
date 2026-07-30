@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getUserByEmail } from "@/lib/sheets";
-import { formatJapaneseDate } from "@/lib/datetime";
 import AppShell from "@/components/AppShell";
 import MemberBarcode from "./MemberBarcode";
 
@@ -32,7 +31,6 @@ export default async function BarcodePage() {
           <InfoRow label="氏名" value={user.user_name || "—"} />
           <InfoRow label="会員番号" value={user.member_id || "—"} />
           <InfoRow label="所属支部" value={BRANCH_NAME} />
-          <InfoRow label="有効期限" value={formatJapaneseDate(user.expiration_date) ?? "—"} />
         </dl>
 
         <div className="mt-10">
