@@ -1,5 +1,6 @@
+import Link from "next/link";
 import PdfFile from "./type";
-import { FileText, ExternalLink } from "lucide-react";
+import { FileText, ChevronRight } from "lucide-react";
 
 type Props = {
   pdfList: PdfFile[];
@@ -18,8 +19,7 @@ const PdfList = ({ pdfList: allPdfList, currentPdfList }: Props) => {
     <ul className="space-y-2">
       {currentPdfList.map((pdf) => (
         <li key={pdf.id}>
-          <a href={`/api/pdf/${pdf.id}`} target="_blank" rel="noopener noreferrer"
-             className="card-tap flex items-center gap-3">
+          <Link href={`/site/view/${pdf.id}`} className="card-tap flex items-center gap-3">
             <span className="icon-tile tone-navy mb-0 shrink-0">
               <FileText size={20} />
             </span>
@@ -32,8 +32,8 @@ const PdfList = ({ pdfList: allPdfList, currentPdfList }: Props) => {
                 公開日: {new Date(pdf.createdTime).toLocaleDateString("ja-JP")}
               </span>
             </span>
-            <ExternalLink size={16} className="shrink-0 text-ink-muted" />
-          </a>
+            <ChevronRight size={16} className="shrink-0 text-ink-muted" />
+          </Link>
         </li>
       ))}
     </ul>
