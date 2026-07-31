@@ -3,11 +3,11 @@ import { google } from 'googleapis';
 
 export async function POST(req: Request) {
   try {
-    const { messageId } = await req.json();
+    const { messageId, replyIds } = await req.json();
 
     if (!messageId) {
       return NextResponse.json(
-        { success: false, error: 'messageId が指定されていません' },
+        { success: false, error: 'messageIdが指定されていません' },
         { status: 400 }
       );
     }
@@ -24,16 +24,13 @@ export async function POST(req: Request) {
     }
 
     const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: clientEmail,
-        private_key: privateKey,
-      },
+      credentials: { client_email: clientEmail, private_key: privateKey },
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // 1. Messagesシート全行を取得して対象 message_id の行番号を特定
+    // Messagesシートを取得
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: 'Messages!A1:Z',
@@ -41,48 +38,47 @@ export async function POST(req: Request) {
 
     const rows = res.data.values || [];
     if (rows.length <= 1) {
-      return NextResponse.json({ success: false, error: 'データが存在しません' }, { status: 404 });
+      return NextResponse.json({ success: true, updatedCount: 0 });
     }
 
     const header = rows[0].map((h: any) => String(h).toLowerCase().trim());
-    let mIdIdx = header.findIndex((h: string) => h === 'message_id' || h === 'id');
-    let isReadIdx = header.findIndex((h: string) => h === 'is_read' || h === 'isread');
+    let idIdx = header.findIndex((h) => h === 'message_id' || h === 'id');
+    let isReadIdx = header.findIndex((h) => h === 'is_read' || h === 'isread');
 
-    if (mIdIdx === -1) mIdIdx = 0;
-    if (isReadIdx === -1) isReadIdx = 5;
+    if (idIdx === -1) idIdx = 0;
+    if (isReadIdx === -1) isReadIdx = 5; // F列
 
-    // 対象メッセージの行インデックスを検索 (1-based index)
-    let targetRowIndex = -1;
-    for (let i = 1; i < rows.length; i++) {
-      if (rows[i][mIdIdx]?.toString().trim() === messageId) {
-        targetRowIndex = i + 1; // スプレッドシートの行番号は1始まり
-        break;
+    // 既読対象とするメッセージIDのセット（親ID + 配下の返信ID群）
+    const idsToMarkRead = new Set<string>([messageId, ...(replyIds || [])]);
+
+    const updatePromises: Promise<any>[] = [];
+
+    rows.slice(1).forEach((row, index) => {
+      const currentId = row[idIdx]?.toString().trim();
+      if (currentId && idsToMarkRead.has(currentId)) {
+        const rowIndex = index + 2; // ヘッダー行考慮の1-based行番号
+        const range = `Messages!${String.fromCharCode(65 + isReadIdx)}${rowIndex}`;
+
+        updatePromises.push(
+          sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range,
+            valueInputOption: 'RAW', // ★ RAW に変更
+            requestBody: {
+              values: [['true']], // 小文字の 'true'
+            },
+          })
+        );
       }
-    }
-
-    if (targetRowIndex === -1) {
-      return NextResponse.json({ success: false, error: '対象のメッセージが見つかりませんでした' }, { status: 404 });
-    }
-
-    // 列記号を算出（例: 0 -> A, 5 -> F）
-    const columnLetter = String.fromCharCode(65 + isReadIdx);
-    const updateRange = `Messages!${columnLetter}${targetRowIndex}`;
-
-    // 2. is_read セルを 'true' に更新
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: updateRange,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [['true']],
-      },
     });
 
-    return NextResponse.json({ success: true, messageId });
+    await Promise.all(updatePromises);
+
+    return NextResponse.json({ success: true, updatedCount: updatePromises.length });
   } catch (error: any) {
-    console.error('既読更新エラー:', error);
+    console.error('既読処理エラー:', error);
     return NextResponse.json(
-      { success: false, error: error.message || '既読更新に失敗しました' },
+      { success: false, error: error.message || '更新エラー' },
       { status: 500 }
     );
   }

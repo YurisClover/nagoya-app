@@ -17,7 +17,7 @@ export default function Sidebar({ user }: SidebarProps) {
   // 初期値を 0 にして、APIから取得完了するまでバッジを出さない
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
-  // 未読バッジ件数をAPIから自動取得（30秒ごとに定期更新）
+  // 未読バッジ件数をAPIから自動取得（60秒ごとに定期更新） & カスタムイベントによる即時更新
   useEffect(() => {
     async function fetchUnreadCount() {
       try {
@@ -35,7 +35,21 @@ export default function Sidebar({ user }: SidebarProps) {
 
     // 60秒周期でバックグラウンド更新
     const interval = setInterval(fetchUnreadCount, 60000);
-    return () => clearInterval(interval);
+
+    // ★ 親メッセージを開いた（既読化した）際の即時更新イベントリスナー
+    const handleUnreadUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ unreadCount: number }>;
+      if (customEvent.detail && typeof customEvent.detail.unreadCount === "number") {
+        setUnreadCount(customEvent.detail.unreadCount);
+      }
+    };
+
+    window.addEventListener("unread-count-updated", handleUnreadUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("unread-count-updated", handleUnreadUpdate);
+    };
   }, []);
 
   // メニューの定義

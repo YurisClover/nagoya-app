@@ -118,3 +118,44 @@ export function jstYearMonth(date: Date): string {
   const g = (t: string) => p.find((x) => x.type === t)!.value;
   return `${g("year")}-${g("month")}`;
 }
+
+// --- 既存のコード（pad, jstInstant, todayInJST, nowJST, parseSheetDate...）はそのまま ---
+
+/**
+ * ISO形式等の日付文字列を「本日 HH:mm」または「M/D HH:mm」にフォーマットします
+ */
+export function formatRelativeDateTime(dateStr: string): string {
+  if (!dateStr) return '';
+  const date = parseSheetDate(dateStr);
+  if (!date || isNaN(date.getTime())) return dateStr;
+
+  const today = todayInJST();
+
+  // 対象日付の JST 年月日を取得
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(date);
+
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+  const y = parseInt(g("year"), 10);
+  const m = parseInt(g("month"), 10);
+  const d = parseInt(g("day"), 10);
+  
+  let hour = g("hour");
+  if (hour === "24") hour = "00";
+  const minute = g("minute");
+
+  // 今日かどうかチェック
+  if (y === today.y && m === today.m && d === today.d) {
+    return `本日 ${hour}:${minute}`;
+  }
+
+  // 今日以外の場合（例: 7/30 15:00 または 2025/7/30 15:00）
+  if (y === today.y) {
+    return `${m}/${d} ${hour}:${minute}`;
+  } else {
+    return `${y}/${m}/${d} ${hour}:${minute}`;
+  }
+}

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatRelativeDateTime } from '@/lib/datetime';
 
-// 型定義
 type Group = {
   group_id: string;
   group_name: string;
@@ -12,15 +12,19 @@ type ReplyMessage = {
   id: string;
   senderId: string;
   userName: string;
+  memberId?: string;
   subject: string;
   body: string;
+  isRead?: boolean;
   createdAt: string;
 };
 
 type ReceivedMessage = {
   id: string;
   senderId: string;
+  recipientId: string;
   userName: string;
+  memberId?: string;
   subject: string;
   body: string;
   isRead: boolean;
@@ -29,7 +33,6 @@ type ReceivedMessage = {
 };
 
 export default function AdminMessagePage() {
-  // --- 状態管理 (新規作成・送信フォーム) ---
   const [targetType, setTargetType] = useState<'all' | 'group' | 'individual'>('all');
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
@@ -40,17 +43,22 @@ export default function AdminMessagePage() {
   const [body, setBody] = useState<string>('');
   const [isSending, setIsSending] = useState<boolean>(false);
 
-  // --- 状態管理 (受信メッセージ・返信) ---
   const [inquiries, setInquiries] = useState<ReceivedMessage[]>([]);
   const [isLoadingInquiries, setIsLoadingInquiries] = useState<boolean>(true);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // 返信入力エリアの状態管理 (messageId -> 入力テキスト)
   const [replyTextMap, setReplyTextMap] = useState<{ [key: string]: string }>({});
   const [isReplyingMap, setIsReplyingMap] = useState<{ [key: string]: boolean }>({});
 
-  // グループ一覧の取得
+  const notifyUnreadCountChange = useCallback((count: number) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('unread-count-updated', { detail: { unreadCount: count } })
+      );
+    }
+  }, []);
+
   useEffect(() => {
     async function fetchGroups() {
       try {
@@ -71,7 +79,6 @@ export default function AdminMessagePage() {
     fetchGroups();
   }, []);
 
-  // 受信メッセージ取得関数
   const fetchInquiries = useCallback(async (isSilent = false) => {
     if (!isSilent) setIsLoadingInquiries(true);
     try {
@@ -86,15 +93,25 @@ export default function AdminMessagePage() {
             second: '2-digit',
           })
         );
+
+        let unreadTotal = 0;
+        data.inquiries.forEach((item: ReceivedMessage) => {
+          if (!item.isRead) unreadTotal++;
+          if (item.replies) {
+            item.replies.forEach((r) => {
+              if (!r.isRead) unreadTotal++;
+            });
+          }
+        });
+        notifyUnreadCountChange(unreadTotal);
       }
     } catch (err) {
       console.error('受信メッセージの取得に失敗しました:', err);
     } finally {
       if (!isSilent) setIsLoadingInquiries(false);
     }
-  }, []);
+  }, [notifyUnreadCountChange]);
 
-  // 初回取得 & 60秒自動更新
   useEffect(() => {
     fetchInquiries(false);
     const intervalId = setInterval(() => {
@@ -103,14 +120,12 @@ export default function AdminMessagePage() {
     return () => clearInterval(intervalId);
   }, [fetchInquiries]);
 
-  // グループ選択ハンドラ
   const handleGroupChange = (groupId: string) => {
     setSelectedGroupId(groupId);
     const target = groups.find((g) => g.group_id === groupId);
     setSelectedGroupName(target ? target.group_name : '');
   };
 
-  // 件名プレフィックス
   const getPrefix = () => {
     if (targetType === 'all') return '(全会員)';
     if (targetType === 'group') return selectedGroupName ? `(${selectedGroupName})` : '(グループ)';
@@ -122,7 +137,6 @@ export default function AdminMessagePage() {
     return prefix ? `${prefix} ${rawTitle}` : rawTitle;
   };
 
-  // メッセージの新規送信（上部フォーム）
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -176,36 +190,60 @@ export default function AdminMessagePage() {
     }
   };
 
-  // メッセージの既読化
   const handleMarkAsRead = async (inquiry: ReceivedMessage) => {
-    if (inquiry.isRead) return;
+    const replyIds = inquiry.replies ? inquiry.replies.map((r) => r.id).filter(Boolean) : [];
 
-    setInquiries((prev) =>
-      prev.map((item) => (item.id === inquiry.id ? { ...item, isRead: true } : item))
-    );
+    const newInquiries = inquiries.map((item) => {
+      if (item.id === inquiry.id) {
+        return {
+          ...item,
+          isRead: true,
+          replies: item.replies?.map((r) => ({ ...r, isRead: true })),
+        };
+      }
+      return item;
+    });
+
+    setInquiries(newInquiries);
+
+    let remainingUnread = 0;
+    newInquiries.forEach((item) => {
+      if (!item.isRead) remainingUnread++;
+      if (item.replies) {
+        item.replies.forEach((r) => {
+          if (!r.isRead) remainingUnread++;
+        });
+      }
+    });
+
+    notifyUnreadCountChange(remainingUnread);
 
     try {
       await fetch('/api/admin/inquiries/read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId: inquiry.id }),
+        body: JSON.stringify({
+          messageId: inquiry.id,
+          replyIds: replyIds,
+        }),
       });
     } catch (err) {
       console.error('既読更新エラー:', err);
     }
   };
 
-  // メッセージカードの開閉
   const toggleExpand = (inquiry: ReceivedMessage) => {
     const isOpening = expandedId !== inquiry.id;
     setExpandedId(isOpening ? inquiry.id : null);
 
-    if (isOpening && !inquiry.isRead) {
-      handleMarkAsRead(inquiry);
+    if (isOpening) {
+      const hasUnread = !inquiry.isRead || (inquiry.replies && inquiry.replies.some((r) => !r.isRead));
+      if (hasUnread) {
+        handleMarkAsRead(inquiry);
+      }
     }
   };
 
-  // カード内インライン返信の送信
   const handleSendInlineReply = async (inquiry: ReceivedMessage) => {
     const text = replyTextMap[inquiry.id]?.trim();
     if (!text) {
@@ -216,9 +254,8 @@ export default function AdminMessagePage() {
     setIsReplyingMap((prev) => ({ ...prev, [inquiry.id]: true }));
 
     try {
-      const replyTitle = inquiry.subject.startsWith('Re:')
-        ? inquiry.subject
-        : `Re: ${inquiry.subject}`;
+      const cleanSubject = inquiry.subject.replace(/^Re:\s*/i, '').trim();
+      const replyTitle = `Re: ${cleanSubject}`;
 
       const res = await fetch('/api/send-notification', {
         method: 'POST',
@@ -235,7 +272,7 @@ export default function AdminMessagePage() {
 
       if (res.ok && data.success) {
         setReplyTextMap((prev) => ({ ...prev, [inquiry.id]: '' }));
-        await fetchInquiries(true); // 返信ツリーを最新化
+        await fetchInquiries(true);
       } else {
         alert(`送信エラー: ${data.error || '返信の送信に失敗しました'}`);
       }
@@ -246,13 +283,21 @@ export default function AdminMessagePage() {
     }
   };
 
-  const unreadCount = inquiries.filter((i) => !i.isRead).length;
+  let unreadCountTotal = 0;
+  inquiries.forEach((item) => {
+    if (!item.isRead) unreadCountTotal++;
+    if (item.replies) {
+      item.replies.forEach((r) => {
+        if (!r.isRead) unreadCountTotal++;
+      });
+    }
+  });
 
   return (
     <div className="p-8 max-w-5xl space-y-8">
       <h2 className="text-2xl font-bold text-slate-900">メッセージ管理</h2>
 
-      {/* --- 1. メッセージを作成・送信 (新規作成フォーム) --- */}
+      {/* 1. メッセージ作成・送信 */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <h3 className="text-base font-bold text-slate-800 mb-4">メッセージを作成・送信</h3>
 
@@ -366,16 +411,16 @@ export default function AdminMessagePage() {
         </form>
       </section>
 
-      {/* --- 2. 受信メッセージ（問い合わせ・返信ツリー） --- */}
+      {/* 2. 受信メッセージ */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <h3 className="text-base font-bold text-slate-800">
               受信メッセージ（問い合わせ）
             </h3>
-            {unreadCount > 0 && (
+            {unreadCountTotal > 0 && (
               <span className="px-2.5 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">
-                未読 {unreadCount}件
+                未読 {unreadCountTotal}件
               </span>
             )}
           </div>
@@ -394,17 +439,17 @@ export default function AdminMessagePage() {
               const isExpanded = expandedId === item.id;
               const replyText = replyTextMap[item.id] || '';
               const isReplying = isReplyingMap[item.id] || false;
+              const hasThreadUnread = !item.isRead || (item.replies && item.replies.some((r) => !r.isRead));
 
               return (
                 <div
                   key={item.id}
                   className={`border rounded-xl transition overflow-hidden ${
-                    !item.isRead
+                    hasThreadUnread
                       ? 'bg-amber-50/50 border-amber-200'
                       : 'bg-white border-slate-200'
                   }`}
                 >
-                  {/* メッセージヘッダー（行クリックで開閉 & 既読化） */}
                   <div
                     onClick={() => toggleExpand(item)}
                     className="p-4 cursor-pointer hover:bg-slate-50/80 transition flex items-start justify-between"
@@ -416,21 +461,24 @@ export default function AdminMessagePage() {
                       <div>
                         <div className="flex items-center space-x-2">
                           <span className="font-bold text-sm text-slate-900">{item.userName}</span>
-                          <span className="text-xs text-slate-500">({item.senderId})</span>
-                          {!item.isRead && (
+                          <span className="text-xs text-slate-500">({item.memberId || item.senderId})</span>
+                          {hasThreadUnread && (
                             <span className="px-2 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded">
-                              未読
+                              未読あり
                             </span>
                           )}
                         </div>
-                        <p className={`text-sm mt-0.5 ${!item.isRead ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
+                        <p className={`text-sm mt-0.5 ${hasThreadUnread ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
                           {item.subject}
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center space-x-3">
-                      <span className="text-xs text-slate-400">{item.createdAt}</span>
+                      {/* ★ formatRelativeDateTime で相対日時表示 */}
+                      <span className="text-xs text-slate-400">
+                        {formatRelativeDateTime(item.createdAt)}
+                      </span>
                       <button
                         type="button"
                         className="text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition"
@@ -440,19 +488,16 @@ export default function AdminMessagePage() {
                     </div>
                   </div>
 
-                  {/* 展開コンテンツ（本文 ＋ 過去の返信 ＋ このメッセージへの返信入力） */}
                   {isExpanded && (
                     <div className="px-4 pb-5 pt-2 border-t border-slate-200 bg-slate-50/50 space-y-4">
-                      {/* メッセージ本文 */}
                       <div className="bg-white p-4 rounded-lg border border-slate-200 text-sm text-slate-800 whitespace-pre-wrap">
                         <p className="text-xs text-slate-400 mb-1 font-semibold">【問い合わせ本文】</p>
                         {item.body}
                       </div>
 
-                      {/* 過去の返信履歴 */}
                       {item.replies && item.replies.length > 0 && (
                         <div className="pl-6 space-y-3 border-l-2 border-blue-400">
-                          <p className="text-xs font-bold text-slate-600">送信済みの返信</p>
+                          <p className="text-xs font-bold text-slate-600">返信履歴</p>
                           {item.replies.map((reply) => (
                             <div
                               key={reply.id}
@@ -460,9 +505,12 @@ export default function AdminMessagePage() {
                             >
                               <div className="flex items-center justify-between mb-1">
                                 <span className="font-bold text-xs text-blue-900">
-                                  {reply.userName}（管理者）
+                                  {reply.userName} ({reply.memberId || reply.senderId})
                                 </span>
-                                <span className="text-[11px] text-slate-400">{reply.createdAt}</span>
+                                {/* ★ formatRelativeDateTime で相対日時表示 */}
+                                <span className="text-[11px] text-slate-400">
+                                  {formatRelativeDateTime(reply.createdAt)}
+                                </span>
                               </div>
                               <p className="text-slate-800 whitespace-pre-wrap">{reply.body}</p>
                             </div>
@@ -470,7 +518,6 @@ export default function AdminMessagePage() {
                         </div>
                       )}
 
-                      {/* 返信フォーム */}
                       <div className="bg-white p-4 rounded-lg border border-slate-200 space-y-3">
                         <label className="block text-xs font-bold text-slate-700">
                           {item.userName} 様へ返信

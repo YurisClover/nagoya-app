@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { auth } from '@/auth';
 import dns from 'node:dns';
+import { nowJST } from '@/lib/datetime';
 
 // ローカル開発環境（npm run dev）の時だけ IPv4 を優先にし、デプロイ環境（IPv6-Only等）では設定しない
 if (process.env.NODE_ENV === 'development') {
@@ -155,7 +156,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const createdAt = new Date().toISOString();
+    // 保存日時は JST 形式 (+09:00付き) で生成
+    const createdAt = nowJST();
 
     // 5. 対象メンバーそれぞれに対して1件ずつメッセージ行を作成
     const rowsToAppend = targetMemberIds.map((recipientMemberId) => [
@@ -164,15 +166,15 @@ export async function POST(request: Request) {
       recipientMemberId,    // C: recipient_id (受信者の member_id)
       bodyData.title,       // D: title
       bodyData.body,        // E: body
-      'unread',             // F: is_read
-      createdAt,            // G: created_at
+      'false',              // F: is_read (未読時は小文字の 'false')
+      createdAt,            // G: created_at (nowJST())
     ]);
 
     // 6. Messagesシートに一括保存
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: 'Messages!A:G',
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW', // ★ USER_ENTERED から RAW に変更することで小文字テキストのまま保存されます
       requestBody: {
         values: rowsToAppend,
       },
