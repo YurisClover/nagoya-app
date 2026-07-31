@@ -1,0 +1,223 @@
+//メッセージ作成・送信を行うフォームコンポーネント
+
+'use client';
+
+import React, { useState } from 'react';
+
+type Group = {
+  group_id: string;
+  group_name: string;
+};
+
+interface MessageFormProps {
+  groups: Group[];
+  onSuccess: () => void;
+}
+
+export default function MessageForm({ groups, onSuccess }: MessageFormProps) {
+  const [targetType, setTargetType] = useState<'all' | 'group' | 'individual'>('all');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+  const [selectedGroupName, setSelectedGroupName] = useState<string>('');
+  const [individualInput, setIndividualInput] = useState<string>('');
+  const [rawTitle, setRawTitle] = useState<string>('');
+  const [body, setBody] = useState<string>('');
+  const [isSending, setIsSending] = useState<boolean>(false);
+
+  const normalizeToEightDigits = (str: string) => {
+    const halfWidth = str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) =>
+      String.fromCharCode(s.charCodeAt(0) - 0xfee0)
+    );
+    return halfWidth.replace(/[^0-9]/g, '').slice(0, 8);
+  };
+
+  const isEightDigitMemberId = /^[0-9]{8}$/.test(individualInput);
+  const isIndividualError = targetType === 'individual' && !isEightDigitMemberId;
+
+  const handleGroupChange = (groupId: string) => {
+    setSelectedGroupId(groupId);
+    const target = groups.find((g) => g.group_id === groupId);
+    setSelectedGroupName(target ? target.group_name : '');
+  };
+
+  const getPrefix = () => {
+    if (targetType === 'all') return '(全会員)';
+    if (targetType === 'group') return selectedGroupName ? `(${selectedGroupName})` : '(グループ)';
+    return '';
+  };
+
+  const getFormattedTitle = () => {
+    const prefix = getPrefix();
+    return prefix ? `${prefix} ${rawTitle}` : rawTitle;
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!rawTitle.trim() || !body.trim()) {
+      alert('件名と本文を入力してください');
+      return;
+    }
+
+    let recipientId = 'all';
+    if (targetType === 'group') {
+      if (!selectedGroupId) {
+        alert('グループを選択してください');
+        return;
+      }
+      recipientId = selectedGroupId;
+    } else if (targetType === 'individual') {
+      if (!isEightDigitMemberId) {
+        alert(`【エラー】宛先は半角数字「8桁」の会員IDを入力してください。\n(現在の入力: ${individualInput.length}桁)`);
+        return;
+      }
+      recipientId = individualInput.trim();
+    }
+
+    setIsSending(true);
+
+    try {
+      const res = await fetch('/api/send-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient_id: recipientId,
+          title: getFormattedTitle(),
+          body: body,
+          url: '/messages',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        alert(`送信が完了しました（対象: ${data.savedCount || 1}名）`);
+        setRawTitle('');
+        setBody('');
+        setIndividualInput('');
+        onSuccess();
+      } else {
+        alert(`送信エラー: ${data.error || '送信に失敗しました'}`);
+      }
+    } catch (err: any) {
+      alert(`通信エラー: ${err.message || '送信処理中にエラーが発生しました'}`);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <h3 className="text-base font-bold text-slate-800 mb-4">メッセージを作成・送信</h3>
+
+      <form onSubmit={handleSend} className="space-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">送信先</label>
+            <select
+              value={targetType}
+              onChange={(e) => setTargetType(e.target.value as any)}
+              className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+            >
+              <option value="all">全会員</option>
+              <option value="group">グループ指定</option>
+              <option value="individual">個人指定</option>
+            </select>
+          </div>
+
+          {targetType === 'group' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">グループ選択</label>
+              <select
+                value={selectedGroupId}
+                onChange={(e) => handleGroupChange(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+              >
+                <option value="">グループを選択してください</option>
+                {groups.map((g, index) => {
+                  const id = g.group_id || `group_${index}`;
+                  return (
+                    <option key={id} value={id}>
+                      {g.group_name} {id ? `(${id})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {targetType === 'individual' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">宛先 (会員ID)</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={8}
+                placeholder="例: 10001234 (半角数字8桁)"
+                value={individualInput}
+                onChange={(e) => setIndividualInput(normalizeToEightDigits(e.target.value))}
+                className={`w-full p-2.5 bg-slate-50 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 ${
+                  isIndividualError
+                    ? 'border-red-400 bg-red-50/50 focus:ring-red-400'
+                    : 'border-slate-300 focus:ring-slate-500'
+                }`}
+              />
+              {isIndividualError && (
+                <p className="text-xs text-red-500 mt-1 font-medium">
+                  ※ 会員IDは半角数字「8桁」で入力してください (現在 {individualInput.length} 桁)
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">件名</label>
+          <div className="flex items-center space-x-2">
+            {getPrefix() && (
+              <span className="px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 whitespace-nowrap">
+                {getPrefix()}
+              </span>
+            )}
+            <input
+              type="text"
+              placeholder="件名を入力してください"
+              value={rawTitle}
+              onChange={(e) => setRawTitle(e.target.value)}
+              className="flex-1 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">本文</label>
+          <textarea
+            rows={5}
+            placeholder="メッセージ本文を入力してください..."
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 resize-y"
+          />
+        </div>
+
+        <div className="flex items-center justify-end space-x-3 pt-2">
+          <button
+            type="button"
+            onClick={() =>
+              alert(`【送信予定の件名】\n${getFormattedTitle() || '(未入力)'}\n\n【本文】\n${body || '(未入力)'}`)
+            }
+            className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition"
+          >
+            プレビュー
+          </button>
+          <button
+            type="submit"
+            disabled={isSending || isIndividualError}
+            className="px-6 py-2 bg-[#1b365d] hover:bg-[#142845] text-white rounded-lg text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSending ? '送信中...' : '送信する'}
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}

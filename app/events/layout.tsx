@@ -1,4 +1,3 @@
-import ".././globals.css"; // CSSはそのまま読み込む
 import type { Metadata } from "next";
 import AppShell from "@/components/AppShell";
 
