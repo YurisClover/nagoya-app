@@ -1,5 +1,8 @@
-import { forms_v1,google } from "googleapis";
-import {createAuthenticatedGoogleFormsOAuthClient,} from "@/lib/google-auth";
+import "server-only";
+
+import {
+  createAuthenticatedGoogleFormsOAuthClient,
+} from "@/lib/google-auth";
 
 export type GoogleFormStatus =
   | "private"
@@ -23,48 +26,18 @@ const FORM_STATUS_SETTINGS = {
   },
 } as const;
 
-/**
- * Googleフォームの公開・回答受付状態を変更する
- */
-export async function setGoogleFormStatus(
-  formId: string,
-  status: GoogleFormStatus,
-) {
-  if (!formId) {
-    throw new Error(
-      "GoogleフォームIDが指定されていません。",
-    );
-  }
-
-  const auth = createAuthenticatedGoogleFormsOAuthClient();
-
-  const forms = google.forms({
-    version: "v1",
-    auth,
-  });
-
-  const publishState = FORM_STATUS_SETTINGS[status];
-
-  const response = await forms.forms.setPublishSettings({
-      formId,
-
-      requestBody: {
-        publishSettings: {
-          publishState,
-        },
-        updateMask: "publishState",
-      },
-    });
-
-  return response.data;
-}
-
 export type EventFormQuestionType =
   | "SHORT_TEXT"
   | "LONG_TEXT"
   | "RADIO";
 
 export type EventFormQuestion = {
+  /*
+   * システムで質問を識別したい場合に指定する。
+   * 会員ID質問ではmemberIdを使用する。
+   */
+  questionId?: string;
+
   title: string;
   description?: string;
   required: boolean;
@@ -87,6 +60,150 @@ export type CreatedEventGoogleForm = {
   isAcceptingResponses: false;
 };
 
+type GoogleFormsApiError = {
+  error?: {
+    code?: number;
+    message?: string;
+    status?: string;
+  };
+};
+
+type CreateFormResponse = {
+  formId?: string;
+  responderUri?: string | null;
+};
+
+type FormsApiRequest = {
+  updateFormInfo?: {
+    info: {
+      description: string;
+    };
+
+    updateMask: string;
+  };
+
+  createItem?: {
+    item: {
+      title: string;
+      description?: string;
+
+      questionItem: {
+        question: {
+          questionId?: string;
+          required: boolean;
+
+          textQuestion?: {
+            paragraph: boolean;
+          };
+
+          choiceQuestion?: {
+            type: "RADIO";
+
+            options: Array<{
+              value: string;
+            }>;
+
+            shuffle: boolean;
+          };
+        };
+      };
+    };
+
+    location: {
+      index: number;
+    };
+  };
+};
+
+/**
+ * OAuthアクセストークンを取得する。
+ */
+async function getGoogleFormsAccessToken():
+Promise<string> {
+  const auth =
+    createAuthenticatedGoogleFormsOAuthClient();
+
+  const accessTokenResponse =
+    await auth.getAccessToken();
+
+  const accessToken =
+    accessTokenResponse.token;
+
+  if (!accessToken) {
+    throw new Error(
+      "Google Forms APIのアクセストークンを取得できませんでした。",
+    );
+  }
+
+  return accessToken;
+}
+
+/**
+ * Google Forms REST APIへリクエストを送る。
+ */
+async function requestGoogleFormsApi<T>(
+  url: string,
+  accessToken: string,
+  init: RequestInit,
+): Promise<T> {
+  const response =
+    await fetch(
+      url,
+      {
+        ...init,
+
+        headers: {
+          Authorization:
+            `Bearer ${accessToken}`,
+
+          "Content-Type":
+            "application/json",
+
+          ...(init.headers ?? {}),
+        },
+
+        cache: "no-store",
+      },
+    );
+
+  const responseText =
+    await response.text();
+
+  if (!response.ok) {
+    let detail =
+      responseText ||
+      response.statusText;
+
+    if (responseText) {
+      try {
+        const parsedError =
+          JSON.parse(
+            responseText,
+          ) as GoogleFormsApiError;
+
+        detail =
+          parsedError.error?.message ??
+          detail;
+      } catch {
+        // JSON形式でない場合は、
+        // 元のレスポンス文字列を使用する。
+      }
+    }
+
+    throw new Error(
+      `Google Forms APIエラー (${response.status}): ${detail}`,
+    );
+  }
+
+  if (!responseText) {
+    return {} as T;
+  }
+
+  return JSON.parse(
+    responseText,
+  ) as T;
+}
+
 /**
  * 管理画面から受け取った質問情報を、
  * Google Forms APIの質問追加リクエストへ変換する。
@@ -94,41 +211,78 @@ export type CreatedEventGoogleForm = {
 function createQuestionRequest(
   question: EventFormQuestion,
   index: number,
-): forms_v1.Schema$Request {
-  if (!question.title.trim()) {
+): FormsApiRequest {
+  const title =
+    question.title.trim();
+
+  if (!title) {
     throw new Error(
       `${index + 1}問目の質問タイトルが空です。`,
     );
   }
 
-  if (question.type === "RADIO") {
+  const questionId =
+    question.questionId?.trim();
+
+  if (
+    question.questionId !==
+      undefined &&
+    !questionId
+  ) {
+    throw new Error(
+      `${title}の質問IDが空です。`,
+    );
+  }
+
+  if (
+    question.type ===
+    "RADIO"
+  ) {
+    const options =
+      question.options
+        ?.map(
+          (option) =>
+            option.trim(),
+        )
+        .filter(Boolean);
+
     if (
-      !question.options ||
-      question.options.length < 2
+      !options ||
+      options.length < 2
     ) {
       throw new Error(
-        `${question.title}には2つ以上の選択肢が必要です。`,
+        `${title}には2つ以上の選択肢が必要です。`,
       );
     }
 
     return {
       createItem: {
         item: {
-          title: question.title,
-          description: question.description,
+          title,
+
+          description:
+            question.description,
 
           questionItem: {
             question: {
-              required: question.required,
+              questionId,
+              required:
+                question.required,
 
               choiceQuestion: {
-                type: "RADIO",
-                options: question.options.map(
-                  (option) => ({
-                    value: option,
-                  }),
-                ),
-                shuffle: false,
+                type:
+                  "RADIO",
+
+                options:
+                  options.map(
+                    (option) => ({
+                      value:
+                        option,
+                    }),
+                  ),
+
+                shuffle:
+                  false,
               },
             },
           },
@@ -144,16 +298,22 @@ function createQuestionRequest(
   return {
     createItem: {
       item: {
-        title: question.title,
-        description: question.description,
+        title,
+
+        description:
+          question.description,
 
         questionItem: {
           question: {
-            required: question.required,
+            questionId,
+
+            required:
+              question.required,
 
             textQuestion: {
               paragraph:
-                question.type === "LONG_TEXT",
+                question.type ===
+                "LONG_TEXT",
             },
           },
         },
@@ -167,41 +327,97 @@ function createQuestionRequest(
 }
 
 /**
+ * Googleフォームの公開・回答受付状態を変更する。
+ *
+ * 現在status APIが別の軽量ファイルを使っていても、
+ * 既存importとの互換性のため残している。
+ */
+export async function setGoogleFormStatus(
+  formId: string,
+  status: GoogleFormStatus,
+) {
+  if (!formId) {
+    throw new Error(
+      "GoogleフォームIDが指定されていません。",
+    );
+  }
+
+  const accessToken =
+    await getGoogleFormsAccessToken();
+
+  const publishState =
+    FORM_STATUS_SETTINGS[
+      status
+    ];
+
+  return requestGoogleFormsApi<{
+    formId?: string;
+  }>(
+    `https://forms.googleapis.com/v1/forms/${encodeURIComponent(
+      formId,
+    )}:setPublishSettings`,
+
+    accessToken,
+
+    {
+      method: "POST",
+
+      body: JSON.stringify({
+        publishSettings: {
+          publishState,
+        },
+
+        updateMask:
+          "publishState",
+      }),
+    },
+  );
+}
+
+/**
  * イベント用Googleフォームを非公開状態で作成する。
  */
 export async function createEventGoogleForm(
   input: CreateEventGoogleFormInput,
 ): Promise<CreatedEventGoogleForm> {
-  if (!input.title.trim()) {
+  const title =
+    input.title.trim();
+
+  if (!title) {
     throw new Error(
       "フォームタイトルが入力されていません。",
     );
   }
 
-  const auth =
-    createAuthenticatedGoogleFormsOAuthClient();
-
-  const forms = google.forms({
-    version: "v1",
-    auth,
-  });
+  const accessToken =
+    await getGoogleFormsAccessToken();
 
   /*
-   * ① タイトルだけの空フォームを非公開で作成
+   * ① タイトルだけの空フォームを
+   * 非公開状態で作成する。
    */
   const createResponse =
-    await forms.forms.create({
-      unpublished: true,
+    await requestGoogleFormsApi<CreateFormResponse>(
+      "https://forms.googleapis.com/v1/forms?unpublished=true",
 
-      requestBody: {
-        info: {
-          title: input.title,
-          documentTitle: input.title,
-        },
+      accessToken,
+
+      {
+        method: "POST",
+
+        body: JSON.stringify({
+          info: {
+            title,
+
+            documentTitle:
+              title,
+          },
+        }),
       },
-    });
+    );
 
-  const formId = createResponse.data.formId;
+  const formId =
+    createResponse.formId;
 
   if (!formId) {
     throw new Error(
@@ -210,25 +426,33 @@ export async function createEventGoogleForm(
   }
 
   /*
-   * ② 説明文と質問を追加
+   * ② 説明文と質問を追加する。
    */
-  const requests: forms_v1.Schema$Request[] =
-    [];
+  const requests:
+    FormsApiRequest[] = [];
 
-  if (input.description?.trim()) {
+  if (
+    input.description?.trim()
+  ) {
     requests.push({
       updateFormInfo: {
         info: {
-          description: input.description,
+          description:
+            input.description,
         },
-        updateMask: "description",
+
+        updateMask:
+          "description",
       },
     });
   }
 
   requests.push(
     ...input.questions.map(
-      (question, index) =>
+      (
+        question,
+        index,
+      ) =>
         createQuestionRequest(
           question,
           index,
@@ -236,27 +460,40 @@ export async function createEventGoogleForm(
     ),
   );
 
-  if (requests.length > 0) {
-    await forms.forms.batchUpdate({
-      formId,
+  if (
+    requests.length > 0
+  ) {
+    await requestGoogleFormsApi(
+      `https://forms.googleapis.com/v1/forms/${encodeURIComponent(
+        formId,
+      )}:batchUpdate`,
 
-      requestBody: {
-        requests,
+      accessToken,
+
+      {
+        method: "POST",
+
+        body: JSON.stringify({
+          requests,
+        }),
       },
-    });
+    );
   }
 
   return {
     formId,
-    title: input.title,
+    title,
 
     editUrl:
       `https://docs.google.com/forms/d/${formId}/edit`,
 
     responderUrl:
-      createResponse.data.responderUri,
+      createResponse.responderUri,
 
-    isPublished: false,
-    isAcceptingResponses: false,
+    isPublished:
+      false,
+
+    isAcceptingResponses:
+      false,
   };
 }

@@ -5,15 +5,26 @@ import {
   useState,
 } from "react";
 
+import {
+  useRouter,
+} from "next/navigation";
+
+type EventAudience =
+  | "general"
+  | "executive";
+
 type CreateEventResult = {
   success: boolean;
   error?: string;
   detail?: string;
+
   event?: {
     eventId: string;
     title: string;
     eventDate: string;
+    eventEndDate: string;
     location: string;
+    audience: EventAudience;
     status: "private";
     formId: string;
     formUrl: string;
@@ -22,20 +33,32 @@ type CreateEventResult = {
 };
 
 export function EventCreateForm() {
-  const [isSubmitting, setIsSubmitting] =
-    useState(false);
+  const router =
+    useRouter();
 
-  const [message, setMessage] =
-    useState("");
+  const [
+    isSubmitting,
+    setIsSubmitting,
+  ] = useState(false);
 
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [
+    message,
+    setMessage,
+  ] = useState("");
 
-  const [formEditUrl, setFormEditUrl] =
-    useState("");
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
+
+  const [
+    formEditUrl,
+    setFormEditUrl,
+  ] = useState("");
 
   async function handleSubmit(
-    event: SubmitEvent<HTMLFormElement>,
+    event:
+      SubmitEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
 
@@ -47,22 +70,50 @@ export function EventCreateForm() {
       event.currentTarget;
 
     const formData =
-      new FormData(formElement);
+      new FormData(
+        formElement,
+      );
 
     const title =
       String(
-        formData.get("title") ?? "",
+        formData.get("title") ??
+          "",
       ).trim();
 
     const eventDate =
       String(
-        formData.get("eventDate") ?? "",
+        formData.get(
+          "eventDate",
+        ) ?? "",
+      ).trim();
+
+    const eventEndDate =
+      String(
+        formData.get(
+          "eventEndDate",
+        ) ?? "",
       ).trim();
 
     const location =
       String(
-        formData.get("location") ?? "",
+        formData.get(
+          "location",
+        ) ?? "",
       ).trim();
+
+    const audienceValue =
+      String(
+        formData.get(
+          "audience",
+        ) ?? "general",
+      );
+
+    const audience:
+    EventAudience =
+      audienceValue ===
+      "executive"
+        ? "executive"
+        : "general";
 
     setMessage("");
     setErrorMessage("");
@@ -72,13 +123,23 @@ export function EventCreateForm() {
       setErrorMessage(
         "イベント名を入力してください。",
       );
+
       return;
     }
 
     if (!eventDate) {
       setErrorMessage(
-        "イベント日時を入力してください。",
+        "開始日時を入力してください。",
       );
+
+      return;
+    }
+
+    if (!eventEndDate) {
+      setErrorMessage(
+        "終了日時を入力してください。",
+      );
+
       return;
     }
 
@@ -91,15 +152,44 @@ export function EventCreateForm() {
       )
     ) {
       setErrorMessage(
-        "イベント日時の形式が正しくありません。",
+        "開始日時の形式が正しくありません。",
       );
+
+      return;
+    }
+
+    const parsedEventEndDate =
+      new Date(
+        eventEndDate,
+      );
+
+    if (
+      Number.isNaN(
+        parsedEventEndDate.getTime(),
+      )
+    ) {
+      setErrorMessage(
+        "終了日時の形式が正しくありません。",
+      );
+
+      return;
+    }
+
+    if (
+      parsedEventEndDate.getTime() <=
+      parsedEventDate.getTime()
+    ) {
+      setErrorMessage(
+        "終了日時は開始日時より後に設定してください。",
+      );
+
       return;
     }
 
     /*
-     * fetch完了後にwindow.openすると、
-     * ポップアップとして止められる場合があるため、
-     * ボタンを押した時点で先に空タブを開く。
+     * API完了後にwindow.openすると
+     * ブラウザに止められる場合があるため、
+     * クリック直後に空タブを開く。
      */
     const googleFormWindow =
       window.open(
@@ -108,12 +198,14 @@ export function EventCreateForm() {
       );
 
     if (googleFormWindow) {
-      googleFormWindow.opener = null;
+      googleFormWindow.opener =
+        null;
 
       googleFormWindow.document.title =
         "Googleフォームを作成しています";
 
-      googleFormWindow.document.body.textContent =
+      googleFormWindow.document
+        .body.textContent =
         "Googleフォームを作成しています。";
     }
 
@@ -131,18 +223,25 @@ export function EventCreateForm() {
                 "application/json",
             },
 
-            body: JSON.stringify({
-              title,
+            body:
+              JSON.stringify({
+                title,
 
-              /*
-               * datetime-localの値を
-               * ISO形式へ変換して送信する。
-               */
-              eventDate:
-                parsedEventDate.toISOString(),
+                /*
+                 * datetime-localの値を
+                 * ISO形式へ変換して送る。
+                 */
+                eventDate:
+                  parsedEventDate
+                    .toISOString(),
 
-              location,
-            }),
+                eventEndDate:
+                  parsedEventEndDate
+                    .toISOString(),
+
+                location,
+                audience,
+              }),
           },
         );
 
@@ -156,16 +255,27 @@ export function EventCreateForm() {
       ) {
         googleFormWindow?.close();
 
-        setErrorMessage(
+        const errorText = [
           result.error ??
             "イベントの作成に失敗しました。",
+
+          result.detail
+            ? `詳細: ${result.detail}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        setErrorMessage(
+          errorText,
         );
 
         return;
       }
 
       const editUrl =
-        result.event?.formEditUrl;
+        result.event
+          ?.formEditUrl;
 
       if (!editUrl) {
         googleFormWindow?.close();
@@ -181,12 +291,21 @@ export function EventCreateForm() {
         "イベントを非公開状態で作成しました。",
       );
 
-      setFormEditUrl(editUrl);
+      setFormEditUrl(
+        editUrl,
+      );
 
       formElement.reset();
 
+      /*
+       * 元のイベント管理画面へ
+       * 新しいイベント一覧を反映する。
+       */
+      router.refresh();
+
       if (googleFormWindow) {
-        googleFormWindow.location.href =
+        googleFormWindow
+          .location.href =
           editUrl;
       }
     } catch (error) {
@@ -197,8 +316,13 @@ export function EventCreateForm() {
         error,
       );
 
+      const detail =
+        error instanceof Error
+          ? error.message
+          : "不明な通信エラー";
+
       setErrorMessage(
-        "イベント作成中に通信エラーが発生しました。",
+        `イベント作成中に通信エラーが発生しました。\n詳細: ${detail}`,
       );
     } finally {
       setIsSubmitting(false);
@@ -207,14 +331,18 @@ export function EventCreateForm() {
 
   return (
     <section>
-      <h2>イベントを作成</h2>
+      <h2>
+        イベントを作成
+      </h2>
 
       <p>
         イベント作成後、Googleフォームの編集画面が開きます。
         作成時点ではイベントとフォームの両方が非公開です。
       </p>
 
-      <form onSubmit={handleSubmit}>
+      <form
+        onSubmit={handleSubmit}
+      >
         <div>
           <label htmlFor="title">
             イベント名
@@ -225,13 +353,15 @@ export function EventCreateForm() {
             name="title"
             type="text"
             required
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting
+            }
           />
         </div>
 
         <div>
           <label htmlFor="eventDate">
-            イベント日時
+            開始日時
           </label>
 
           <input
@@ -239,7 +369,25 @@ export function EventCreateForm() {
             name="eventDate"
             type="datetime-local"
             required
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting
+            }
+          />
+        </div>
+
+        <div>
+          <label htmlFor="eventEndDate">
+            終了日時
+          </label>
+
+          <input
+            id="eventEndDate"
+            name="eventEndDate"
+            type="datetime-local"
+            required
+            disabled={
+              isSubmitting
+            }
           />
         </div>
 
@@ -252,13 +400,40 @@ export function EventCreateForm() {
             id="location"
             name="location"
             type="text"
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting
+            }
           />
+        </div>
+
+        <div>
+          <label htmlFor="audience">
+            イベント対象者
+          </label>
+
+          <select
+            id="audience"
+            name="audience"
+            defaultValue="general"
+            disabled={
+              isSubmitting
+            }
+          >
+            <option value="general">
+              一般会員向け
+            </option>
+
+            <option value="executive">
+              執行部向け
+            </option>
+          </select>
         </div>
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={
+            isSubmitting
+          }
         >
           {isSubmitting
             ? "作成しています..."
@@ -273,7 +448,13 @@ export function EventCreateForm() {
       )}
 
       {errorMessage && (
-        <p role="alert">
+        <p
+          role="alert"
+          style={{
+            whiteSpace:
+              "pre-wrap",
+          }}
+        >
           {errorMessage}
         </p>
       )}
@@ -282,6 +463,7 @@ export function EventCreateForm() {
         <p>
           編集画面が開かなかった場合：
           {" "}
+
           <a
             href={formEditUrl}
             target="_blank"

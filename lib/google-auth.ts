@@ -1,5 +1,5 @@
 import "server-only";
-import {google} from "googleapis";
+import {OAuth2Client,} from "google-auth-library";
 
 export type ServiceAccountCredentials = {
     client_email: string;
@@ -32,7 +32,7 @@ export function createGoogleFormsOAuthClient() {
     );
   }
 
-  return new google.auth.OAuth2(
+  return new OAuth2Client(
     clientId,
     clientSecret,
     redirectUri,

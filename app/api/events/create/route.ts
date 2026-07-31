@@ -1,7 +1,11 @@
-import { randomUUID } from "crypto";
-import {auth} from "@/auth";
+import {
+  auth,
+} from "@/auth";
 
-import {type NextRequest,NextResponse,} from "next/server";
+import {
+  type NextRequest,
+  NextResponse,
+} from "next/server";
 
 import {
   createEventGoogleForm,
@@ -9,46 +13,145 @@ import {
 
 import {
   addEventToSheet,
+  type EventAudience,
 } from "@/lib/sheets/events";
 
 import {
   nowJST,
 } from "@/lib/datetime";
 
-export const runtime = "nodejs";
+export const runtime =
+  "nodejs";
 
 type CreateEventRequest = {
   title?: unknown;
   eventDate?: unknown;
+  eventEndDate?: unknown;
   location?: unknown;
+  audience?: unknown;
 };
 
+function isEventAudience(
+  value: unknown,
+): value is EventAudience {
+  return (
+    value === "general" ||
+    value === "executive"
+  );
+}
+
 /**
- * Googleフォームの説明欄に表示する日付を整形する
+ * 開始日時と終了日時を表示用に整形する。
+ *
+ * 同じ日：
+ * 2026年8月15日(土) 16:00〜21:00
+ *
+ * 日をまたぐ：
+ * 2026年8月15日(土) 22:00〜8月16日(日) 02:00
  */
-function formatEventDate(
+function formatEventPeriod(
   eventDate: string,
+  eventEndDate: string,
 ): string {
-  const date = new Date(eventDate);
+  const startDate =
+    new Date(eventDate);
+
+  const endDate =
+    new Date(eventEndDate);
 
   if (
-    Number.isNaN(date.getTime())
+    Number.isNaN(
+      startDate.getTime(),
+    ) ||
+    Number.isNaN(
+      endDate.getTime(),
+    )
   ) {
-    return eventDate;
+    return `${eventDate}〜${eventEndDate}`;
   }
 
-  return new Intl.DateTimeFormat(
-    "ja-JP",
-    {
-      timeZone: "Asia/Tokyo",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    },
-  ).format(date);
+  const fullDateFormatter =
+    new Intl.DateTimeFormat(
+      "ja-JP",
+      {
+        timeZone:
+          "Asia/Tokyo",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+      },
+    );
+
+  const shortDateFormatter =
+    new Intl.DateTimeFormat(
+      "ja-JP",
+      {
+        timeZone:
+          "Asia/Tokyo",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+      },
+    );
+
+  const timeFormatter =
+    new Intl.DateTimeFormat(
+      "ja-JP",
+      {
+        timeZone:
+          "Asia/Tokyo",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      },
+    );
+
+  const dateKeyFormatter =
+    new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone:
+          "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      },
+    );
+
+  const startDateText =
+    fullDateFormatter.format(
+      startDate,
+    );
+
+  const startTimeText =
+    timeFormatter.format(
+      startDate,
+    );
+
+  const endTimeText =
+    timeFormatter.format(
+      endDate,
+    );
+
+  const isSameDay =
+    dateKeyFormatter.format(
+      startDate,
+    ) ===
+    dateKeyFormatter.format(
+      endDate,
+    );
+
+  if (isSameDay) {
+    return `${startDateText} ${startTimeText}〜${endTimeText}`;
+  }
+
+  const endDateText =
+    shortDateFormatter.format(
+      endDate,
+    );
+
+  return `${startDateText} ${startTimeText}〜${endDateText} ${endTimeText}`;
 }
 
 export async function POST(
@@ -62,7 +165,8 @@ export async function POST(
     /*
      * ① ログイン中の利用者を取得
      */
-    const session = await auth();
+    const session =
+      await auth();
 
     if (!session?.user) {
       return NextResponse.json(
@@ -77,10 +181,6 @@ export async function POST(
       );
     }
 
-    /*
-     * session.user.idにはUsersシートのmember_idが入っている
-     * 現在のNextAuth設定に合わせる。
-     */
     const createdBy =
       session.user.id;
 
@@ -133,10 +233,20 @@ export async function POST(
         ? body.eventDate.trim()
         : "";
 
+    const eventEndDate =
+      typeof body.eventEndDate === "string"
+        ? body.eventEndDate.trim()
+        : "";
+
     const location =
       typeof body.location === "string"
         ? body.location.trim()
         : "";
+
+    const audience =
+      body.audience === undefined
+        ? "general"
+        : body.audience;
 
     /*
      * ③ 入力チェック
@@ -159,7 +269,20 @@ export async function POST(
         {
           success: false,
           error:
-            "イベント日時を入力してください。",
+            "開始日時を入力してください。",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (!eventEndDate) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "終了日時を入力してください。",
         },
         {
           status: 400,
@@ -179,7 +302,60 @@ export async function POST(
         {
           success: false,
           error:
-            "イベント日時の形式が正しくありません。",
+            "開始日時の形式が正しくありません。",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const parsedEventEndDate =
+      new Date(eventEndDate);
+
+    if (
+      Number.isNaN(
+        parsedEventEndDate.getTime(),
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "終了日時の形式が正しくありません。",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (
+      parsedEventEndDate.getTime() <=
+      parsedEventDate.getTime()
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "終了日時は開始日時より後に設定してください。",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (
+      !isEventAudience(
+        audience,
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "イベント対象者の指定が正しくありません。",
         },
         {
           status: 400,
@@ -189,9 +365,6 @@ export async function POST(
 
     /*
      * ④ 非公開のGoogleフォームを作成
-     *
-     * 質問はGoogleフォームの編集画面で
-     * 管理者が作成するため空配列。
      */
     const googleForm =
       await createEventGoogleForm({
@@ -199,20 +372,48 @@ export async function POST(
           `${title} 申込フォーム`,
 
         description: [
-          `開催日時：${formatEventDate(eventDate)}`,
+          `開催日時：${formatEventPeriod(
+            eventDate,
+            eventEndDate,
+          )}`,
+
           location
             ? `開催場所：${location}`
             : null,
+
+          "",
+          "※「会員ID」の質問はシステムで使用するため、削除しないでください。",
         ]
           .filter(
             (
               value,
             ): value is string =>
-              Boolean(value),
+              value !== null,
           )
           .join("\n"),
 
-        questions: [],
+        questions: [
+          {
+            /*
+             * 回答同期時に会員ID回答を
+             * 特定するための固定質問ID。
+             */
+            questionId:
+              "memberId",
+
+            title:
+              "会員ID",
+
+            description:
+              "ログイン中の会員IDが自動入力されます。この質問は削除しないでください。",
+
+            required:
+              true,
+
+            type:
+              "SHORT_TEXT",
+          },
+        ],
       });
 
     createdFormId =
@@ -228,33 +429,41 @@ export async function POST(
 
     /*
      * ⑤ Eventsシートへ保存
+     *
+     * event_idはaddEventToSheet()内で
+     * 最大値+1として発行する。
      */
-    const eventId =
-      randomUUID();
+    const createdEvent =
+      await addEventToSheet({
+        title,
 
-    await addEventToSheet({
-      event_id: eventId,
-      title,
-      event_date: eventDate,
-      location,
+        event_date:
+          eventDate,
 
-      form_id:
-        googleForm.formId,
+        event_end_date:
+          eventEndDate,
 
-      form_url:
-        googleForm.responderUrl,
+        location,
+        audience,
 
-      // 初期値は必ず非公開
-      status: "private",
+        form_id:
+          googleForm.formId,
 
-      // クライアントから受け取らず
-      // ログイン中のユーザーを使用
-      created_by: createdBy,
+        form_url:
+          googleForm.responderUrl,
 
-      created_at: nowJST(),
+        status:
+          "private",
 
-      registration_count: 0,
-    });
+        created_by:
+          createdBy,
+
+        created_at:
+          nowJST(),
+
+        registration_count:
+          0,
+      });
 
     /*
      * ⑥ 管理画面へ結果を返す
@@ -262,26 +471,38 @@ export async function POST(
     return NextResponse.json(
       {
         success: true,
+
         message:
           "イベントを非公開状態で作成しました。",
 
         event: {
-          eventId,
-          title,
-          eventDate,
-          location,
-          status: "private",
+          eventId:
+            createdEvent.event_id,
+
+          title:
+            createdEvent.title,
+
+          eventDate:
+            createdEvent.event_date,
+
+          eventEndDate:
+            createdEvent.event_end_date,
+
+          location:
+            createdEvent.location,
+
+          audience:
+            createdEvent.audience,
+
+          status:
+            createdEvent.status,
 
           formId:
-            googleForm.formId,
+            createdEvent.form_id,
 
           formUrl:
-            googleForm.responderUrl,
+            createdEvent.form_url,
 
-          /*
-           * 管理画面はこのURLを
-           * 新しいタブで開く
-           */
           formEditUrl:
             googleForm.editUrl,
         },
@@ -295,12 +516,6 @@ export async function POST(
       "Event creation error:",
       {
         error,
-
-        /*
-         * Sheets保存で失敗した場合、
-         * Driveにフォームだけ残っている可能性を
-         * ログで確認できるようにする。
-         */
         createdFormId,
       },
     );
@@ -313,8 +528,10 @@ export async function POST(
     return NextResponse.json(
       {
         success: false,
+
         error:
           "イベントの作成に失敗しました。",
+
         detail,
       },
       {
