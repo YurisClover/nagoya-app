@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { CalendarDays, MapPin, CheckCircle2 } from "lucide-react";
 import { formatEventSchedule } from "@/lib/datetime";
 import type { EventWithStatus } from "@/types/event";
@@ -7,8 +8,9 @@ import type { EventWithStatus } from "@/types/event";
 export default function EventCard({ event }: { event: EventWithStatus }) {
   const hasLink = event.form_url && event.form_url !== "#";
   const answered = event.is_answered === true;
+  const inAppHref = event.event_id ? `/events/form/${event.event_id}` : null;
 
-  return (
+return (
     <div className="card flex flex-col gap-4">
       <div>
         <p className="text-base font-bold">{event.title}</p>
@@ -33,18 +35,27 @@ export default function EventCard({ event }: { event: EventWithStatus }) {
             <CheckCircle2 size={16} className="shrink-0" />
             出席登録済み
           </p>
-          {hasLink && (
-            <a href={event.form_url} target="_blank" rel="noopener noreferrer"
-               className="text-meta underline">
-              回答を変更する
-            </a>
-          )}
+          {hasLink &&
+            (inAppHref ? (
+              <Link href={inAppHref} className="text-meta underline">
+                回答を変更する
+              </Link>
+            ) : (
+              <a href={event.form_url} target="_blank" rel="noopener noreferrer" className="text-meta underline">
+                回答を変更する
+              </a>
+            ))}
         </div>
       ) : hasLink ? (
-        <a href={event.form_url} target="_blank" rel="noopener noreferrer"
-           className="btn btn-primary w-full">
-          出席登録フォームへ
-        </a>
+        inAppHref ? (
+          <Link href={inAppHref} className="btn btn-primary w-full">
+            出席登録フォームへ
+          </Link>
+        ) : (
+          <a href={event.form_url} target="_blank" rel="noopener noreferrer" className="btn btn-primary w-full">
+            出席登録フォームへ
+          </a>
+        )
       ) : (
         <span className="btn btn-secondary w-full cursor-not-allowed opacity-60">
           詳細リンクなし
