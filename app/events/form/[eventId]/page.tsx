@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import { ChevronLeft, ExternalLink } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { getEventsData } from "@/lib/events";
 
@@ -34,22 +35,38 @@ export default async function EventFormPage({
 
   return (
     <AppShell>
-      <div className="mx-auto flex max-w-3xl flex-col p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <Link href="/events" className="shrink-0 text-sm text-blue-600 hover:underline">
-            ← イベント一覧へ
+      <div className="mx-auto max-w-3xl p-4">
+        {/* header — โครงเดียวกับ /site/view: [← back] ... [別タブで開く] */}
+        <div className="mb-3 flex items-center justify-between">
+          <Link
+            href="/events"
+            className="btn btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"
+          >
+            <ChevronLeft size={16} className="shrink-0" />
+            イベント一覧へ
           </Link>
-          <p className="truncate text-sm font-bold">{event.title}</p>
+          <a
+            href={event.form_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-meta inline-flex items-center gap-1.5 underline-offset-2 hover:underline"
+          >
+            <ExternalLink size={14} className="shrink-0" />
+            別タブで開く
+          </a>
         </div>
+
+        <h1 className="mb-3 truncate text-lg font-bold">{event.title}</h1>
+
         {embedUrl ? (
           <iframe
             src={embedUrl}
             title={`${event.title} 出席登録フォーム`}
-            className="min-h-[75vh] w-full rounded-lg border bg-white"
+            className="min-h-[75vh] w-full rounded-card border border-line bg-surface"
           />
         ) : (
-          <p className="p-8 text-center text-sm text-red-600">
-            フォームのURLが正しくありません。
+          <p className="card p-8 text-center text-sm text-red-600">
+            フォームのURLが正しく設定されていません。管理者にお問い合わせください。
           </p>
         )}
       </div>
