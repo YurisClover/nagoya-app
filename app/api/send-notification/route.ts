@@ -56,10 +56,55 @@ export async function POST(request: Request) {
 
     const sheets = google.sheets({ version: 'v4', auth: authClient });
 
+    // 3. Users シートを取得してアクティブなユーザーを把握
+    const usersRes = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Users!A:Z',
+    });
+
+    const uRows = usersRes.data.values || [];
+    if (uRows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Usersシートにデータが存在しません' },
+        { status: 400 }
+      );
+    }
+
+    const uHeaders = uRows[0].map((h: string) => h.toLowerCase().trim());
+    let memberIdIdx = uHeaders.findIndex((h) => h === 'member_id' || h === 'id' || h === 'memberid');
+    let userNameIdx = uHeaders.findIndex((h) => h === 'user_name' || h === 'username' || h === 'name');
+    let roleIdx = uHeaders.findIndex((h) => h === 'role');
+    let statusIdx = uHeaders.findIndex((h) => h === 'status');
+
+    if (memberIdIdx === -1) memberIdIdx = 0; // A列
+    if (userNameIdx === -1) userNameIdx = 1; // B列
+    if (roleIdx === -1) roleIdx = 4;        // E列 (role)
+    if (statusIdx === -1) statusIdx = 5;      // F列 (status)
+
+    const userRows = uRows.slice(1);
+
+    // ユーザー情報の構造化マップ（ID -> User, Name -> User）
+    const userMapByMemberId = new Map<string, { memberId: string; name: string; role: string; isActive: boolean }>();
+    const userMapByName = new Map<string, { memberId: string; name: string; role: string; isActive: boolean }>();
+
+    userRows.forEach((row) => {
+      const mId = row[memberIdIdx]?.toString().trim() || '';
+      const uName = row[userNameIdx]?.toString().trim() || '';
+      const role = row[roleIdx]?.toString().trim().toLowerCase() || '';
+      const status = row[statusIdx]?.toString().trim().toLowerCase() || '';
+      const isActive = status === 'active' || status === '有効';
+
+      if (mId) {
+        const userInfo = { memberId: mId, name: uName, role, isActive };
+        userMapByMemberId.set(mId, userInfo);
+        if (uName) userMapByName.set(uName, userInfo);
+      }
+    });
+
     let targetMemberIds: string[] = [];
     let isGroupMatch = false;
 
-    // 3. グループ指定の判定 (Groupsシートを確認)
+    // 4. グループ指定の判定 (Groupsシートを確認)
     try {
       const groupsRes = await sheets.spreadsheets.values.get({
         spreadsheetId,
@@ -89,58 +134,47 @@ export async function POST(request: Request) {
           isGroupMatch = true;
           const rawMemberIdsStr = matchedGroup[gMemberIdsIdx].toString();
 
-          // カンマ（半角・全角）で分割し、トリム＆空文字除去、送信者自身を除外
+          // カンマ分割・整形し、送信者自身を除外 ＋ ★ Usersのstatusがactiveのユーザーのみ抽出
           targetMemberIds = rawMemberIdsStr
             .split(/[,，、]/)
             .map((id: string) => id.trim())
-            .filter((id: string) => id.length > 0 && id !== targetSenderId);
+            .filter((id: string) => {
+              if (!id || id === targetSenderId) return false;
+              const user = userMapByMemberId.get(id);
+              return user ? user.isActive : false; // statusがactiveのみ
+            });
         }
       }
     } catch (gErr) {
       console.warn('Groupsシートの確認をスキップしました:', gErr);
     }
 
-    // 4. グループ指定でなかった場合 (全体指定 'all' または 個別指定)
+    // 5. グループ指定でなかった場合 (全体指定 'all' / 管理者指定 'admin' / 個別指定)
     if (!isGroupMatch) {
-      const usersRes = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: 'Users!A:Z',
-      });
-
-      const rows = usersRes.data.values || [];
-      if (rows.length === 0) {
-        return NextResponse.json(
-          { success: false, error: 'Usersシートにデータが存在しません' },
-          { status: 400 }
-        );
-      }
-
-      const headers = rows[0].map((h: string) => h.toLowerCase().trim());
-      let memberIdIdx = headers.findIndex((h) => h === 'member_id' || h === 'id');
-      let userNameIdx = headers.findIndex((h) => h === 'user_name' || h === 'username' || h === 'name');
-
-      if (memberIdIdx === -1) memberIdIdx = 0;
-      if (userNameIdx === -1) userNameIdx = 1;
-
-      const userRows = rows.slice(1);
-
       if (rawRecipient === 'all') {
-        // 全体配信：Usersシートの全員の member_id（送信者自身を除外）
-        targetMemberIds = userRows
-          .map((row: string[]) => row[memberIdIdx]?.toString().trim())
-          .filter((mId): mId is string => Boolean(mId) && mId !== targetSenderId);
-      } else {
-        // 個別配信：user_name または member_id から該当する member_id を特定
-        const matchedUser = userRows.find((row) => {
-          const mId = row[memberIdIdx]?.toString().trim();
-          const uName = row[userNameIdx]?.toString().trim();
-          return mId === rawRecipient || uName === rawRecipient;
-        });
+        // ★ 全体配信：送信者自身を除外 ＆ statusがactiveの全ユーザー
+        targetMemberIds = Array.from(userMapByMemberId.values())
+          .filter((user) => user.memberId !== targetSenderId && user.isActive)
+          .map((user) => user.memberId);
 
-        if (matchedUser && matchedUser[memberIdIdx]) {
-          targetMemberIds = [matchedUser[memberIdIdx].toString().trim()];
-        } else {
-          // ★ Usersシートに存在しない会員ID・ユーザー名が指定された場合は送信エラーにする
+      } else if (rawRecipient === 'admin') {
+        // ★ 管理者宛て：roleがadmin かつ statusがactiveのユーザー
+        targetMemberIds = Array.from(userMapByMemberId.values())
+          .filter((user) => user.memberId !== targetSenderId && user.role === 'admin' && user.isActive)
+          .map((user) => user.memberId);
+
+        if (targetMemberIds.length === 0) {
+          return NextResponse.json(
+            { success: false, error: 'アクティブな管理者ユーザー（member_id）が見つかりませんでした。' },
+            { status: 400 }
+          );
+        }
+
+      } else {
+        // ★ 個別配信：member_id または user_name から指定されたユーザーを特定
+        const targetUser = userMapByMemberId.get(rawRecipient) || userMapByName.get(rawRecipient);
+
+        if (!targetUser) {
           return NextResponse.json(
             {
               success: false,
@@ -149,6 +183,19 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
+
+        // 個別指定されたユーザーが非アクティブ（inactive）の場合
+        if (!targetUser.isActive) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `宛先「${targetUser.name || rawRecipient}」は非アクティブ（inactive）のためメッセージを送信できません。`,
+            },
+            { status: 400 }
+          );
+        }
+
+        targetMemberIds = [targetUser.memberId];
       }
     }
 
@@ -158,7 +205,7 @@ export async function POST(request: Request) {
     // 送信対象が0名になった場合の処理
     if (targetMemberIds.length === 0) {
       return NextResponse.json(
-        { success: false, error: '対象のユーザー（member_id）が見つかりませんでした（送信者自身を除外した結果0名となりました）' },
+        { success: false, error: '対象となるアクティブなユーザーが見つかりませんでした（送信者自身または非アクティブユーザーを除外した結果0名となりました）' },
         { status: 400 }
       );
     }
@@ -166,19 +213,19 @@ export async function POST(request: Request) {
     // 保存日時は JST 形式 (+09:00付き) で生成
     const createdAt = nowJST();
 
-    // 5. 対象メンバーそれぞれに対して1件ずつメッセージ行を作成
+    // 6. 対象メンバーそれぞれに対して1件ずつメッセージ行を作成
     const rowsToAppend = targetMemberIds.map((recipientMemberId) => [
-      crypto.randomUUID(),  // A: message_id (UUID)
-      targetSenderId,       // B: sender_id (送信者の member_id)
-      recipientMemberId,    // C: recipient_id (受信者の member_id)
-      bodyData.title,       // D: title
-      bodyData.body,        // E: body
-      'false',              // F: is_read (未読時は小文字の 'false')
-      createdAt,            // G: created_at (nowJST())
-      'false',              // H: delete_flag (デフォルトは 'false')
+      crypto.randomUUID(),   // A: message_id (UUID)
+      targetSenderId,        // B: sender_id (送信者の member_id)
+      recipientMemberId,     // C: recipient_id (受信者の member_id)
+      bodyData.title,        // D: title
+      bodyData.body,         // E: body
+      'false',               // F: is_read (未読時は小文字の 'false')
+      createdAt,             // G: created_at (nowJST())
+      'false',               // H: delete_flag (デフォルトは 'false')
     ]);
 
-    // 6. Messagesシートに一括保存
+    // 7. Messagesシートに一括保存
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: 'Messages!A:H',
