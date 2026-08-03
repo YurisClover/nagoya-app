@@ -141,7 +141,7 @@ export function jstYearMonth(date: Date): string {
 }
 
 /**
- * ISO形式等の日付文字列を「本日 HH:mm」または「M/D HH:mm」にフォーマットします
+ * ISO形式等の日付文字列を「本日 HH:mm」または「MM月DD日 HH:mm」にフォーマットします
  */
 export function formatRelativeDateTime(dateStr: string): string {
   if (!dateStr) return '';
@@ -165,13 +165,18 @@ export function formatRelativeDateTime(dateStr: string): string {
   if (hour === "24") hour = "00";
   const minute = g("minute");
 
+  // 今日の場合
   if (y === today.y && m === today.m && d === today.d) {
     return `本日 ${hour}:${minute}`;
   }
 
+  // 今日より前（過去）の場合：07月31日 15:56 のように2桁揃えで出力
+  const mm = pad(m);
+  const dd = pad(d);
+
   if (y === today.y) {
-    return `${m}/${d} ${hour}:${minute}`;
+    return `${mm}月${dd}日 ${hour}:${minute}`;
   } else {
-    return `${y}/${m}/${d} ${hour}:${minute}`;
+    return `${y}年${mm}月${dd}日 ${hour}:${minute}`;
   }
 }

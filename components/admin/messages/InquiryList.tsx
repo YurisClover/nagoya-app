@@ -12,6 +12,7 @@ interface InquiryListProps {
   unreadCountTotal: number;
   onMarkAsRead: (inquiry: ReceivedMessage) => void;
   onSendReply: (recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
+  onDeleteMessage?: (messageId: string) => Promise<void>;
 }
 
 export default function InquiryList({
@@ -21,8 +22,21 @@ export default function InquiryList({
   unreadCountTotal,
   onMarkAsRead,
   onSendReply,
+  onDeleteMessage,
 }: InquiryListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // delete_flag (または isDeleted / deleteFlag) が true のものを画面表示から除外
+  const activeInquiries = inquiries.filter((item: any) => {
+    const isDeleted =
+      item.delete_flag === true ||
+      item.delete_flag === 'true' ||
+      item.deleteFlag === true ||
+      item.deleteFlag === 'true' ||
+      item.isDeleted === true;
+
+    return !isDeleted;
+  });
 
   const handleToggle = (inquiry: ReceivedMessage) => {
     const isOpening = expandedId !== inquiry.id;
@@ -52,17 +66,18 @@ export default function InquiryList({
 
       {isLoading ? (
         <p className="text-sm text-slate-500 py-4">読み込み中...</p>
-      ) : inquiries.length === 0 ? (
+      ) : activeInquiries.length === 0 ? ( // ★ inquiries から activeInquiries に変更
         <p className="text-sm text-slate-500 py-4">管理者宛てのメッセージはありません</p>
       ) : (
         <div className="space-y-4">
-          {inquiries.map((item) => (
+          {activeInquiries.map((item) => ( // ★ inquiries から activeInquiries に変更
             <InquiryItem
               key={item.id}
               inquiry={item}
               isExpanded={expandedId === item.id}
               onToggle={() => handleToggle(item)}
               onSendReply={onSendReply}
+              onDelete={onDeleteMessage}
             />
           ))}
         </div>

@@ -51,7 +51,19 @@ export default function AdminMessagePage() {
         const res = await fetch('/api/admin/inquiries');
         const data = await res.json();
         if (data.success && Array.isArray(data.inquiries)) {
-          setInquiries(data.inquiries);
+          
+          // ★ delete_flag が true / 'true' のデータを取り除くフィルターを追加
+          const filteredInquiries = data.inquiries.filter((item: any) => {
+            const isDeleted =
+              item.delete_flag === true ||
+              item.delete_flag === 'true' ||
+              item.deleteFlag === true ||
+              item.deleteFlag === 'true' ||
+              item.isDeleted === true;
+            return !isDeleted;
+          });
+
+          setInquiries(filteredInquiries);
           setLastUpdated(
             new Date().toLocaleTimeString('ja-JP', {
               hour: '2-digit',
@@ -61,7 +73,7 @@ export default function AdminMessagePage() {
           );
 
           let unreadTotal = 0;
-          data.inquiries.forEach((item: ReceivedMessage) => {
+          filteredInquiries.forEach((item: ReceivedMessage) => {
             if (!item.isRead) unreadTotal++;
             if (item.replies) {
               item.replies.forEach((r) => {
@@ -158,6 +170,27 @@ export default function AdminMessagePage() {
     }
   };
 
+  const handleDeleteMessage = async (messageId: string) => {
+    try {
+      const res = await fetch('/api/messages/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert('メッセージを削除しました'); // ★ 追加: 削除完了アラートメッセージ
+        await fetchInquiries(true);
+      } else {
+        alert(`削除失敗: ${data.error || 'メッセージの削除に失敗しました'}`);
+      }
+    } catch (err: any) {
+      console.error('削除エラー:', err);
+      alert(`通信エラー: ${err.message}`);
+    }
+  };
+
   let unreadCountTotal = 0;
   inquiries.forEach((item) => {
     if (!item.isRead) unreadCountTotal++;
@@ -183,6 +216,7 @@ export default function AdminMessagePage() {
         unreadCountTotal={unreadCountTotal}
         onMarkAsRead={handleMarkAsRead}
         onSendReply={handleSendReply}
+        onDeleteMessage={handleDeleteMessage}
       />
     </div>
   );

@@ -50,6 +50,15 @@ export default function MessageForm({ groups, onSuccess }: MessageFormProps) {
     return prefix ? `${prefix} ${rawTitle}` : rawTitle;
   };
 
+  const resetForm = () => {
+    setRawTitle('');
+    setBody('');
+    setIndividualInput('');
+    setSelectedGroupId('');
+    setSelectedGroupName('');
+    onSuccess();
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -58,48 +67,107 @@ export default function MessageForm({ groups, onSuccess }: MessageFormProps) {
       return;
     }
 
-    let recipientId = 'all';
-    if (targetType === 'group') {
-      if (!selectedGroupId) {
-        alert('グループを選択してください');
-        return;
-      }
-      recipientId = selectedGroupId;
-    } else if (targetType === 'individual') {
-      if (!isEightDigitMemberId) {
-        alert(`【エラー】宛先は半角数字「8桁」の会員IDを入力してください。\n(現在の入力: ${individualInput.length}桁)`);
-        return;
-      }
-      recipientId = individualInput.trim();
-    }
-
     setIsSending(true);
 
     try {
-      const res = await fetch('/api/send-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipient_id: recipientId,
-          title: getFormattedTitle(),
-          body: body,
-          url: '/messages',
-        }),
-      });
+      if (targetType === 'all') {
+        // --- 全会員送信 ---
+        const res = await fetch('/api/send-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipient_id: 'all',
+            title: getFormattedTitle(),
+            body: body,
+            url: '/messages',
+          }),
+        });
 
-      const data = await res.json();
+        const data = await res.json();
 
-      if (res.ok && data.success) {
-        alert(`送信が完了しました（対象: ${data.savedCount || 1}名）`);
-        setRawTitle('');
-        setBody('');
-        setIndividualInput('');
-        onSuccess();
-      } else {
-        alert(`送信エラー: ${data.error || '送信に失敗しました'}`);
+        if (res.ok && data.success) {
+          // ★ savedCount（成功数）と totalCount（全体数）をアラートに反映
+          const saved = data.savedCount ?? data.count ?? 0;
+          const total = data.totalCount ?? data.total ?? saved;
+          
+          alert(`送信が完了しました（全会員の対象者: ${saved} / ${total}名）`);
+          resetForm();
+        } else {
+          alert(`送信エラー: ${data.error || '送信に失敗しました'}`);
+        }
+
+      } else if (targetType === 'group') {
+        // --- グループ指定送信 ---
+        if (!selectedGroupName) {
+          alert('グループを選択してください');
+          setIsSending(false);
+          return;
+        }
+
+        // 1. group_name から該当する member_id のリストを取得
+        const resGroup = await fetch(
+          `/api/group-members?groupName=${encodeURIComponent(selectedGroupName)}&groupId=${selectedGroupId}`
+        );
+        const groupData = await resGroup.json();
+
+        if (!groupData.success || !Array.isArray(groupData.memberIds) || groupData.memberIds.length === 0) {
+          alert(`「${selectedGroupName}」にはメンバーが登録されていません`);
+          setIsSending(false);
+          return;
+        }
+
+        const memberIds: string[] = groupData.memberIds;
+        let successCount = 0;
+
+        // 2. 抽出された member_id にのみ送信
+        for (const memberId of memberIds) {
+          const res = await fetch('/api/send-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipient_id: memberId, // 確実に抽出されたmember_idのみ送る
+              title: getFormattedTitle(),
+              body: body,
+              url: '/messages',
+            }),
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            successCount++;
+          }
+        }
+
+        alert(`送信が完了しました（「${selectedGroupName}」の対象者: ${successCount} / ${memberIds.length}名）`);
+        resetForm();
+
+      } else if (targetType === 'individual') {
+        // --- 個人指定送信 ---
+        if (!isEightDigitMemberId) {
+          alert(`【エラー】宛先は半角数字「8桁」の会員IDを入力してください。`);
+          setIsSending(false);
+          return;
+        }
+
+        const res = await fetch('/api/send-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipient_id: individualInput.trim(),
+            title: getFormattedTitle(),
+            body: body,
+            url: '/messages',
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('送信が完了しました');
+          resetForm();
+        } else {
+          alert(`送信エラー: ${data.error || '送信に失敗しました'}`);
+        }
       }
     } catch (err: any) {
-      alert(`通信エラー: ${err.message || '送信処理中にエラーが発生しました'}`);
+      alert(`通信エラー: ${err.message || 'エラーが発生しました'}`);
     } finally {
       setIsSending(false);
     }

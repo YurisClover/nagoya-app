@@ -89,7 +89,7 @@ export async function POST(request: Request) {
           isGroupMatch = true;
           const rawMemberIdsStr = matchedGroup[gMemberIdsIdx].toString();
 
-          // カンマ（半角・全角）で分割し、トリム＆空文字除去、★自分（送信者）を除外
+          // カンマ（半角・全角）で分割し、トリム＆空文字除去、送信者自身を除外
           targetMemberIds = rawMemberIdsStr
             .split(/[,，、]/)
             .map((id: string) => id.trim())
@@ -125,12 +125,12 @@ export async function POST(request: Request) {
       const userRows = rows.slice(1);
 
       if (rawRecipient === 'all') {
-        // 全体配信：Usersシートの全員の member_id（★自分を除外）
+        // 全体配信：Usersシートの全員の member_id（送信者自身を除外）
         targetMemberIds = userRows
           .map((row: string[]) => row[memberIdIdx]?.toString().trim())
           .filter((mId): mId is string => Boolean(mId) && mId !== targetSenderId);
       } else {
-        // 個別配信：user_name または member_id から該当する member_id を特定（テスト送信考慮のため自分宛てでも除外しない）
+        // 個別配信：user_name または member_id から該当する member_id を特定
         const matchedUser = userRows.find((row) => {
           const mId = row[memberIdIdx]?.toString().trim();
           const uName = row[userNameIdx]?.toString().trim();
@@ -140,7 +140,14 @@ export async function POST(request: Request) {
         if (matchedUser && matchedUser[memberIdIdx]) {
           targetMemberIds = [matchedUser[memberIdIdx].toString().trim()];
         } else {
-          targetMemberIds = [rawRecipient];
+          // ★ Usersシートに存在しない会員ID・ユーザー名が指定された場合は送信エラーにする
+          return NextResponse.json(
+            {
+              success: false,
+              error: `宛先「${rawRecipient}」に該当するユーザーが見つかりません。`,
+            },
+            { status: 400 }
+          );
         }
       }
     }
@@ -168,13 +175,14 @@ export async function POST(request: Request) {
       bodyData.body,        // E: body
       'false',              // F: is_read (未読時は小文字の 'false')
       createdAt,            // G: created_at (nowJST())
+      'false',              // H: delete_flag (デフォルトは 'false')
     ]);
 
     // 6. Messagesシートに一括保存
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Messages!A:G',
-      valueInputOption: 'RAW', // ★ USER_ENTERED から RAW に変更することで小文字テキストのまま保存されます
+      range: 'Messages!A:H',
+      valueInputOption: 'RAW', 
       requestBody: {
         values: rowsToAppend,
       },
@@ -182,7 +190,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      savedCount: rowsToAppend.length,
+      savedCount: rowsToAppend.length,       // 実際に送信が成功した件数
+      totalCount: targetMemberIds.length,     // 送信対象の全件数
       sender_id: targetSenderId,
       target_members: targetMemberIds,
     });

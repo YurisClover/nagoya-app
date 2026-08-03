@@ -1,8 +1,8 @@
-//各メッセージカード（折りたたみ・スレッド表示・既読処理の管理）
+// 各メッセージカード（折りたたみ・スレッド表示・既読処理・削除管理）
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { formatRelativeDateTime } from '@/lib/datetime';
 import InlineReplyForm from './InlineReplyForm';
 
@@ -35,15 +35,58 @@ interface InquiryItemProps {
   isExpanded: boolean;
   onToggle: () => void;
   onSendReply: (recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
+  onDelete?: (messageId: string) => Promise<void>;
 }
 
-export default function InquiryItem({ inquiry, isExpanded, onToggle, onSendReply }: InquiryItemProps) {
+export default function InquiryItem({
+  inquiry,
+  isExpanded,
+  onToggle,
+  onSendReply,
+  onDelete,
+}: InquiryItemProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
   const hasThreadUnread = !inquiry.isRead || (inquiry.replies && inquiry.replies.some((r) => !r.isRead));
+
+  // 削除処理のハンドラー
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // アコーディオン開閉を防ぐ
+
+    if (!confirm('このメッセージを削除してもよろしいですか？')) return;
+
+    try {
+      setIsDeleting(true);
+      if (onDelete) {
+        await onDelete(inquiry.id);
+      } else {
+        // デフォルトの削除 API 呼び出し
+        const res = await fetch('/api/messages/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messageId: inquiry.id }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('削除が完了しました');
+          window.location.reload();
+        } else {
+          alert(`削除失敗: ${data.error}`);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert('削除処理中にエラーが発生しました');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div
       className={`border rounded-xl transition overflow-hidden ${
-        hasThreadUnread ? 'bg-amber-50/50 border-amber-200' : 'bg-white border-slate-200'
+        hasThreadUnread
+          ? 'bg-blue-50/60 border-2 border-blue-400 shadow-sm' // ★ 黄色から「淡い青背景＋青枠」に変更
+          : 'bg-white border-slate-200'
       }`}
     >
       <div
@@ -59,6 +102,7 @@ export default function InquiryItem({ inquiry, isExpanded, onToggle, onSendReply
               <span className="font-bold text-sm text-slate-900">{inquiry.userName}</span>
               <span className="text-xs text-slate-500">({inquiry.memberId || inquiry.senderId})</span>
               {hasThreadUnread && (
+                /* ★ 未読バッジは「赤色」を保持 */
                 <span className="px-2 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded">
                   未読あり
                 </span>
@@ -72,6 +116,30 @@ export default function InquiryItem({ inquiry, isExpanded, onToggle, onSendReply
 
         <div className="flex items-center space-x-3">
           <span className="text-xs text-slate-400">{formatRelativeDateTime(inquiry.createdAt)}</span>
+
+          {/* 削除ボタン（ゴミ箱アイコン） */}
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            title="メッセージを削除"
+            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
+            </svg>
+          </button>
         </div>
       </div>
 

@@ -58,6 +58,8 @@ export async function GET() {
     let bodyIdx = msgHeader.findIndex((h) => h === 'body' || h === 'content');
     let isReadIdx = msgHeader.findIndex((h) => h === 'is_read' || h === 'isread');
     let createdAtIdx = msgHeader.findIndex((h) => h === 'created_at' || h === 'createdat' || h === 'timestamp');
+    // ★ delete_flag 列のインデックス取得を追加
+    let deleteFlagIdx = msgHeader.findIndex((h) => h === 'delete_flag' || h === 'deleteflag' || h === 'is_deleted');
 
     if (idIdx === -1) idIdx = 0;
     if (senderIdIdx === -1) senderIdIdx = 1;
@@ -70,6 +72,14 @@ export async function GET() {
     const allParsedMessages: any[] = [];
 
     messageRows.slice(1).forEach((row) => {
+      // ★ delete_flag の判定（TRUE / true / 1 の場合は除外してスキップ）
+      if (deleteFlagIdx !== -1) {
+        const deleteFlagVal = row[deleteFlagIdx]?.toString().trim().toLowerCase();
+        if (deleteFlagVal === 'true' || deleteFlagVal === '1') {
+          return; // 削除済みメッセージのため処理をスキップ
+        }
+      }
+
       const id = row[idIdx]?.toString().trim() || '';
       const senderId = row[senderIdIdx]?.toString().trim() || '';
       const recipientId = row[recipientIdIdx]?.toString().trim() || '';
