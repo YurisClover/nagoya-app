@@ -118,3 +118,137 @@ export function jstYearMonth(date: Date): string {
   const g = (t: string) => p.find((x) => x.type === t)!.value;
   return `${g("year")}-${g("month")}`;
 }
+
+/**
+ * 管理者イベント一覧用の日時表示。
+ *
+ * 同日：
+ * 2026年8月15日(土) 16:00〜21:00
+ *
+ * 日またぎ：
+ * 2026年8月15日(土) 22:00〜8月16日(日) 02:00
+ */
+export function formatEventPeriod(
+  startRaw: string,
+  endRaw: string,
+): string {
+  if (!startRaw) {
+    return "";
+  }
+
+  const startDate =
+    parseSheetDate(startRaw);
+
+  if (!startDate) {
+    return endRaw
+      ? `${startRaw}〜${endRaw}`
+      : startRaw;
+  }
+
+  const fullDateTimeFormatter =
+    new Intl.DateTimeFormat(
+      "ja-JP",
+      {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      },
+    );
+
+  if (!endRaw) {
+    return fullDateTimeFormatter.format(
+      startDate,
+    );
+  }
+
+  const endDate =
+    parseSheetDate(endRaw);
+
+  if (!endDate) {
+    return `${startRaw}〜${endRaw}`;
+  }
+
+  const fullDateFormatter =
+    new Intl.DateTimeFormat(
+      "ja-JP",
+      {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+      },
+    );
+
+  const shortDateFormatter =
+    new Intl.DateTimeFormat(
+      "ja-JP",
+      {
+        timeZone: "Asia/Tokyo",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+      },
+    );
+
+  const timeFormatter =
+    new Intl.DateTimeFormat(
+      "ja-JP",
+      {
+        timeZone: "Asia/Tokyo",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      },
+    );
+
+  const dateKeyFormatter =
+    new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      },
+    );
+
+  const startDateText =
+    fullDateFormatter.format(
+      startDate,
+    );
+
+  const startTimeText =
+    timeFormatter.format(
+      startDate,
+    );
+
+  const endTimeText =
+    timeFormatter.format(
+      endDate,
+    );
+
+  const isSameDay =
+    dateKeyFormatter.format(
+      startDate,
+    ) ===
+    dateKeyFormatter.format(
+      endDate,
+    );
+
+  if (isSameDay) {
+    return `${startDateText} ${startTimeText}〜${endTimeText}`;
+  }
+
+  const endDateText =
+    shortDateFormatter.format(
+      endDate,
+    );
+
+  return `${startDateText} ${startTimeText}〜${endDateText} ${endTimeText}`;
+}

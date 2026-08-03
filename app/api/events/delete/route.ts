@@ -9,46 +9,18 @@ import {
 
 import {
   setGoogleFormStatus,
-  type GoogleFormStatus,
 } from "@/lib/google-forms";
 
 import {
-  type EventStatus,
-  updateEventStatus,
+  softDeleteEvent,
 } from "@/lib/sheets/events";
 
 export const runtime =
   "nodejs";
 
-type UpdateEventStatusRequest = {
+type DeleteEventRequest = {
   eventId?: unknown;
-  status?: unknown;
 };
-
-function isEventStatus(
-  value: unknown,
-): value is EventStatus {
-  return (
-    value === "draft" ||
-    value === "published" ||
-    value === "closed"
-  );
-}
-
-function convertToGoogleFormStatus(
-  status: EventStatus,
-): GoogleFormStatus {
-  switch (status) {
-    case "draft":
-      return "private";
-
-    case "published":
-      return "open";
-
-    case "closed":
-      return "closed";
-  }
-}
 
 export async function PATCH(
   request: NextRequest,
@@ -81,7 +53,7 @@ export async function PATCH(
         {
           success: false,
           error:
-            "イベントの状態を変更する権限がありません。",
+            "イベントを削除する権限がありません。",
         },
         {
           status: 403,
@@ -91,7 +63,7 @@ export async function PATCH(
 
     const body =
       (await request.json()) as
-        UpdateEventStatusRequest;
+        DeleteEventRequest;
 
     const eventId =
       typeof body.eventId ===
@@ -112,52 +84,28 @@ export async function PATCH(
       );
     }
 
-    if (
-      !isEventStatus(
-        body.status,
-      )
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "公開状態の指定が正しくありません。",
-        },
-        {
-          status: 400,
-        },
-      );
-    }
-
-    const status =
-      body.status;
-
-    const updatedEvent =
-      await updateEventStatus(
+    const deletedEvent =
+      await softDeleteEvent(
         eventId,
-        status,
 
         async (formId) => {
           await setGoogleFormStatus(
             formId,
-            convertToGoogleFormStatus(
-              status,
-            ),
+            "private",
           );
         },
       );
 
     return NextResponse.json({
       success: true,
-
       message:
-        "イベントの公開状態を変更しました。",
-
-      event: updatedEvent,
+        "イベントを削除しました。",
+      event:
+        deletedEvent,
     });
   } catch (error) {
     console.error(
-      "Event status update error:",
+      "Event delete error:",
       error,
     );
 
@@ -170,7 +118,7 @@ export async function PATCH(
       {
         success: false,
         error:
-          "イベントの公開状態を変更できませんでした。",
+          "イベントの削除に失敗しました。",
         detail,
       },
       {

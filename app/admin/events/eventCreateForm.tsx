@@ -9,7 +9,7 @@ import {
   useRouter,
 } from "next/navigation";
 
-type EventAudience =
+type EventPosition =
   | "general"
   | "executive";
 
@@ -24,8 +24,8 @@ type CreateEventResult = {
     eventDate: string;
     eventEndDate: string;
     location: string;
-    audience: EventAudience;
-    status: "private";
+    position: EventPosition;
+    status: "draft";
     formId: string;
     formUrl: string;
     formEditUrl: string;
@@ -101,16 +101,16 @@ export function EventCreateForm() {
         ) ?? "",
       ).trim();
 
-    const audienceValue =
+    const positionValue =
       String(
         formData.get(
-          "audience",
+          "position",
         ) ?? "general",
       );
 
-    const audience:
-    EventAudience =
-      audienceValue ===
+    const position:
+    EventPosition =
+      positionValue ===
       "executive"
         ? "executive"
         : "general";
@@ -240,7 +240,7 @@ export function EventCreateForm() {
                     .toISOString(),
 
                 location,
-                audience,
+                position,
               }),
           },
         );
@@ -288,7 +288,7 @@ export function EventCreateForm() {
       }
 
       setMessage(
-        "イベントを非公開状態で作成しました。",
+        "イベントを準備中の状態で作成しました。",
       );
 
       setFormEditUrl(
@@ -337,7 +337,7 @@ export function EventCreateForm() {
 
       <p>
         イベント作成後、Googleフォームの編集画面が開きます。
-        作成時点ではイベントとフォームの両方が非公開です。
+        作成時点ではイベントは準備中で、Googleフォームは非公開・受付停止です。
       </p>
 
       <form
@@ -407,13 +407,13 @@ export function EventCreateForm() {
         </div>
 
         <div>
-          <label htmlFor="audience">
+          <label htmlFor="position">
             イベント対象者
           </label>
 
           <select
-            id="audience"
-            name="audience"
+            id="position"
+            name="position"
             defaultValue="general"
             disabled={
               isSubmitting

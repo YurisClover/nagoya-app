@@ -8,46 +8,25 @@ import {
 } from "next/server";
 
 import {
-  setGoogleFormStatus,
-  type GoogleFormStatus,
-} from "@/lib/google-forms";
-
-import {
-  type EventStatus,
-  updateEventStatus,
+  type EventPosition,
+  updateEventPosition,
 } from "@/lib/sheets/events";
 
 export const runtime =
   "nodejs";
 
-type UpdateEventStatusRequest = {
+type UpdatePositionRequest = {
   eventId?: unknown;
-  status?: unknown;
+  position?: unknown;
 };
 
-function isEventStatus(
+function isEventPosition(
   value: unknown,
-): value is EventStatus {
+): value is EventPosition {
   return (
-    value === "draft" ||
-    value === "published" ||
-    value === "closed"
+    value === "general" ||
+    value === "executive"
   );
-}
-
-function convertToGoogleFormStatus(
-  status: EventStatus,
-): GoogleFormStatus {
-  switch (status) {
-    case "draft":
-      return "private";
-
-    case "published":
-      return "open";
-
-    case "closed":
-      return "closed";
-  }
 }
 
 export async function PATCH(
@@ -81,7 +60,7 @@ export async function PATCH(
         {
           success: false,
           error:
-            "イベントの状態を変更する権限がありません。",
+            "イベント対象者を変更する権限がありません。",
         },
         {
           status: 403,
@@ -91,7 +70,7 @@ export async function PATCH(
 
     const body =
       (await request.json()) as
-        UpdateEventStatusRequest;
+        UpdatePositionRequest;
 
     const eventId =
       typeof body.eventId ===
@@ -113,15 +92,15 @@ export async function PATCH(
     }
 
     if (
-      !isEventStatus(
-        body.status,
+      !isEventPosition(
+        body.position,
       )
     ) {
       return NextResponse.json(
         {
           success: false,
           error:
-            "公開状態の指定が正しくありません。",
+            "イベント対象者の指定が正しくありません。",
         },
         {
           status: 400,
@@ -129,35 +108,22 @@ export async function PATCH(
       );
     }
 
-    const status =
-      body.status;
-
     const updatedEvent =
-      await updateEventStatus(
+      await updateEventPosition(
         eventId,
-        status,
-
-        async (formId) => {
-          await setGoogleFormStatus(
-            formId,
-            convertToGoogleFormStatus(
-              status,
-            ),
-          );
-        },
+        body.position,
       );
 
     return NextResponse.json({
       success: true,
-
       message:
-        "イベントの公開状態を変更しました。",
-
-      event: updatedEvent,
+        "イベント対象者を変更しました。",
+      event:
+        updatedEvent,
     });
   } catch (error) {
     console.error(
-      "Event status update error:",
+      "Event position update error:",
       error,
     );
 
@@ -170,7 +136,7 @@ export async function PATCH(
       {
         success: false,
         error:
-          "イベントの公開状態を変更できませんでした。",
+          "イベント対象者の変更に失敗しました。",
         detail,
       },
       {

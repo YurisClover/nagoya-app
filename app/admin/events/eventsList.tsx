@@ -6,8 +6,12 @@ import {
   useState,
 } from "react";
 
+import {
+  formatEventPeriod, 
+}from "@/lib/datetime";
+
 import type {
-  EventAudience,
+  EventPosition,
   EventStatus,
   SheetEvent,
 } from "@/lib/sheets/events";
@@ -23,183 +27,420 @@ type UpdateStatusResult = {
   event?: SheetEvent;
 };
 
+type UpdatePositionResult = {
+  success: boolean;
+  error?: string;
+  detail?: string;
+  event?: SheetEvent;
+};
+
+type DeleteEventResult = {
+  success: boolean;
+  error?: string;
+  detail?: string;
+  event?: SheetEvent;
+};
+
 const STATUS_LABELS:
 Record<EventStatus, string> = {
-  private: "非公開",
-  published: "公開中",
+  draft: "準備中",
+  published: "公開",
   closed: "受付終了",
 };
 
-const AUDIENCE_LABELS:
-Record<EventAudience, string> = {
+const POSITION_LABELS:
+Record<EventPosition, string> = {
   general: "一般会員向け",
   executive: "執行部向け",
 };
 
-/**
- * 開始日時だけを表示する。
- *
- * 例：
- * 2026年8月15日(土) 16:00
- */
-function formatEventDate(
-  eventDate: string,
-) {
-  const date =
-    new Date(eventDate);
+type EventDeleteControlProps = {
+  event: SheetEvent;
+  updatingEventId:
+    string | null;
 
-  if (
-    Number.isNaN(
-      date.getTime(),
-    )
-  ) {
-    return eventDate;
+  tryStartUpdate:
+    (eventId: string) => boolean;
+
+  finishUpdate:
+    () => void;
+
+  onDeleted:
+    (eventId: string) => void;
+};
+
+function EventDeleteControl({
+  event,
+  updatingEventId,
+  tryStartUpdate,
+  finishUpdate,
+  onDeleted,
+}: EventDeleteControlProps) {
+  const [
+    isDeleting,
+    setIsDeleting,
+  ] = useState(false);
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
+
+  const isAnyUpdating =
+    updatingEventId !== null;
+
+  async function handleDelete() {
+    const confirmed =
+      window.confirm(
+        `「${event.title}」を削除しますか？\nGoogleフォームも非公開・受付停止になります。`,
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const started =
+      tryStartUpdate(
+        event.event_id,
+      );
+
+    if (!started) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorMessage("");
+
+    try {
+      const response =
+        await fetch(
+          "/api/events/delete",
+          {
+            method: "PATCH",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              eventId:
+                event.event_id,
+            }),
+          },
+        );
+
+      const result =
+        (await response.json()) as
+          DeleteEventResult;
+
+      if (
+        !response.ok ||
+        !result.success
+      ) {
+        const errorText = [
+          result.error ??
+            "イベントの削除に失敗しました。",
+
+          result.detail
+            ? `詳細: ${result.detail}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        setErrorMessage(
+          errorText,
+        );
+
+        return;
+      }
+
+      /*
+       * 削除成功時だけ、
+       * 一覧stateから対象イベントを除外する。
+       */
+      onDeleted(
+        event.event_id,
+      );
+    } catch (error) {
+      const detail =
+        error instanceof Error
+          ? error.message
+          : "不明な通信エラー";
+
+      setErrorMessage(
+        `イベント削除中に通信エラーが発生しました。\n詳細: ${detail}`,
+      );
+    } finally {
+      setIsDeleting(false);
+      finishUpdate();
+    }
   }
 
-  return new Intl.DateTimeFormat(
-    "ja-JP",
-    {
-      timeZone:
-        "Asia/Tokyo",
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={
+          isAnyUpdating
+        }
+        onClick={
+          handleDelete
+        }
+      >
+        {isDeleting
+          ? "削除しています..."
+          : "削除"}
+      </button>
 
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    },
-  ).format(date);
+      {errorMessage && (
+        <p
+          role="alert"
+          style={{
+            whiteSpace:
+              "pre-wrap",
+          }}
+        >
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
 }
 
-/**
- * 開始日時と終了日時を表示する。
- *
- * 同じ日の場合：
- * 2026年8月15日(土) 16:00〜21:00
- *
- * 日をまたぐ場合：
- * 2026年8月15日(土) 22:00〜8月16日(日) 02:00
- */
-function formatEventPeriod(
-  eventDate: string,
-  eventEndDate: string,
-) {
-  /*
-   * 既存のテストデータなどで
-   * 終了日時が空欄の場合は、
-   * 開始日時だけを表示する。
-   */
-  if (!eventEndDate) {
-    return formatEventDate(
-      eventDate,
+type EventPositionControlProps = {
+  event: SheetEvent;
+  updatingEventId: string | null;
+
+  tryStartUpdate:
+    (eventId: string) => boolean;
+
+  finishUpdate:
+    () => void;
+
+  onUpdated:
+    (event: SheetEvent) => void;
+};
+
+function EventPositionControl({
+  event,
+  updatingEventId,
+  tryStartUpdate,
+  finishUpdate,
+  onUpdated,
+}: EventPositionControlProps) {
+  const [
+    selectedPosition,
+    setSelectedPosition,
+  ] = useState<EventPosition>(
+    event.position,
+  );
+
+  const [
+    message,
+    setMessage,
+  ] = useState("");
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
+
+  const isUpdating =
+    updatingEventId ===
+    event.event_id;
+
+  const isAnyUpdating =
+    updatingEventId !== null;
+
+  useEffect(() => {
+    setSelectedPosition(
+      event.position,
     );
+  }, [event.position]);
+
+  async function handleUpdate() {
+    if (
+      selectedPosition ===
+      event.position
+    ) {
+      setMessage(
+        "対象者は変更されていません。",
+      );
+
+      setErrorMessage("");
+
+      return;
+    }
+
+    const started =
+      tryStartUpdate(
+        event.event_id,
+      );
+
+    if (!started) {
+      return;
+    }
+
+    setMessage("");
+    setErrorMessage("");
+
+    try {
+      const response =
+        await fetch(
+          "/api/events/position",
+          {
+            method: "PATCH",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              eventId:
+                event.event_id,
+
+              position:
+                selectedPosition,
+            }),
+          },
+        );
+
+      const result =
+        (await response.json()) as
+          UpdatePositionResult;
+
+      if (
+        !response.ok ||
+        !result.success
+      ) {
+        const errorText = [
+          result.error ??
+            "対象者の変更に失敗しました。",
+
+          result.detail
+            ? `詳細: ${result.detail}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        setErrorMessage(
+          errorText,
+        );
+
+        return;
+      }
+
+      const updatedEvent =
+        result.event ?? {
+          ...event,
+          position:
+            selectedPosition,
+        };
+
+      onUpdated(
+        updatedEvent,
+      );
+
+      setSelectedPosition(
+        updatedEvent.position,
+      );
+
+      setMessage(
+        "イベント対象者を変更しました。",
+      );
+    } catch (error) {
+      const detail =
+        error instanceof Error
+          ? error.message
+          : "不明な通信エラー";
+
+      setErrorMessage(
+        `対象者の変更中に通信エラーが発生しました。\n詳細: ${detail}`,
+      );
+    } finally {
+      finishUpdate();
+    }
   }
 
-  const startDate =
-    new Date(eventDate);
+  return (
+    <div>
+      <p>
+        {
+          POSITION_LABELS[
+            event.position
+          ]
+        }
+      </p>
 
-  const endDate =
-    new Date(eventEndDate);
+      <select
+        value={
+          selectedPosition
+        }
+        disabled={
+          isAnyUpdating
+        }
+        onChange={(
+          changeEvent,
+        ) => {
+          setSelectedPosition(
+            changeEvent.target
+              .value as
+              EventPosition,
+          );
 
-  if (
-    Number.isNaN(
-      startDate.getTime(),
-    ) ||
-    Number.isNaN(
-      endDate.getTime(),
-    )
-  ) {
-    return `${eventDate}〜${eventEndDate}`;
-  }
+          setMessage("");
+          setErrorMessage("");
+        }}
+        aria-label={
+          `${event.title}の対象者`
+        }
+      >
+        <option value="general">
+          一般会員向け
+        </option>
 
-  const fullDateFormatter =
-    new Intl.DateTimeFormat(
-      "ja-JP",
-      {
-        timeZone:
-          "Asia/Tokyo",
+        <option value="executive">
+          執行部向け
+        </option>
+      </select>
 
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        weekday: "short",
-      },
-    );
+      <button
+        type="button"
+        disabled={
+          isAnyUpdating
+        }
+        onClick={
+          handleUpdate
+        }
+      >
+        {isUpdating
+          ? "反映しています..."
+          : "対象者を反映"}
+      </button>
 
-  const shortDateFormatter =
-    new Intl.DateTimeFormat(
-      "ja-JP",
-      {
-        timeZone:
-          "Asia/Tokyo",
+      {message && (
+        <p role="status">
+          {message}
+        </p>
+      )}
 
-        month: "long",
-        day: "numeric",
-        weekday: "short",
-      },
-    );
-
-  const timeFormatter =
-    new Intl.DateTimeFormat(
-      "ja-JP",
-      {
-        timeZone:
-          "Asia/Tokyo",
-
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      },
-    );
-
-  const dateKeyFormatter =
-    new Intl.DateTimeFormat(
-      "en-CA",
-      {
-        timeZone:
-          "Asia/Tokyo",
-
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      },
-    );
-
-  const startDateText =
-    fullDateFormatter.format(
-      startDate,
-    );
-
-  const startTimeText =
-    timeFormatter.format(
-      startDate,
-    );
-
-  const endTimeText =
-    timeFormatter.format(
-      endDate,
-    );
-
-  const isSameDay =
-    dateKeyFormatter.format(
-      startDate,
-    ) ===
-    dateKeyFormatter.format(
-      endDate,
-    );
-
-  if (isSameDay) {
-    return `${startDateText} ${startTimeText}〜${endTimeText}`;
-  }
-
-  const endDateText =
-    shortDateFormatter.format(
-      endDate,
-    );
-
-  return `${startDateText} ${startTimeText}〜${endDateText} ${endTimeText}`;
+      {errorMessage && (
+        <p
+          role="alert"
+          style={{
+            whiteSpace:
+              "pre-wrap",
+          }}
+        >
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
 }
 
 type EventStatusControlProps = {
@@ -371,12 +612,12 @@ function EventStatusControl({
           `${event.title}の公開状態`
         }
       >
-        <option value="private">
-          非公開
+        <option value="draft">
+          準備中
         </option>
 
         <option value="published">
-          公開中
+          公開
         </option>
 
         <option value="closed">
@@ -493,6 +734,19 @@ export function EventList({
     );
   }
 
+  function handleEventDeleted(
+  eventId: string,
+) {
+  setDisplayedEvents(
+    (currentEvents) =>
+      currentEvents.filter(
+        (currentEvent) =>
+          currentEvent.event_id !==
+          eventId,
+      ),
+  );
+}
+
   if (
     displayedEvents.length === 0
   ) {
@@ -518,6 +772,8 @@ export function EventList({
       <p>
         公開状態を変更すると、GoogleフォームとEventsシートの両方に反映されます。
       </p>
+
+      <p role="note">公開状態はGoogleフォーム側で直接変更せず、この管理画面から変更してください</p>
 
       <div
         style={{
@@ -558,6 +814,8 @@ export function EventList({
               <th>
                 状態変更
               </th>
+
+              <th>削除</th>
             </tr>
           </thead>
 
@@ -590,13 +848,25 @@ export function EventList({
                         "未設定"}
                     </td>
 
+                    
+
                     <td>
-                      {
-                        AUDIENCE_LABELS[
-                          event.audience
-                        ]
-                      }
-                    </td>
+                      <EventPositionControl
+                          event={event}
+                          updatingEventId={
+                          updatingEventId
+                          }
+                          tryStartUpdate={
+                          tryStartUpdate
+                          }
+                          finishUpdate={
+                          finishUpdate
+                          }
+                          onUpdated={
+                          handleEventUpdated
+                          }
+                          />
+                          </td>
 
                     <td>
                       {
@@ -653,6 +923,23 @@ export function EventList({
                         }
                       />
                     </td>
+                    <td>
+  <EventDeleteControl
+    event={event}
+    updatingEventId={
+      updatingEventId
+    }
+    tryStartUpdate={
+      tryStartUpdate
+    }
+    finishUpdate={
+      finishUpdate
+    }
+    onDeleted={
+      handleEventDeleted
+    }
+  />
+</td>
                   </tr>
                 );
               },

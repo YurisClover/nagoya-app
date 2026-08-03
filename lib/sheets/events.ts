@@ -9,11 +9,11 @@ import {
 } from "@/lib/sheets/client";
 
 export type EventStatus =
-  | "private"
+  | "draft"
   | "published"
   | "closed";
 
-export type EventAudience =
+export type EventPosition =
   | "general"
   | "executive";
 
@@ -23,13 +23,14 @@ export type SheetEvent = {
   event_date: string;
   event_end_date: string;
   location: string;
-  audience: EventAudience;
+  position: EventPosition;
   form_id: string;
   form_url: string;
   status: EventStatus;
   created_by: string;
   created_at: string;
   registration_count: number;
+  is_deleted: boolean;
 };
 
 const REQUIRED_EVENT_HEADERS = [
@@ -38,31 +39,42 @@ const REQUIRED_EVENT_HEADERS = [
   "event_date",
   "event_end_date",
   "location",
-  "audience",
+  "position",
   "form_id",
   "form_url",
   "status",
   "created_by",
   "created_at",
   "registration_count",
+  "is_deleted",
 ] as const;
 
 function isEventStatus(
   value: string,
 ): value is EventStatus {
   return (
-    value === "private" ||
+    value === "draft" ||
     value === "published" ||
     value === "closed"
   );
 }
 
-function isEventAudience(
+function isEventPosition(
   value: string,
-): value is EventAudience {
+): value is EventPosition {
   return (
     value === "general" ||
     value === "executive"
+  );
+}
+
+function parseBoolean(
+  value: unknown,
+): boolean {
+  return (
+    String(value ?? "")
+      .trim()
+      .toLowerCase() === "true"
   );
 }
 
@@ -74,9 +86,9 @@ function mapEventRow(
       row.get("status") ?? "",
     );
 
-  const audienceValue =
+  const positionValue =
     String(
-      row.get("audience") ?? "",
+      row.get("position") ?? "",
     );
 
   return {
@@ -104,11 +116,11 @@ function mapEventRow(
      * 既存のテストデータで空欄の場合は
      * 一般会員向けとして扱う。
      */
-    audience:
-      isEventAudience(
-        audienceValue,
+    position:
+      isEventPosition(
+        positionValue,
       )
-        ? audienceValue
+        ? positionValue
         : "general",
 
     form_id: String(
@@ -124,7 +136,7 @@ function mapEventRow(
         statusValue,
       )
         ? statusValue
-        : "private",
+        : "draft",
 
     created_by: String(
       row.get("created_by") ?? "",
@@ -140,6 +152,15 @@ function mapEventRow(
           "registration_count",
         ) ?? 0,
       ) || 0,
+
+    /*
+     * trueなら削除済み。
+     * 空欄やfalseは未削除として扱う。
+     */
+    is_deleted:
+      parseBoolean(
+        row.get("is_deleted"),
+      ),
   };
 }
 
@@ -260,8 +281,8 @@ export async function addEventToSheet(
       location:
         createdEvent.location,
 
-      audience:
-        createdEvent.audience,
+    position:
+        createdEvent.position,
 
       form_id:
         createdEvent.form_id,
@@ -280,6 +301,10 @@ export async function addEventToSheet(
 
       registration_count:
         createdEvent.registration_count,
+
+      is_deleted:
+       createdEvent.is_deleted,
+
     },
     {
       raw: true,
@@ -306,9 +331,8 @@ Promise<SheetEvent[]> {
       .map(mapEventRow)
       .filter(
         (event) =>
-          Boolean(
-            event.event_id,
-          ),
+          Boolean(event.event_id)&&
+          !event.is_deleted,
       );
 
   const now =
@@ -450,3 +474,125 @@ export async function updateEventStatus(
     eventRow,
   );
 }
+
+/**
+ * Eventsシートのイベント対象者を変更する。
+ *
+ * Googleフォーム自体は変更しない。
+ */
+export async function updateEventPosition(
+  eventId: string,
+  position: EventPosition,
+): Promise<SheetEvent> {
+  const sheet =
+    await getEventsSheet();
+
+  const rows =
+    await sheet.getRows();
+
+  const eventRow =
+    rows.find(
+      (row) =>
+        String(
+          row.get("event_id") ?? "",
+        ) === eventId,
+    );
+
+  if (!eventRow) {
+    throw new Error(
+      "対象のイベントが見つかりません。",
+    );
+  }
+
+  eventRow.set(
+    "position",
+    position,
+  );
+
+  await eventRow.save();
+
+  return mapEventRow(
+    eventRow,
+  );
+}
+
+type MakeGoogleFormPrivate =
+  (
+    formId: string,
+  ) => Promise<void>;
+
+/**
+ * Googleフォームを非公開・受付停止にした後、
+ * Eventsシートを論理削除する。
+ */
+export async function softDeleteEvent(
+  eventId: string,
+  makeGoogleFormPrivate:
+    MakeGoogleFormPrivate,
+): Promise<SheetEvent> {
+  const sheet =
+    await getEventsSheet();
+
+  const rows =
+    await sheet.getRows();
+
+  const eventRow =
+    rows.find(
+      (row) =>
+        String(
+          row.get("event_id") ?? "",
+        ) === eventId,
+    );
+
+  if (!eventRow) {
+    throw new Error(
+      "対象のイベントが見つかりません。",
+    );
+  }
+
+  if (
+    parseBoolean(
+      eventRow.get("is_deleted"),
+    )
+  ) {
+    throw new Error(
+      "このイベントはすでに削除されています。",
+    );
+  }
+
+  const formId =
+    String(
+      eventRow.get("form_id") ?? "",
+    );
+
+  if (!formId) {
+    throw new Error(
+      "イベントにGoogleフォームIDが設定されていません。",
+    );
+  }
+
+  /*
+   * Googleフォーム側が失敗した場合は、
+   * is_deletedを変更しない。
+   */
+  await makeGoogleFormPrivate(
+    formId,
+  );
+
+  eventRow.set(
+    "status",
+    "draft",
+  );
+
+  eventRow.set(
+    "is_deleted",
+    true,
+  );
+
+  await eventRow.save();
+
+  return mapEventRow(
+    eventRow,
+  );
+}
+

@@ -13,10 +13,11 @@ import {
 
 import {
   addEventToSheet,
-  type EventAudience,
+  type EventPosition,
 } from "@/lib/sheets/events";
 
 import {
+  formatEventSchedule,
   nowJST,
 } from "@/lib/datetime";
 
@@ -28,130 +29,16 @@ type CreateEventRequest = {
   eventDate?: unknown;
   eventEndDate?: unknown;
   location?: unknown;
-  audience?: unknown;
+  position?: unknown;
 };
 
-function isEventAudience(
+function isEventPosition(
   value: unknown,
-): value is EventAudience {
+): value is EventPosition {
   return (
     value === "general" ||
     value === "executive"
   );
-}
-
-/**
- * 開始日時と終了日時を表示用に整形する。
- *
- * 同じ日：
- * 2026年8月15日(土) 16:00〜21:00
- *
- * 日をまたぐ：
- * 2026年8月15日(土) 22:00〜8月16日(日) 02:00
- */
-function formatEventPeriod(
-  eventDate: string,
-  eventEndDate: string,
-): string {
-  const startDate =
-    new Date(eventDate);
-
-  const endDate =
-    new Date(eventEndDate);
-
-  if (
-    Number.isNaN(
-      startDate.getTime(),
-    ) ||
-    Number.isNaN(
-      endDate.getTime(),
-    )
-  ) {
-    return `${eventDate}〜${eventEndDate}`;
-  }
-
-  const fullDateFormatter =
-    new Intl.DateTimeFormat(
-      "ja-JP",
-      {
-        timeZone:
-          "Asia/Tokyo",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        weekday: "short",
-      },
-    );
-
-  const shortDateFormatter =
-    new Intl.DateTimeFormat(
-      "ja-JP",
-      {
-        timeZone:
-          "Asia/Tokyo",
-        month: "long",
-        day: "numeric",
-        weekday: "short",
-      },
-    );
-
-  const timeFormatter =
-    new Intl.DateTimeFormat(
-      "ja-JP",
-      {
-        timeZone:
-          "Asia/Tokyo",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      },
-    );
-
-  const dateKeyFormatter =
-    new Intl.DateTimeFormat(
-      "en-CA",
-      {
-        timeZone:
-          "Asia/Tokyo",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      },
-    );
-
-  const startDateText =
-    fullDateFormatter.format(
-      startDate,
-    );
-
-  const startTimeText =
-    timeFormatter.format(
-      startDate,
-    );
-
-  const endTimeText =
-    timeFormatter.format(
-      endDate,
-    );
-
-  const isSameDay =
-    dateKeyFormatter.format(
-      startDate,
-    ) ===
-    dateKeyFormatter.format(
-      endDate,
-    );
-
-  if (isSameDay) {
-    return `${startDateText} ${startTimeText}〜${endTimeText}`;
-  }
-
-  const endDateText =
-    shortDateFormatter.format(
-      endDate,
-    );
-
-  return `${startDateText} ${startTimeText}〜${endDateText} ${endTimeText}`;
 }
 
 export async function POST(
@@ -243,10 +130,10 @@ export async function POST(
         ? body.location.trim()
         : "";
 
-    const audience =
-      body.audience === undefined
+    const position =
+      body.position === undefined
         ? "general"
-        : body.audience;
+        : body.position;
 
     /*
      * ③ 入力チェック
@@ -347,8 +234,8 @@ export async function POST(
     }
 
     if (
-      !isEventAudience(
-        audience,
+      !isEventPosition(
+        position,
       )
     ) {
       return NextResponse.json(
@@ -372,7 +259,7 @@ export async function POST(
           `${title} 申込フォーム`,
 
         description: [
-          `開催日時：${formatEventPeriod(
+          `開催日時：${formatEventSchedule(
             eventDate,
             eventEndDate,
           )}`,
@@ -394,18 +281,12 @@ export async function POST(
 
         questions: [
           {
-            /*
-             * 回答同期時に会員ID回答を
-             * 特定するための固定質問ID。
-             */
-            questionId:
-              "memberId",
-
+        
             title:
               "会員ID",
 
             description:
-              "ログイン中の会員IDが自動入力されます。この質問は削除しないでください。",
+              "会員IDを入力してください。。この質問は削除しないでください。",
 
             required:
               true,
@@ -444,7 +325,7 @@ export async function POST(
           eventEndDate,
 
         location,
-        audience,
+        position,
 
         form_id:
           googleForm.formId,
@@ -453,7 +334,7 @@ export async function POST(
           googleForm.responderUrl,
 
         status:
-          "private",
+          "draft",
 
         created_by:
           createdBy,
@@ -463,6 +344,10 @@ export async function POST(
 
         registration_count:
           0,
+
+          is_deleted:
+          false,
+
       });
 
     /*
@@ -473,7 +358,7 @@ export async function POST(
         success: true,
 
         message:
-          "イベントを非公開状態で作成しました。",
+          "イベントを準備中の状態で作成しました。",
 
         event: {
           eventId:
@@ -491,8 +376,8 @@ export async function POST(
           location:
             createdEvent.location,
 
-          audience:
-            createdEvent.audience,
+          position:
+            createdEvent.position,
 
           status:
             createdEvent.status,
