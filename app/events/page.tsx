@@ -19,7 +19,7 @@ export default function EventsPage() {
   });
 
   return (
-    <div className="mx-auto max-w-md p-6">
+    <div className="page-container">
       <h1 className="mb-6 text-lg font-bold">イベント案内一覧</h1>
 
       {error ? (

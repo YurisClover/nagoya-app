@@ -166,6 +166,9 @@ body {
   .card-disabled { @apply relative rounded-card border border-line bg-surface-muted p-3 opacity-60 sm:p-4; }
   .card-brand    { @apply rounded-card bg-brand p-4 text-white sm:p-6; }
 
+  /* page layout */
+  .page-container { @apply mx-auto w-full max-w-md p-6; }
+
   /* ── menu card square icon ── */
   .icon-tile { @apply mb-2 flex h-9 w-9 items-center justify-center rounded-lg sm:h-11 sm:w-11; }
   .tone-blue   { @apply bg-tone-blue text-tone-blue-ink; }

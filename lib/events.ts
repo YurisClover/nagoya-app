@@ -28,6 +28,12 @@ function normalizeMemberId(v: unknown): string {
   return String(v ?? "").trim().replace(/\.0+$/, "");
 }
 
+/** event_id → newest */
+function eventIdNum(e: { event_id: string }): number {
+    const n = Number(e.event_id);
+    return Number.isFinite(n) ? n : -Infinity;
+}
+
 /** event sheet name: response_sheet first, if no fallback to title */
 function resolveSheetName(row: { get: (k: string) => unknown }): string {
   const explicit = String(row.get("response_sheet") ?? "").trim();
@@ -76,11 +82,15 @@ async function loadSnapshot(): Promise<Snapshot> {
       form_url: (row.get("form_url") || "#") as string,
       location: (row.get("location") || "") as string,
       event_end_date: (row.get("event_end_date") || "") as string,
+      status: String(row.get("status") ?? "").trim(),
+      position: String(row.get("position") ?? "").trim(),
+      _deleted: String(row.get("is_deleted") ?? "").trim().toLowerCase(),
       _sheetName: resolveSheetName(row),
       _dateObj: parseSheetDate(row.get("event_date") || "", { yearHint: "future" }),
     }))
+    .filter((e) => !["true", "1", "yes"].includes(e._deleted)) // soft delete (is_deleted)
     .filter((e): e is typeof e & { _dateObj: Date } => e._dateObj !== null && e._dateObj >= today)
-    .sort((a, b) => a._dateObj.getTime() - b._dateObj.getTime());
+    .sort((a, b) => eventIdNum(b) - eventIdNum(a));
 
   // read all event sheet once → store as set (member_id) (all user)
   const answers = new Map<string, Set<string> | null>();
@@ -97,7 +107,7 @@ async function loadSnapshot(): Promise<Snapshot> {
   );
 
   return {
-    events: upcoming.map(({ _dateObj, _sheetName, ...rest }) => rest),
+    events: upcoming.map(({ _dateObj, _sheetName, _deleted, ...rest }) => rest),
     answers,
   };
 }
@@ -116,11 +126,25 @@ async function getSnapshot(): Promise<Snapshot> {
     });
   return inflight;
 }
+/** admin: all event, 
+ * executive: published (general, executive), 
+ * general: published (general) */
+export type EventViewer = { memberId?: string; role?: string };
+function canSee(e: EventItem, role: string): boolean {
+  const r = role.trim().toLowerCase() || "general";
+  const status = e.status.trim().toLowerCase() || "published";
+  const pos = e.position.trim().toLowerCase() || "general";
+  if (r === "admin") return true;
+  if (status !== "published" && status !== "closed") return false; // draft → admin only
+  if (r === "executive") return pos === "general" || pos === "executive";
+  return pos === "general";
+}
 
 /** build result user — compare member_id in memory (0 API call) */
-function buildResult(snap: Snapshot, memberId?: string): EventWithStatus[] {
-  const target = normalizeMemberId(memberId);
-  return snap.events.map((e) => {
+function buildResult(snap: Snapshot, viewer?: EventViewer): EventWithStatus[] {
+  const target = normalizeMemberId(viewer?.memberId);
+  const role = viewer?.role ?? "";
+  return snap.events.filter((e) => canSee(e, role)).map((e) => {
     let is_answered: boolean | null = false;
     if (target) {
       // undefined = no sheet, null = can't read
@@ -131,11 +155,11 @@ function buildResult(snap: Snapshot, memberId?: string): EventWithStatus[] {
   });
 }
 
-export async function getEventsData(memberId?: string): Promise<EventWithStatus[]> {
+export async function getEventsData(viewer?: EventViewer): Promise<EventWithStatus[]> {
   try {
-    return buildResult(await getSnapshot(), memberId);
+    return buildResult(await getSnapshot(), viewer);
   } catch (error) {
-    if (cached) return buildResult(cached.data, memberId); // Sheet failed/429 → use past one
+    if (cached) return buildResult(cached.data, viewer); // Sheet failed/429 → use past one
     throw error;
   }
 }

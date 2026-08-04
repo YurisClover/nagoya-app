@@ -25,7 +25,7 @@ export default async function BarcodePage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-md p-6">
+      <div className="page-container">
         <h1 className="mb-6 text-lg font-bold">会員証</h1>
 
         <dl className="space-y-4 text-sm">

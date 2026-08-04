@@ -17,7 +17,7 @@ export default async function PdfViewPage({
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-4xl p-4">
+      <div className="page-container">
         <div className="mb-3 flex items-center justify-between">
           <Link
             href="/site"
