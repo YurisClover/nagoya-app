@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { getToken } from "firebase/messaging";
-import { messaging } from "./firebase"; 
+import { messaging } from '@/lib/firebase'; 
 
 export default function NotificationInitializer() {
   useEffect(() => {

@@ -294,6 +294,19 @@ async function getSnapshot(): Promise<Snapshot> {
     });
   return inflight;
 }
+/** admin: all event, 
+ * executive: published (general, executive), 
+ * general: published (general) */
+export type EventViewer = { memberId?: string; role?: string };
+function canSee(e: EventItem, role: string): boolean {
+  const r = role.trim().toLowerCase() || "general";
+  const status = e.status.trim().toLowerCase() || "published";
+  const pos = e.position.trim().toLowerCase() || "general";
+  if (r === "admin") return true;
+  if (status !== "published" && status !== "closed") return false; // draft → admin only
+  if (r === "executive") return pos === "general" || pos === "executive";
+  return pos === "general";
+}
 
 function buildResult(
   snap: Snapshot,

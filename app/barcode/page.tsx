@@ -1,6 +1,5 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { getUserByEmail } from "@/lib/sheets";
 import AppShell from "@/components/AppShell";
 import MemberBarcode from "./MemberBarcode";
 
@@ -17,25 +16,27 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 export default async function BarcodePage() {
   const session = await auth();
-  if (!session?.user?.email) redirect("/login");
+  if (!session?.user) redirect("/login");
 
-  const user = await getUserByEmail(session.user.email);
-  if (!user) redirect("/login");
+  // member_id + name from session (JWT) directly not from sheet
+  // can show even sheet down
+  const memberId = session.user.id ?? "";
+  const userName = session.user.name ?? "—";
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-md p-6">
+      <div className="page-container">
         <h1 className="mb-6 text-lg font-bold">会員証</h1>
 
         <dl className="space-y-4 text-sm">
-          <InfoRow label="氏名" value={user.user_name || "—"} />
-          <InfoRow label="会員番号" value={user.member_id || "—"} />
+          <InfoRow label="氏名" value={userName} />
+          <InfoRow label="会員番号" value={memberId || "—"} />
           <InfoRow label="所属支部" value={BRANCH_NAME} />
         </dl>
 
         <div className="mt-10">
-          {user.member_id ? (
-            <MemberBarcode memberId={user.member_id} />
+          {memberId ? (
+            <MemberBarcode memberId={memberId} />
           ) : (
             <p className="text-center text-gray-500">会員番号が登録されていません</p>
           )}

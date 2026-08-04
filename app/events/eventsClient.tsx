@@ -6,7 +6,7 @@ import {
 
 import useSWR from "swr";
 
-import EventCard from "@/components/EventCard";
+import EventCard from "./EventCard";
 
 import type {
   EventPosition,
