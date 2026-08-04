@@ -21,13 +21,17 @@ function toEmbedUrl(formUrl: string): string | null {
 export default async function EventFormPage({
   params,
 }: {
-  params: Promise<{ eventId: string }>;
+  params: Promise<{ eventId: string }>; // key must be same name as [eventId] folder
 }) {
   const session = await auth();
   if (!session) redirect("/login");
   const { eventId } = await params;
 
-  const events = await getEventsData(); // use snapshot cache
+  // event that user no permission to see (draft/役員向け) → 404
+  const events = await getEventsData({
+    memberId: session.user?.id || undefined,
+    role: session.user?.role || undefined,
+  });
   const event = events.find((e) => e.event_id === eventId);
   if (!event) notFound();
 
@@ -35,8 +39,7 @@ export default async function EventFormPage({
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-3xl p-4">
-        {/* header — โครงเดียวกับ /site/view: [← back] ... [別タブで開く] */}
+      <div className="page-container">
         <div className="mb-3 flex items-center justify-between">
           <Link
             href="/events"

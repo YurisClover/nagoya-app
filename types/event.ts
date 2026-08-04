@@ -6,6 +6,8 @@ export type EventWithStatus = {
     form_url: string;
     location: string;
     event_end_date: string;
+    status: string; // publish or draft
+    position: string; // general, executive, admin
     is_answered: boolean | null;
 }
 

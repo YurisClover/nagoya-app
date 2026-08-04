@@ -32,7 +32,7 @@ export default async function PdfListPage() {
     console.error(error);
     return (
       <AppShell>
-        <div className="mx-auto max-w-md p-6">
+        <div className="page-container">
           <h1 className="mb-6 text-lg font-bold">中支部サイト・支部報</h1>
           <OfficialSiteCard />
           <div className="card mt-6 text-center">
@@ -46,7 +46,7 @@ export default async function PdfListPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-md p-6">
+      <div className="page-container">
         <h1 className="mb-6 text-lg font-bold">中支部サイト・支部報</h1>
 
         <OfficialSiteCard />
