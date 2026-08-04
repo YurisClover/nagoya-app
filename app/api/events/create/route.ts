@@ -12,6 +12,10 @@ import {
 } from "@/lib/google-forms";
 
 import {
+  createGoogleFormPrefillTemplate,
+} from "@/lib/google-form-prefill";
+
+import {
   addEventToSheet,
   type EventPosition,
 } from "@/lib/sheets/events";
@@ -269,7 +273,7 @@ export async function POST(
             : null,
 
           "",
-          "※「会員ID」の質問はシステムで使用するため、削除しないでください。",
+          "※「申込確認コード」の質問はシステムで使用するため、削除・変更しないでください。",
         ]
           .filter(
             (
@@ -283,10 +287,10 @@ export async function POST(
           {
         
             title:
-              "会員ID",
+              "申込確認コード",
 
             description:
-              "会員IDを入力してください。。この質問は削除しないでください。",
+              "システムによって自動入力されます。この質問は削除・変更しないでください。",
 
             required:
               true,
@@ -307,6 +311,11 @@ export async function POST(
         "Googleフォームの回答用URLを取得できませんでした。",
       );
     }
+
+    const prefillUrlTemplate =
+  await createGoogleFormPrefillTemplate(
+    googleForm.formId,
+  );
 
     /*
      * ⑤ Eventsシートへ保存
@@ -347,6 +356,9 @@ export async function POST(
 
           is_deleted:
           false,
+
+         prefill_url_template:
+         prefillUrlTemplate,
 
       });
 

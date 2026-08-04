@@ -31,6 +31,7 @@ export type SheetEvent = {
   created_at: string;
   registration_count: number;
   is_deleted: boolean;
+  prefill_url_template: string;
 };
 
 const REQUIRED_EVENT_HEADERS = [
@@ -47,6 +48,7 @@ const REQUIRED_EVENT_HEADERS = [
   "created_at",
   "registration_count",
   "is_deleted",
+  "prefill_url_template",
 ] as const;
 
 function isEventStatus(
@@ -161,6 +163,20 @@ function mapEventRow(
       parseBoolean(
         row.get("is_deleted"),
       ),
+
+      /*
+     * 会員IDを事前入力するための
+     * GoogleフォームURLひな型。
+     *
+     * 既存イベントでは空欄を許容する。
+     */
+      prefill_url_template:
+      String(
+      row.get(
+      "prefill_url_template",
+       ) ?? "",
+       ).trim(),
+
   };
 }
 
@@ -304,6 +320,9 @@ export async function addEventToSheet(
 
       is_deleted:
        createdEvent.is_deleted,
+
+      prefill_url_template:
+        createdEvent.prefill_url_template,
 
     },
     {

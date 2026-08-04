@@ -2,7 +2,7 @@ import "server-only";
 import { GoogleSpreadsheet, GoogleSpreadsheetWorksheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
-import type { EventWithStatus, EventSheetHealth } from "@/types/event";
+import type { EventPosition, EventSheetHealth, EventWithStatus } from "@/types/event";
 import { parseSheetDate } from "./datetime";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || "";
@@ -26,6 +26,44 @@ function resolveMemberIdHeader(headers: string[]): string | null {
 /** normalize member_id: if that column is number instead of plaintext */
 function normalizeMemberId(v: unknown): string {
   return String(v ?? "").trim().replace(/\.0+$/, "");
+}
+
+function isVisibleEventStatus(
+  value: unknown,
+): value is EventWithStatus["status"] {
+  return (
+    value === "published" ||
+    value === "closed"
+  );
+}
+
+function isEventPosition(
+  value: unknown,
+): value is EventPosition {
+  return (
+    value === "general" ||
+    value === "executive"
+  );
+}
+
+function parseBoolean(
+  value: unknown,
+): boolean {
+  if (
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+
+  return [
+    "true",
+    "1",
+    "yes",
+  ].includes(
+    String(value ?? "")
+      .trim()
+      .toLowerCase(),
+  );
 }
 
 /** event sheet name: response_sheet first, if no fallback to title */
@@ -62,42 +100,182 @@ async function readAnsweredIds(sheet: GoogleSpreadsheetWorksheet): Promise<Set<s
 
 async function loadSnapshot(): Promise<Snapshot> {
   const doc = await getDoc();
-  const eventRows = await doc.sheetsByTitle["Events"].getRows();
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const eventsSheet =
+    doc.sheetsByTitle["Events"];
+
+  if (!eventsSheet) {
+    throw new Error(
+      "Eventsシートが見つかりません。",
+    );
+  }
+
+  const eventRows =
+    await eventsSheet.getRows();
+
+  const now = new Date();
 
   const upcoming = eventRows
-    .map((row, index) => ({
-      id: index,
-      event_id: String(row.get("event_id") ?? "").trim(),
-      title: (row.get("title") || "タイトル未設定") as string,
-      event_date: (row.get("event_date") || "") as string,
-      form_url: (row.get("form_url") || "#") as string,
-      location: (row.get("location") || "") as string,
-      event_end_date: (row.get("event_end_date") || "") as string,
-      _sheetName: resolveSheetName(row),
-      _dateObj: parseSheetDate(row.get("event_date") || "", { yearHint: "future" }),
-    }))
-    .filter((e): e is typeof e & { _dateObj: Date } => e._dateObj !== null && e._dateObj >= today)
-    .sort((a, b) => a._dateObj.getTime() - b._dateObj.getTime());
+    .flatMap((row, index) => {
+      const eventId = String(
+        row.get("event_id") ?? "",
+      ).trim();
 
-  // read all event sheet once → store as set (member_id) (all user)
-  const answers = new Map<string, Set<string> | null>();
-  await Promise.all(
-    upcoming.map(async (e) => {
-      const sheet = doc.sheetsByTitle[e._sheetName];
-      if (!sheet) return; // no sheet → no key (seperate from "unreadable")
-      try {
-        answers.set(e.event_id, await readAnsweredIds(sheet));
-      } catch {
-        answers.set(e.event_id, null);
+      const status = String(
+        row.get("status") ?? "",
+      ).trim();
+
+      const position = String(
+        row.get("position") ?? "",
+      ).trim();
+
+      const isDeleted =
+        parseBoolean(
+          row.get("is_deleted"),
+        );
+
+      const startDate =
+        parseSheetDate(
+          row.get("event_date") ??
+            "",
+          {
+            yearHint: "future",
+          },
+        );
+
+      const endDate =
+        parseSheetDate(
+          row.get(
+            "event_end_date",
+          ) ?? "",
+          {
+            yearHint: "future",
+          },
+        );
+
+      if (
+        !eventId ||
+        !isVisibleEventStatus(
+          status,
+        ) ||
+        !isEventPosition(
+          position,
+        ) ||
+        isDeleted ||
+        !startDate ||
+        !endDate ||
+        endDate.getTime() <=
+          now.getTime()
+      ) {
+        return [];
       }
+
+      const numericId =
+        Number(eventId);
+
+      return [
+        {
+          id: Number.isFinite(
+            numericId,
+          )
+            ? numericId
+            : index,
+
+          event_id: eventId,
+
+          title: String(
+            row.get("title") ??
+              "タイトル未設定",
+          ),
+
+          event_date: String(
+            row.get(
+              "event_date",
+            ) ?? "",
+          ),
+
+          event_end_date: String(
+            row.get(
+              "event_end_date",
+            ) ?? "",
+          ),
+
+          form_url: String(
+            row.get("form_url") ??
+              "#",
+          ),
+
+          location: String(
+            row.get("location") ??
+              "",
+          ),
+
+          position,
+          status,
+
+          _sheetName:
+            resolveSheetName(row),
+
+          _dateObj: startDate,
+        },
+      ];
     })
+    .sort(
+      (a, b) =>
+        a._dateObj.getTime() -
+        b._dateObj.getTime(),
+    );
+
+  /*
+   * 現在は旧方式の回答済み判定を
+   * 一時的に残している。
+   *
+   * answerシート1枚へ移行したら
+   * この処理を置き換える。
+   */
+  const answers = new Map<
+    string,
+    Set<string> | null
+  >();
+
+  await Promise.all(
+    upcoming.map(
+      async (event) => {
+        const sheet =
+          doc.sheetsByTitle[
+            event._sheetName
+          ];
+
+        if (!sheet) {
+          return;
+        }
+
+        try {
+          answers.set(
+            event.event_id,
+            await readAnsweredIds(
+              sheet,
+            ),
+          );
+        } catch {
+          answers.set(
+            event.event_id,
+            null,
+          );
+        }
+      },
+    ),
   );
 
   return {
-    events: upcoming.map(({ _dateObj, _sheetName, ...rest }) => rest),
+    events: upcoming.map(
+      ({
+        _dateObj,
+        _sheetName,
+        ...event
+      }) => event,
+    ),
+
     answers,
   };
 }
@@ -117,25 +295,76 @@ async function getSnapshot(): Promise<Snapshot> {
   return inflight;
 }
 
-/** build result user — compare member_id in memory (0 API call) */
-function buildResult(snap: Snapshot, memberId?: string): EventWithStatus[] {
-  const target = normalizeMemberId(memberId);
-  return snap.events.map((e) => {
-    let is_answered: boolean | null = false;
-    if (target) {
-      // undefined = no sheet, null = can't read
-      const ids = snap.answers.get(e.event_id);
-      is_answered = ids == null ? null : ids.has(target);
-    }
-    return { ...e, is_answered };
-  });
+function buildResult(
+  snap: Snapshot,
+  memberId: string | undefined,
+  position: EventPosition,
+): EventWithStatus[] {
+  const target =
+    normalizeMemberId(
+      memberId,
+    );
+
+  return snap.events
+    .filter(
+      (event) =>
+        event.position ===
+        position,
+    )
+    .map((event) => {
+      let is_answered:
+        | boolean
+        | null = false;
+
+      if (target) {
+        /*
+         * undefined:
+         * 回答シートが存在しない
+         *
+         * null:
+         * 回答シートを読み込めない
+         */
+        const ids =
+          snap.answers.get(
+            event.event_id,
+          );
+
+        is_answered =
+          ids == null
+            ? null
+            : ids.has(target);
+      }
+
+      return {
+        ...event,
+        is_answered,
+      };
+    });
 }
 
-export async function getEventsData(memberId?: string): Promise<EventWithStatus[]> {
+export async function getEventsData(
+  memberId?: string,
+  position: EventPosition =
+    "general",
+): Promise<EventWithStatus[]> {
   try {
-    return buildResult(await getSnapshot(), memberId);
+    const snapshot =
+      await getSnapshot();
+
+    return buildResult(
+      snapshot,
+      memberId,
+      position,
+    );
   } catch (error) {
-    if (cached) return buildResult(cached.data, memberId); // Sheet failed/429 → use past one
+    if (cached) {
+      return buildResult(
+        cached.data,
+        memberId,
+        position,
+      );
+    }
+
     throw error;
   }
 }
