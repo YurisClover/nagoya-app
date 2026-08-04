@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
+import { auth } from '@/auth';
 
 export async function GET() {
   try {
+    const session = await auth();
+    const currentMemberId = (session?.user as any)?.member_id || session?.user?.id;
+
     const clientEmail = process.env.GOOGLE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = (process.env.GOOGLE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY)?.replace(/\\n/g, '\n');
     const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID || process.env.GOOGLE_SHEET_ID;
@@ -11,12 +15,12 @@ export async function GET() {
       return NextResponse.json({ success: false, error: '環境変数が設定されていません' }, { status: 500 });
     }
 
-    const auth = new google.auth.GoogleAuth({
+    const authClient = new google.auth.GoogleAuth({
       credentials: { client_email: clientEmail, private_key: privateKey },
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
-    const sheets = google.sheets({ version: 'v4', auth });
+    const sheets = google.sheets({ version: 'v4', auth: authClient });
 
     const [usersRes, messagesRes] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Users!A1:Z' }),
@@ -26,7 +30,6 @@ export async function GET() {
     const userRows = usersRes.data.values || [];
     const messageRows = messagesRes.data.values || [];
 
-    // Users マップの作成と管理者IDの抽出
     const userHeader = (userRows[0] || []).map((h: any) => String(h).toLowerCase().trim());
     let uMemberIdIdx = userHeader.findIndex((h) => h === 'member_id' || h === 'id');
     let uNameIdx = userHeader.findIndex((h) => h === 'name' || h === 'username');
@@ -36,7 +39,7 @@ export async function GET() {
     if (uNameIdx === -1) uNameIdx = 1;
 
     const userMap: { [key: string]: { name: string; memberId: string } } = {};
-    const adminMemberIds = new Set<string>(['admin', '10001234']); // 必要に応じて管理者の固定IDを追加
+    const adminMemberIds = new Set<string>(['admin', '10001234']);
 
     userRows.slice(1).forEach((row) => {
       const mId = row[uMemberIdIdx]?.toString().trim() || '';
@@ -49,7 +52,6 @@ export async function GET() {
       }
     });
 
-    // Messages パース
     const msgHeader = (messageRows[0] || []).map((h: any) => String(h).toLowerCase().trim());
     let idIdx = msgHeader.findIndex((h) => h === 'message_id' || h === 'id');
     let senderIdIdx = msgHeader.findIndex((h) => h === 'sender_id' || h === 'senderid');
@@ -58,7 +60,6 @@ export async function GET() {
     let bodyIdx = msgHeader.findIndex((h) => h === 'body' || h === 'content');
     let isReadIdx = msgHeader.findIndex((h) => h === 'is_read' || h === 'isread');
     let createdAtIdx = msgHeader.findIndex((h) => h === 'created_at' || h === 'createdat' || h === 'timestamp');
-    // ★ delete_flag 列のインデックス取得を追加
     let deleteFlagIdx = msgHeader.findIndex((h) => h === 'delete_flag' || h === 'deleteflag' || h === 'is_deleted');
 
     if (idIdx === -1) idIdx = 0;
@@ -72,11 +73,10 @@ export async function GET() {
     const allParsedMessages: any[] = [];
 
     messageRows.slice(1).forEach((row) => {
-      // ★ delete_flag の判定（TRUE / true / 1 の場合は除外してスキップ）
       if (deleteFlagIdx !== -1) {
         const deleteFlagVal = row[deleteFlagIdx]?.toString().trim().toLowerCase();
         if (deleteFlagVal === 'true' || deleteFlagVal === '1') {
-          return; // 削除済みメッセージのため処理をスキップ
+          return;
         }
       }
 
@@ -86,9 +86,12 @@ export async function GET() {
       const subject = row[titleIdx]?.toString().trim() || '';
       const body = row[bodyIdx]?.toString().trim() || '';
       
-      // is_read の判定（'true' のみ既読扱い）
       const isReadVal = row[isReadIdx]?.toString().trim().toLowerCase();
-      const isRead = isReadVal === 'true';
+      let isRead = isReadVal === 'true';
+
+      if (currentMemberId && senderId === String(currentMemberId).trim()) {
+        isRead = true;
+      }
 
       const createdAt = row[createdAtIdx]?.toString().trim() || '';
 
@@ -109,56 +112,111 @@ export async function GET() {
       }
     });
 
-    // ツリー構造化
-    const parentMap: { [key: string]: any } = {};
+    const isAdmin = (id: string) => adminMemberIds.has(id);
 
-    // 1. 親メッセージの登録（管理者宛てのメッセージのみを対象とする）
+    const getGeneralUserId = (msg: { senderId: string; recipientId: string }) => {
+      if (isAdmin(msg.senderId)) {
+        return msg.recipientId;
+      } else {
+        return msg.senderId;
+      }
+    };
+
+    const threadList: any[] = [];
+
     allParsedMessages.forEach((msg) => {
-      if (!msg.subject.startsWith('Re:')) {
-        const isToAdmin = adminMemberIds.has(msg.recipientId);
+      const isReply = /^Re:\s*/i.test(msg.subject);
+      if (!isReply) {
+        const generalUserId = getGeneralUserId(msg);
+        threadList.push({
+          ...msg,
+          generalUserId,
+          cleanSubject: msg.subject.trim().toLowerCase(),
+          replies: [],
+        });
+      }
+    });
 
-        if (isToAdmin) {
-          const key = msg.subject.trim();
-          if (!parentMap[key] || new Date(msg.createdAt) > new Date(parentMap[key].createdAt)) {
-            parentMap[key] = {
-              ...msg,
-              replies: [],
-            };
+    threadList.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    allParsedMessages.forEach((msg) => {
+      const isReply = /^Re:\s*/i.test(msg.subject);
+      if (isReply) {
+        const generalUserId = getGeneralUserId(msg);
+        const cleanSubject = msg.subject.replace(/^Re:\s*/i, '').trim().toLowerCase();
+        const msgTime = new Date(msg.createdAt).getTime() || 0;
+
+        const candidates = threadList.filter(
+          (t) =>
+            t.generalUserId === generalUserId &&
+            t.cleanSubject === cleanSubject &&
+            new Date(t.createdAt).getTime() <= msgTime
+        );
+
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          const targetParent = candidates[0];
+
+          const exists = targetParent.id === msg.id || targetParent.replies.some((r: any) => r.id === msg.id);
+          if (!exists) {
+            targetParent.replies.push({
+              id: msg.id,
+              senderId: msg.senderId,
+              recipientId: msg.recipientId,
+              userName: msg.userName,
+              memberId: msg.memberId,
+              subject: msg.subject,
+              body: msg.body,
+              isRead: msg.isRead,
+              createdAt: msg.createdAt,
+            });
+          }
+        } else {
+          const fallbackCandidates = threadList.filter(
+            (t) => t.generalUserId === generalUserId && t.cleanSubject === cleanSubject
+          );
+          if (fallbackCandidates.length > 0) {
+            fallbackCandidates.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            const targetParent = fallbackCandidates[0];
+            const exists = targetParent.id === msg.id || targetParent.replies.some((r: any) => r.id === msg.id);
+            if (!exists) {
+              targetParent.replies.push({
+                id: msg.id,
+                senderId: msg.senderId,
+                recipientId: msg.recipientId,
+                userName: msg.userName,
+                memberId: msg.memberId,
+                subject: msg.subject,
+                body: msg.body,
+                isRead: msg.isRead,
+                createdAt: msg.createdAt,
+              });
+            }
           }
         }
       }
     });
 
-    // 2. 返信（Re:）メッセージの紐づけ
-    allParsedMessages.forEach((msg) => {
-      if (msg.subject.startsWith('Re:')) {
-        const cleanSubject = msg.subject.replace(/^Re:\s*/i, '').trim();
-        const parent = parentMap[cleanSubject];
+    threadList.forEach((parent: any) => {
+      parent.replies.sort((a: any, b: any) => {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
 
-        if (parent) {
-          parent.replies.push({
-            id: msg.id,
-            senderId: msg.senderId,
-            recipientId: msg.recipientId,
-            userName: msg.userName,
-            memberId: msg.memberId,
-            subject: msg.subject,
-            body: msg.body,
-            isRead: msg.isRead,
-            createdAt: msg.createdAt,
-          });
+      let latestTime = new Date(parent.createdAt).getTime() || 0;
+      parent.replies.forEach((r: any) => {
+        const rTime = new Date(r.createdAt).getTime() || 0;
+        if (rTime > latestTime) {
+          latestTime = rTime;
         }
-      }
+      });
+      parent._latestTimestamp = latestTime;
     });
 
-    // ソート（作成日時が新しいものを上）
-    const inquiries = Object.values(parentMap).sort((a: any, b: any) => {
-      const timeA = new Date(a.createdAt).getTime() || 0;
-      const timeB = new Date(b.createdAt).getTime() || 0;
-      return timeB - timeA;
+    threadList.sort((a: any, b: any) => {
+      return b._latestTimestamp - a._latestTimestamp;
     });
 
-    return NextResponse.json({ success: true, inquiries });
+    return NextResponse.json({ success: true, inquiries: threadList });
   } catch (error: any) {
     console.error('問い合わせ取得エラー:', error);
     return NextResponse.json({ success: false, error: error.message || '取得エラー' }, { status: 500 });

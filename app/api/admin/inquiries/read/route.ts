@@ -41,12 +41,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, updatedCount: 0 });
     }
 
-    const header = rows[0].map((h: any) => String(h).toLowerCase().trim());
-    let idIdx = header.findIndex((h) => h === 'message_id' || h === 'id');
-    let isReadIdx = header.findIndex((h) => h === 'is_read' || h === 'isread');
+    // ヘッダーの揺れ（is_read, isRead, isread 等）を確実に検知できるように正規化
+    const header = rows[0].map((h: any) => String(h).toLowerCase().replace(/[_-\s]/g, '').trim());
+    let idIdx = header.findIndex((h) => h === 'messageid' || h === 'id' || h === 'message_id');
+    let isReadIdx = header.findIndex((h) => h === 'isread' || h === 'is_read' || h === 'read');
 
     if (idIdx === -1) idIdx = 0;
-    if (isReadIdx === -1) isReadIdx = 5; // F列
+    if (isReadIdx === -1) isReadIdx = 5; // 見つからない場合のデフォルト（F列）
 
     // 既読対象とするメッセージIDのセット（親ID + 配下の返信ID群）
     const idsToMarkRead = new Set<string>([messageId, ...(replyIds || [])]);
@@ -56,16 +57,27 @@ export async function POST(req: Request) {
     rows.slice(1).forEach((row, index) => {
       const currentId = row[idIdx]?.toString().trim();
       if (currentId && idsToMarkRead.has(currentId)) {
-        const rowIndex = index + 2; // ヘッダー行考慮の1-based行番号
-        const range = `Messages!${String.fromCharCode(65 + isReadIdx)}${rowIndex}`;
+        const rowIndex = index + 2; // ヘッダーを考慮した1-basedの行番号
+
+        // 行データをコピーして、is_read の列だけを強制的に 'true' に書き換える
+        const updatedRow = [...row];
+        while (updatedRow.length <= isReadIdx) {
+          updatedRow.push('');
+        }
+        updatedRow[isReadIdx] = 'true';
+
+        // 該当行の範囲（A列からデータが存在する最後の列まで）を指定して丸ごと更新
+        const lastColIdx = Math.max(updatedRow.length - 1, isReadIdx);
+        const lastColChar = String.fromCharCode(65 + lastColIdx);
+        const range = `Messages!A${rowIndex}:${lastColChar}${rowIndex}`;
 
         updatePromises.push(
           sheets.spreadsheets.values.update({
             spreadsheetId,
             range,
-            valueInputOption: 'RAW', // ★ RAW に変更
+            valueInputOption: 'RAW',
             requestBody: {
-              values: [['true']], // 小文字の 'true'
+              values: [updatedRow],
             },
           })
         );

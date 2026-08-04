@@ -25,7 +25,7 @@ export const MENU: MenuItem[] = [
   { href: "/schedule", label: "スケジュール", navLabel: "予定",   desc: "支部行事一覧",   Icon: CalendarDays,   tone: "tone-amber",  ready: false },
   { href: "/chat",     label: "税務相談",     navLabel: "相談",   desc: "AIチャット",     Icon: Bot,            tone: "tone-teal",   ready: false },
   { href: "/events",   label: "出席確認",     navLabel: "出席",   desc: "イベント参加",   Icon: ClipboardCheck, tone: "tone-purple", ready: true },
-  { href: "/messages", label: "メッセージ",   navLabel: "連絡",   desc: "連絡・通知",     Icon: Mail,           tone: "tone-copper", ready: false },
+  { href: "/messages", label: "メッセージ",   navLabel: "連絡",   desc: "連絡・通知",     Icon: Mail,           tone: "tone-copper", ready: true },
   { href: "/site",     label: "中支部サイト・支部報", navLabel: "支部", desc: "公式サイトへ／支部報PDFを閲覧", Icon: Building2, tone: "tone-navy", ready: true, wide: true },
   { href: "/admin",    label: "管理者パネル", navLabel: "管理",   desc: "会員・イベント管理", Icon: Settings,   tone: "tone-gray",   ready: true, wide: true, adminOnly: true },
 ];

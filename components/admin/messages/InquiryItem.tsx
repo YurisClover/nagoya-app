@@ -1,4 +1,4 @@
-// 各メッセージカード（折りたたみ・スレッド表示・既読処理・削除管理）
+// 各メッセージカード（折りたたみ・スレッド表示・削除管理）
 
 'use client';
 
@@ -59,7 +59,6 @@ export default function InquiryItem({
       if (onDelete) {
         await onDelete(inquiry.id);
       } else {
-        // デフォルトの削除 API 呼び出し
         const res = await fetch('/api/messages/delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -85,39 +84,48 @@ export default function InquiryItem({
     <div
       className={`border rounded-xl transition overflow-hidden ${
         hasThreadUnread
-          ? 'bg-blue-50/60 border-2 border-blue-400 shadow-sm' // ★ 黄色から「淡い青背景＋青枠」に変更
-          : 'bg-white border-slate-200'
+          ? 'bg-[#eaf2fd] border-blue-200 shadow-sm' // 未読時の薄青背景
+          : 'bg-white border-slate-200'              // 既読時の白背景
       }`}
     >
       <div
         onClick={onToggle}
-        className="p-4 cursor-pointer hover:bg-slate-50/80 transition flex items-start justify-between"
+        className="p-4 cursor-pointer hover:opacity-90 transition flex items-center justify-between"
       >
-        <div className="flex items-start space-x-3">
-          <div className="w-10 h-10 rounded-full bg-[#1b365d] text-white font-bold flex items-center justify-center text-sm flex-shrink-0">
-            {inquiry.userName ? inquiry.userName.charAt(0) : 'U'}
+        {/* 左側：アイコン + 差出人情報・件名 */}
+        <div className="flex items-center space-x-3.5 flex-1 min-w-0 mr-4">
+          {/* アイコン */}
+          <div className="w-12 h-12 rounded-full bg-[#1b365d] text-white font-bold flex items-center justify-center text-lg flex-shrink-0 shadow-xs">
+            {inquiry.userName ? inquiry.userName.charAt(0).toUpperCase() : '事'}
           </div>
-          <div>
+
+          {/* メッセージ概要 */}
+          <div className="flex-1 min-w-0">
             <div className="flex items-center space-x-2">
-              <span className="font-bold text-sm text-slate-900">{inquiry.userName}</span>
-              <span className="text-xs text-slate-500">({inquiry.memberId || inquiry.senderId})</span>
-              {hasThreadUnread && (
-                /* ★ 未読バッジは「赤色」を保持 */
-                <span className="px-2 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded">
-                  未読あり
+              <span className="font-bold text-base text-slate-900 leading-tight truncate">
+                {inquiry.userName}
+              </span>
+              {inquiry.memberId && (
+                <span className="text-xs text-slate-500 font-medium shrink-0">
+                  ({inquiry.memberId})
                 </span>
               )}
             </div>
-            <p className={`text-sm mt-0.5 ${hasThreadUnread ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
+
+            <p className={`text-sm mt-0.5 truncate ${hasThreadUnread ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
               {inquiry.subject}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <span className="text-xs text-slate-400">{formatRelativeDateTime(inquiry.createdAt)}</span>
+        {/* 右側：送信時刻 + 削除ボタン */}
+        <div className="flex items-center space-x-3 flex-shrink-0">
+          {/* 送信時刻 */}
+          <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
+            {formatRelativeDateTime(inquiry.createdAt)}
+          </span>
 
-          {/* 削除ボタン（ゴミ箱アイコン） */}
+          {/* 削除ボタン */}
           <button
             type="button"
             onClick={handleDelete}
@@ -143,32 +151,36 @@ export default function InquiryItem({
         </div>
       </div>
 
+      {/* アコーディオン開閉時の詳細・スレッド表示 */}
       {isExpanded && (
-        <div className="px-4 pb-5 pt-2 border-t border-slate-200 bg-slate-50/50 space-y-4">
+        <div className="px-4 pb-5 pt-2 border-t border-slate-200/60 bg-white/50 space-y-4">
+          {/* 問い合わせ本文 */}
           <div className="bg-white p-4 rounded-lg border border-slate-200 text-sm text-slate-800 whitespace-pre-wrap">
             <p className="text-xs text-slate-400 mb-1 font-semibold">【問い合わせ本文】</p>
             {inquiry.body}
           </div>
 
+          {/* 返信履歴 */}
           {inquiry.replies && inquiry.replies.length > 0 && (
-            <div className="pl-6 space-y-3 border-l-2 border-blue-400">
+            <div className="pl-4 space-y-3 border-l-2 border-[#1b365d]">
               <p className="text-xs font-bold text-slate-600">返信履歴</p>
               {inquiry.replies.map((reply) => (
-                <div key={reply.id} className="bg-blue-50/70 border border-blue-100 p-3 rounded-lg text-sm">
+                <div key={reply.id} className="bg-white border border-slate-200 p-3 rounded-lg text-sm">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-xs text-blue-900">
-                      {reply.userName} ({reply.memberId || reply.senderId})
+                    <span className="font-bold text-xs text-slate-900">
+                      {reply.userName || reply.senderId} {reply.memberId ? `(${reply.memberId})` : ''}
                     </span>
                     <span className="text-[11px] text-slate-400">
                       {formatRelativeDateTime(reply.createdAt)}
                     </span>
                   </div>
-                  <p className="text-slate-800 whitespace-pre-wrap">{reply.body}</p>
+                  <p className="text-slate-800 whitespace-pre-wrap mt-1">{reply.body}</p>
                 </div>
               ))}
             </div>
           )}
 
+          {/* インライン返信フォーム */}
           <InlineReplyForm
             userName={inquiry.userName}
             senderId={inquiry.senderId}

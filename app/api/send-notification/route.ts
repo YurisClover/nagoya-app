@@ -202,28 +202,25 @@ export async function POST(request: Request) {
     // 重複IDの除去
     targetMemberIds = Array.from(new Set(targetMemberIds));
 
-    // 送信対象が0名になった場合の処理
-    if (targetMemberIds.length === 0) {
-      return NextResponse.json(
-        { success: false, error: '対象となるアクティブなユーザーが見つかりませんでした（送信者自身または非アクティブユーザーを除外した結果0名となりました）' },
-        { status: 400 }
-      );
-    }
-
     // 保存日時は JST 形式 (+09:00付き) で生成
     const createdAt = nowJST();
 
     // 6. 対象メンバーそれぞれに対して1件ずつメッセージ行を作成
-    const rowsToAppend = targetMemberIds.map((recipientMemberId) => [
-      crypto.randomUUID(),   // A: message_id (UUID)
-      targetSenderId,        // B: sender_id (送信者の member_id)
-      recipientMemberId,     // C: recipient_id (受信者の member_id)
-      bodyData.title,        // D: title
-      bodyData.body,         // E: body
-      'false',               // F: is_read (未読時は小文字の 'false')
-      createdAt,             // G: created_at (nowJST())
-      'false',               // H: delete_flag (デフォルトは 'false')
-    ]);
+    const rowsToAppend = targetMemberIds.map((recipientMemberId) => {
+      // ★ 送信者と受信者が同じ（自分宛て）の場合は、最初から既読（'true'）にする
+      const isRead = String(targetSenderId).trim() === String(recipientMemberId).trim() ? 'true' : 'false';
+
+      return [
+        crypto.randomUUID(),   // A: message_id (UUID)
+        targetSenderId,        // B: sender_id (送信者の member_id)
+        recipientMemberId,     // C: recipient_id (受信者の member_id)
+        bodyData.title,        // D: title
+        bodyData.body,         // E: body
+        isRead,                // F: is_read (自分宛てなら 'true', それ以外は 'false')
+        createdAt,             // G: created_at (nowJST())
+        'false',               // H: delete_flag (デフォルトは 'false')
+      ];
+    });
 
     // 7. Messagesシートに一括保存
     await sheets.spreadsheets.values.append({
