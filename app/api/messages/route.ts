@@ -37,7 +37,7 @@ export async function GET() {
 
     const sheets = google.sheets({ version: "v4", auth: authClient });
 
-    // 3. Messages シートと Users シートを並行取得 (A:H 列に対応)
+    // 3. Messages シートと Users シートを並行取得
     const [messagesRes, usersRes] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId,
@@ -56,7 +56,7 @@ export async function GET() {
       return NextResponse.json({ success: true, messages: [] });
     }
 
-    // Users のマップ作成 (sender_id から差出人名を取得)
+    // Users のマップ作成
     const uHeaders = (userRows[0] || []).map((h: string) => h.toLowerCase().trim());
     let uMemberIdIdx = uHeaders.findIndex((h) => h === "member_id" || h === "id" || h === "memberid");
     let uNameIdx = uHeaders.findIndex((h) => h === "user_name" || h === "username" || h === "name");
@@ -71,7 +71,7 @@ export async function GET() {
       if (mId) userNameMap.set(mId, uName || "事務局");
     });
 
-    // Messages ヘッダーの列位置を取得 (A〜H)
+    // Messages ヘッダーの列位置を取得
     const msgHeaders = messageRows[0].map((h: string) => h.toLowerCase().replace(/[_-\s]/g, "").trim());
     let idIdx = msgHeaders.findIndex((h) => h === "messageid" || h === "id");
     let senderIdIdx = msgHeaders.findIndex((h) => h === "senderid" || h === "sender");
@@ -82,7 +82,6 @@ export async function GET() {
     let createdAtIdx = msgHeaders.findIndex((h) => h === "createdat" || h === "date");
     let deleteFlagIdx = msgHeaders.findIndex((h) => h === "deleteflag" || h === "deleted");
 
-    // デフォルト位置のフォールバック
     if (idIdx === -1) idIdx = 0;
     if (senderIdIdx === -1) senderIdIdx = 1;
     if (recipientIdIdx === -1) recipientIdIdx = 2;
@@ -117,36 +116,97 @@ export async function GET() {
       };
     }).filter(m => !m.is_deleted);
 
-    // 5. ログインユーザーが関わるメッセージ（自分が送った、または自分宛て）を抽出
-    const myRelatedMessages = allMessages.filter(
-      (m) => m.sender_id === myUserId || m.recipient_id === myUserId
-    );
+    // 5. 件名から "Re: " や "(全会員)" などの修飾語をきれいに取り除く正規化関数
+    const normalizeSubject = (subj: string) => {
+      return subj
+        .replace(/^(re|ｒｅ):\s*/i, "")
+        .replace(/^[（(]全会員[）)]\s*/i, "")
+        .trim()
+        .toLowerCase();
+    };
 
-    // 6. 件名から "Re: " を除外したクリーニング済み件名ごとにメッセージをグループ化してスレッドを構築
-    const threadMap = new Map<string, any[]>();
+    const threadList: any[] = [];
 
-    myRelatedMessages.forEach((msg) => {
-      const cleanTitle = msg.title.replace(/^Re:\s*/i, "").trim().toLowerCase();
-      const key = cleanTitle || "no-subject";
-      if (!threadMap.has(key)) {
-        threadMap.set(key, []);
+    // 6. 親スレッド（Re: がついていないもの、または新規の起点）を時系列順に抽出
+    allMessages.forEach((msg) => {
+      const isReply = /^Re:\s*/i.test(msg.title) || msg.title.toLowerCase().startsWith('re:');
+      if (!isReply) {
+        threadList.push({
+          ...msg,
+          cleanSubject: normalizeSubject(msg.title),
+          replies: [],
+        });
       }
-      threadMap.get(key)!.push(msg);
     });
 
-    const formattedThreads: any[] = [];
+    threadList.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-    threadMap.forEach((msgs) => {
-      // 時系列（古い順）に並べ替え、一番最初のメッセージを親、以降を返信する
-      msgs.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    // 7. 返信メッセージを正しい親スレッドに紐づける
+    allMessages.forEach((msg) => {
+      const isParent = threadList.some((t) => t.id === msg.id);
+      if (isParent) return; // 親として登録済みのものはスキップ
 
-      const parent = msgs[0];
-      const replies = msgs.slice(1);
+      const cleanSubject = normalizeSubject(msg.title);
+      const msgTime = new Date(msg.created_at).getTime() || 0;
 
-      // 自分が送信したメッセージは既読（true）、受信したメッセージは元の既読状態を反映
+      // 同じ正規化件名を持ち、送信日時が親以降のものを候補にする
+      let candidates = threadList.filter(
+        (t) =>
+          t.cleanSubject === cleanSubject &&
+          new Date(t.created_at).getTime() <= msgTime
+      );
+
+      // 一致する候補がない場合のフォールバック（直近のスレッドを探す）
+      if (candidates.length === 0) {
+        candidates = threadList.filter(
+          (t) => new Date(t.created_at).getTime() <= msgTime
+        );
+      }
+
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const targetParent = candidates[0];
+
+        const exists = targetParent.id === msg.id || targetParent.replies.some((r: any) => r.id === msg.id);
+        if (!exists) {
+          targetParent.replies.push({
+            id: msg.id,
+            sender_id: msg.sender_id,
+            recipient_id: msg.recipient_id,
+            sender_name: msg.sender_name,
+            title: msg.title,
+            body: msg.body,
+            is_read: msg.is_read,
+            created_at: msg.created_at,
+          });
+        }
+      }
+    });
+
+    // 8. 【重要】スレッド内に「自分宛て（自分が受信者、または全会員宛て）」のメッセージが1つでも含まれるものだけに絞り込む
+    const myRelatedThreads = threadList.filter((parent) => {
+      const allMsgsInThread = [parent, ...parent.replies];
+      const hasReceivedMessage = allMsgsInThread.some((m: any) => {
+        const recId = m.recipient_id.toLowerCase();
+        return recId === myUserId.toLowerCase() || recId === "all" || recId === "全体";
+      });
+      return hasReceivedMessage;
+    });
+
+    // 9. 各スレッドの返信を古い順にソートし、最終アクティビティ順に並び替え
+    const formattedThreads = myRelatedThreads.map((parent) => {
+      parent.replies.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+      let latestTime = new Date(parent.created_at).getTime() || 0;
+      parent.replies.forEach((r: any) => {
+        const rTime = new Date(r.created_at).getTime() || 0;
+        if (rTime > latestTime) latestTime = rTime;
+      });
+      parent._latestTimestamp = latestTime;
+
       const parentIsRead = parent.sender_id === myUserId ? true : parent.is_read;
 
-      formattedThreads.push({
+      return {
         message_id: parent.id,
         sender_id: parent.sender_id,
         recipient_id: parent.recipient_id,
@@ -155,9 +215,9 @@ export async function GET() {
         body: parent.body,
         is_read: parentIsRead,
         created_at: parent.created_at,
-        replies: replies.map((r) => {
+        _latestTimestamp: parent._latestTimestamp,
+        replies: parent.replies.map((r: any) => {
           const replyIsRead = r.sender_id === myUserId ? true : r.is_read;
-
           return {
             reply_id: r.id,
             sender_id: r.sender_id,
@@ -168,11 +228,10 @@ export async function GET() {
             created_at: r.created_at,
           };
         }),
-      });
+      };
     });
 
-    // スレッド全体を新しい順（降順）に並び替え
-    formattedThreads.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    formattedThreads.sort((a, b) => b._latestTimestamp - a._latestTimestamp);
 
     return NextResponse.json({
       success: true,

@@ -10,9 +10,11 @@ export default function MessagesClient() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const fetchMessages = async () => {
+  // ★ 変更点1: isBackground という引数を追加し、trueの時は「読み込み中」を表示しないようにする
+  const fetchMessages = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true); // バックグラウンドフェッチでない時だけローディング表示
+      
       const res = await fetch('/api/messages');
       const data = await res.json();
       
@@ -44,12 +46,22 @@ export default function MessagesClient() {
     } catch (err) {
       console.error('メッセージ取得エラー:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
+  // ★ 変更点2: useEffect に setInterval（ポーリング）を追加
   useEffect(() => {
-    fetchMessages();
+    // 1. 初回マウント時はローディングを表示して取得
+    fetchMessages(false);
+
+    // 2. 60秒ごとにバックグラウンドで自動再取得（画面をチラつかせない）
+    const intervalId = setInterval(() => {
+      fetchMessages(true);
+    }, 60000); // 60000ミリ秒 = 60秒（管理側の秒数に合わせて調整OKです）
+
+    // 3. 画面を移動した時などはタイマーを解除する
+    return () => clearInterval(intervalId);
   }, []);
 
   const handleToggle = async (msg: ReceivedMessage) => {
@@ -106,7 +118,7 @@ export default function MessagesClient() {
       const data = await res.json();
       if (data.success) {
         alert('返信を送信しました');
-        fetchMessages();
+        fetchMessages(true); // 送信後は裏側でリストを最新化
         return true;
       } else {
         alert(`送信失敗: ${data.error}`);
@@ -147,7 +159,7 @@ export default function MessagesClient() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={() => {
-          fetchMessages();
+          fetchMessages(true); // 送信後は裏側でリストを最新化
         }}
       />
 

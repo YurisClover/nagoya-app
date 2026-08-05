@@ -181,14 +181,21 @@ export default function InquiryItem({
           )}
 
           {/* インライン返信フォーム */}
-          <InlineReplyForm
-            userName={inquiry.userName}
-            senderId={inquiry.senderId}
-            subject={inquiry.subject}
-            onSendReply={(replyTitle, replyText) =>
-              onSendReply(inquiry.senderId, replyTitle, replyText)
-            }
-          />
+          {/* ▼ memberId があればそれを使い、なければ親の recipientId を使う（これで絶対にブレません） */}
+          {(() => {
+            const targetRecipientId = inquiry.memberId || inquiry.recipientId;
+
+            return (
+              <InlineReplyForm
+                userName={inquiry.userName}
+                senderId={inquiry.senderId}
+                subject={inquiry.subject}
+                onSendReply={(replyTitle, replyText) =>
+                  onSendReply(targetRecipientId, replyTitle, replyText)
+                }
+              />
+            );
+          })()}
         </div>
       )}
     </div>

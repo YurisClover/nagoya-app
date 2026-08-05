@@ -64,13 +64,13 @@ export async function POST(request: Request) {
     // 3. delete_flag の列記号を取得 (例: H列)
     const colLetter = String.fromCharCode(65 + deleteFlagIdx);
 
-    // 4. delete_flag をブール値の true に更新 (論理削除)
+    // 4. delete_flag を文字列の "true" に更新 (論理削除)
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: `Messages!${colLetter}${rowIndex}`,
-      valueInputOption: 'USER_ENTERED', // ★ 文字列ではなく適切な値として解釈させる
+      valueInputOption: 'RAW', // ★ 変更: 'USER_ENTERED' から 'RAW' に変更して自動変換を防ぐ
       requestBody: {
-        values: [[true]], // ★ JavaScriptの boolean 値 true を渡す
+        values: [['true']], // ★ 変更: booleanの true ではなく、文字列の 'true' に変更
       },
     });
 

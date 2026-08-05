@@ -122,16 +122,25 @@ export async function GET() {
       }
     };
 
+    // 件名から "Re: " や "(全会員)" などの修飾語をきれいに取り除く共通関数
+    const normalizeSubject = (subj: string) => {
+      return subj
+        .replace(/^(re|ｒｅ):\s*/i, '')
+        .replace(/^[（(]全会員[）)]\s*/i, '')
+        .trim()
+        .toLowerCase();
+    };
+
     const threadList: any[] = [];
 
     allParsedMessages.forEach((msg) => {
-      const isReply = /^Re:\s*/i.test(msg.subject);
+      const isReply = /^Re:\s*/i.test(msg.subject) || msg.subject.toLowerCase().startsWith('re:');
       if (!isReply) {
         const generalUserId = getGeneralUserId(msg);
         threadList.push({
           ...msg,
           generalUserId,
-          cleanSubject: msg.subject.trim().toLowerCase(),
+          cleanSubject: normalizeSubject(msg.subject),
           replies: [],
         });
       }
@@ -140,10 +149,10 @@ export async function GET() {
     threadList.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     allParsedMessages.forEach((msg) => {
-      const isReply = /^Re:\s*/i.test(msg.subject);
+      const isReply = /^Re:\s*/i.test(msg.subject) || msg.subject.toLowerCase().startsWith('re:');
       if (isReply) {
         const generalUserId = getGeneralUserId(msg);
-        const cleanSubject = msg.subject.replace(/^Re:\s*/i, '').trim().toLowerCase();
+        const cleanSubject = normalizeSubject(msg.subject);
         const msgTime = new Date(msg.createdAt).getTime() || 0;
 
         const candidates = threadList.filter(
@@ -197,7 +206,15 @@ export async function GET() {
       }
     });
 
-    threadList.forEach((parent: any) => {
+    // 一般ユーザーからのメッセージ（管理者以外が送信者）が1つでも含まれるスレッドのみに絞り込む
+    const filteredThreadList = threadList.filter((parent: any) => {
+      const isParentFromUser = !isAdmin(parent.senderId);
+      const hasReplyFromUser = parent.replies.some((r: any) => !isAdmin(r.senderId));
+      return isParentFromUser || hasReplyFromUser;
+    });
+
+    // 抽出後の filteredThreadList に対してソート処理を行う
+    filteredThreadList.forEach((parent: any) => {
       parent.replies.sort((a: any, b: any) => {
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       });
@@ -212,11 +229,12 @@ export async function GET() {
       parent._latestTimestamp = latestTime;
     });
 
-    threadList.sort((a: any, b: any) => {
+    // スレッド自体の並び順は、最新のアクティビティ順にする
+    filteredThreadList.sort((a: any, b: any) => {
       return b._latestTimestamp - a._latestTimestamp;
     });
 
-    return NextResponse.json({ success: true, inquiries: threadList });
+    return NextResponse.json({ success: true, inquiries: filteredThreadList });
   } catch (error: any) {
     console.error('問い合わせ取得エラー:', error);
     return NextResponse.json({ success: false, error: error.message || '取得エラー' }, { status: 500 });
