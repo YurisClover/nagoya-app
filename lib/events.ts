@@ -28,38 +28,20 @@ function normalizeMemberId(v: unknown): string {
   return String(v ?? "").trim().replace(/\.0+$/, "");
 }
 
-function isVisibleEventStatus(
-  value: unknown,
-): value is EventWithStatus["status"] {
-  return (
-    value === "published" ||
-    value === "closed"
-  );
+function isVisibleEventStatus(value: unknown,): value is EventWithStatus["status"] {
+  return ( value === "published" || value === "closed" );
 }
 
-function isEventPosition(
-  value: unknown,
-): value is EventPosition {
-  return (
-    value === "general" ||
-    value === "executive"
-  );
+function isEventPosition(value: unknown,): value is EventPosition {
+  return ( value === "general" || value === "executive" );
 }
 
-function parseBoolean(
-  value: unknown,
-): boolean {
-  if (
-    typeof value === "boolean"
-  ) {
+function parseBoolean(value: unknown,): boolean {
+  if (typeof value === "boolean") {
     return value;
   }
 
-  return [
-    "true",
-    "1",
-    "yes",
-  ].includes(
+  return [ "true","1","yes",].includes(
     String(value ?? "")
       .trim()
       .toLowerCase(),
@@ -100,73 +82,28 @@ async function readAnsweredIds(sheet: GoogleSpreadsheetWorksheet): Promise<Set<s
 
 async function loadSnapshot(): Promise<Snapshot> {
   const doc = await getDoc();
-
-  const eventsSheet =
-    doc.sheetsByTitle["Events"];
+  const eventsSheet = doc.sheetsByTitle["Events"];
 
   if (!eventsSheet) {
-    throw new Error(
-      "Eventsシートが見つかりません。",
-    );
+    throw new Error("Eventsシートが見つかりません。",);
   }
-
-  const eventRows =
-    await eventsSheet.getRows();
-
+  const eventRows =await eventsSheet.getRows();
   const now = new Date();
+  const upcoming = eventRows.flatMap((row, index) => {
+      const eventId = String(row.get("event_id") ?? "",).trim();
 
-  const upcoming = eventRows
-    .flatMap((row, index) => {
-      const eventId = String(
-        row.get("event_id") ?? "",
-      ).trim();
+      const status = String(row.get("status") ?? "",).trim();
 
-      const status = String(
-        row.get("status") ?? "",
-      ).trim();
+      const position = String(row.get("position") ?? "",).trim();
 
-      const position = String(
-        row.get("position") ?? "",
-      ).trim();
+      const isDeleted = parseBoolean(row.get("is_deleted"),);
 
-      const isDeleted =
-        parseBoolean(
-          row.get("is_deleted"),
-        );
+      const startDate = parseSheetDate(row.get("event_date") ??"", { yearHint: "future",},);
 
-      const startDate =
-        parseSheetDate(
-          row.get("event_date") ??
-            "",
-          {
-            yearHint: "future",
-          },
-        );
+      const endDate = parseSheetDate(row.get("event_end_date",) ?? "",{ yearHint: "future",},);
 
-      const endDate =
-        parseSheetDate(
-          row.get(
-            "event_end_date",
-          ) ?? "",
-          {
-            yearHint: "future",
-          },
-        );
-
-      if (
-        !eventId ||
-        !isVisibleEventStatus(
-          status,
-        ) ||
-        !isEventPosition(
-          position,
-        ) ||
-        isDeleted ||
-        !startDate ||
-        !endDate ||
-        endDate.getTime() <=
-          now.getTime()
-      ) {
+      if (!eventId ||!isVisibleEventStatus(status,) ||!isEventPosition(position, ) ||
+      isDeleted || !startDate || !endDate || endDate.getTime() <= now.getTime() ) {
         return [];
       }
 
@@ -204,6 +141,8 @@ async function loadSnapshot(): Promise<Snapshot> {
             row.get("form_url") ??
               "#",
           ),
+
+          prefill_url_template:String(row.get("prefill_url_template",) ?? "",).trim(),
 
           location: String(
             row.get("location") ??
@@ -297,33 +236,168 @@ async function getSnapshot(): Promise<Snapshot> {
 /** admin: all event, 
  * executive: published (general, executive), 
  * general: published (general) */
-export type EventViewer = { memberId?: string; role?: string };
-function canSee(e: EventItem, role: string): boolean {
-  const r = role.trim().toLowerCase() || "general";
-  const status = e.status.trim().toLowerCase() || "published";
-  const pos = e.position.trim().toLowerCase() || "general";
-  if (r === "admin") return true;
-  if (status !== "published" && status !== "closed") return false; // draft → admin only
-  if (r === "executive") return pos === "general" || pos === "executive";
-  return pos === "general";
+// export type EventViewer = { memberId?: string; role?: string };
+// function canSee(e: EventItem, role: string): boolean {
+//   const r = role.trim().toLowerCase() || "general";
+//   const status = e.status.trim().toLowerCase() || "published";
+//   const pos = e.position.trim().toLowerCase() || "general";
+//   if (r === "admin") return true;
+//   if (status !== "published" && status !== "closed") return false; // draft → admin only
+//   if (r === "executive") return pos === "general" || pos === "executive";
+//   return pos === "general";
+// }
+
+// function buildResult(
+//   snap: Snapshot,
+//   memberId: string | undefined,
+//   position: EventPosition,
+// ): EventWithStatus[] {
+//   const target =
+//     normalizeMemberId(
+//       memberId,
+//     );
+
+//   return snap.events
+//     .filter(
+//       (event) =>
+//         event.position ===
+//         position,
+//     )
+//     .map((event) => {
+//       let is_answered:
+//         | boolean
+//         | null = false;
+
+//       if (target) {
+//         /*
+//          * undefined:
+//          * 回答シートが存在しない
+//          *
+//          * null:
+//          * 回答シートを読み込めない
+//          */
+//         const ids =
+//           snap.answers.get(
+//             event.event_id,
+//           );
+
+//         is_answered =
+//           ids == null
+//             ? null
+//             : ids.has(target);
+//       }
+
+//       return {
+//         ...event,
+//         is_answered,
+//       };
+//     });
+// }
+
+// export async function getEventsData(
+//   memberId?: string,
+//   position: EventPosition =
+//     "general",
+// ): Promise<EventWithStatus[]> {
+//   try {
+//     const snapshot =
+//       await getSnapshot();
+
+//     return buildResult(
+//       snapshot,
+//       memberId,
+//       position,
+//     );
+//   } catch (error) {
+//     if (cached) {
+//       return buildResult(
+//         cached.data,
+//         memberId,
+//         position,
+//       );
+//     }
+
+//     throw error;
+//   }
+// }
+
+/**
+ * イベントを見るユーザーの情報。
+ */
+export type EventViewer = {
+  memberId?: string;
+  role?: string;
+};
+
+/**
+ * roleによる最終的な閲覧権限判定。
+ *
+ * ユーザー向け画面では、
+ * draftはroleに関係なく表示しない。
+ */
+function canSee(
+  event: EventItem,
+  role?: string,
+): boolean {
+  const normalizedRole =
+    role?.trim().toLowerCase() ||
+    "general";
+
+  if (
+    event.status !== "published" &&
+    event.status !== "closed"
+  ) {
+    return false;
+  }
+
+  if (
+    normalizedRole === "admin" ||
+    normalizedRole === "executive"
+  ) {
+    return (
+      event.position === "general" ||
+      event.position === "executive"
+    );
+  }
+
+  return event.position === "general";
 }
 
 function buildResult(
   snap: Snapshot,
-  memberId: string | undefined,
+  viewer: EventViewer | undefined,
   position: EventPosition,
 ): EventWithStatus[] {
   const target =
     normalizeMemberId(
-      memberId,
+      viewer?.memberId,
     );
 
   return snap.events
+    /*
+     * roleによる最終権限判定。
+     *
+     * generalユーザーがAPIのURLを
+     * executiveに変更しても、
+     * ここで除外される。
+     */
+    .filter((event) =>
+      canSee(
+        event,
+        viewer?.role,
+      ),
+    )
+
+    /*
+     * 画面で選択されている
+     * 一般向け／執行部向けで絞る。
+     */
     .filter(
       (event) =>
         event.position ===
         position,
     )
+
     .map((event) => {
       let is_answered:
         | boolean
@@ -356,7 +430,7 @@ function buildResult(
 }
 
 export async function getEventsData(
-  memberId?: string,
+  viewer?: EventViewer,
   position: EventPosition =
     "general",
 ): Promise<EventWithStatus[]> {
@@ -366,14 +440,14 @@ export async function getEventsData(
 
     return buildResult(
       snapshot,
-      memberId,
+      viewer,
       position,
     );
   } catch (error) {
     if (cached) {
       return buildResult(
         cached.data,
-        memberId,
+        viewer,
         position,
       );
     }
@@ -381,6 +455,7 @@ export async function getEventsData(
     throw error;
   }
 }
+
 
 /** check every event that bind with answer sheet (admin know first) */
 export async function getEventSheetHealth(): Promise<EventSheetHealth[]> {

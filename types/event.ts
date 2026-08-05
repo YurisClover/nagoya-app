@@ -16,6 +16,7 @@ export type EventWithStatus = {
   position: EventPosition;
   status: VisibleEventStatus;
   form_url: string;
+  prefill_url_template: string;
   is_answered: boolean | null;
 };
 

@@ -1,10 +1,6 @@
-import {
-  auth,
-} from "@/auth";
+import {auth,} from "@/auth";
 
-import {
-  redirect,
-} from "next/navigation";
+import {redirect,} from "next/navigation";
 
 import EventsClient from "./eventsClient";
 

@@ -1,17 +1,9 @@
 "use client";
 
-import {
-  useState,
-} from "react";
-
+import {useState,} from "react";
 import useSWR from "swr";
-
 import EventCard from "./EventCard";
-
-import type {
-  EventPosition,
-  EventWithStatus,
-} from "@/types/event";
+import type {EventPosition,EventWithStatus,} from "@/types/event";
 
 type EventsClientProps = {
   role?: string;

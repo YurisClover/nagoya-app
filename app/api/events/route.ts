@@ -1,25 +1,11 @@
-import {
-  auth,
-} from "@/auth";
+import {auth,} from "@/auth";
+import {getEventsData,} from "@/lib/events";
+import type {EventPosition,} from "@/types/event";
+import {type NextRequest,NextResponse,} from "next/server";
 
-import {
-  getEventsData,
-} from "@/lib/events";
+export const runtime = "nodejs";
 
-import type {
-  EventPosition,
-} from "@/types/event";
-
-import {
-  type NextRequest,
-  NextResponse,
-} from "next/server";
-
-export const runtime =
-  "nodejs";
-
-export const dynamic =
-  "force-dynamic";
+export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
@@ -70,11 +56,18 @@ export async function GET(
     }
 
     const data =
-      await getEventsData(
+  await getEventsData(
+    {
+      memberId:
         session.user.id ||
-          undefined,
-        position,
-      );
+        undefined,
+
+      role:
+        session.user.role ||
+        undefined,
+    },
+    position,
+  );
 
     return NextResponse.json(
       data,
