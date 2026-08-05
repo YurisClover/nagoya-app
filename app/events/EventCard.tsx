@@ -45,7 +45,6 @@ return (
             <CheckCircle2 size={16} className="shrink-0" />
             出席登録済み
           </p>
-          {/* ปิดรับแล้ว → ซ่อนลิงก์แก้คำตอบ (ฟอร์มปิดแล้ว) */}
           {hasLink && !closed &&
             (inAppHref ? (
               <Link href={inAppHref} className="text-meta underline">

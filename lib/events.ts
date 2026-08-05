@@ -84,6 +84,7 @@ async function loadSnapshot(): Promise<Snapshot> {
       event_end_date: (row.get("event_end_date") || "") as string,
       status: String(row.get("status") ?? "").trim(),
       position: String(row.get("position") ?? "").trim(),
+      prefill_url_template: String(row.get("prefill_url_template") ?? "").trim(),
       _deleted: String(row.get("is_deleted") ?? "").trim().toLowerCase(),
       _sheetName: resolveSheetName(row),
       _dateObj: parseSheetDate(row.get("event_date") || "", { yearHint: "future" }),

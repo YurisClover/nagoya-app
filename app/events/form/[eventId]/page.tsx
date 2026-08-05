@@ -11,11 +11,22 @@ function toEmbedUrl(formUrl: string): string | null {
     const u = new URL(formUrl);
     const allowed = u.hostname === "docs.google.com" || u.hostname === "forms.gle";
     if (!allowed) return null;
-    u.searchParams.set("embedded", "true"); // hide google header/footer
+    u.searchParams.set("embedded", "true"); // secure same query → have prefill
     return u.toString();
   } catch {
     return null;
   }
+}
+/** use prefill url if have template + member_id or fallback to form_url */
+function resolveFormUrl(
+  event: { form_url: string; prefill_url_template: string },
+  memberId: string
+): string {
+  const t = event.prefill_url_template;
+  if (t && memberId && t.includes("__MEMBER_ID__")) {
+    return t.replaceAll("__MEMBER_ID__", encodeURIComponent(memberId));
+  }
+  return event.form_url;
 }
 
 export default async function EventFormPage({
@@ -35,7 +46,10 @@ export default async function EventFormPage({
   const event = events.find((e) => e.event_id === eventId);
   if (!event) notFound();
 
-  const embedUrl = toEmbedUrl(event.form_url);
+  const closed = event.status.trim().toLowerCase() === "closed";
+  const memberId = session.user?.id ?? "";
+  const formUrl = resolveFormUrl(event, memberId); // member_id from session(server only)
+  const embedUrl = toEmbedUrl(formUrl);
 
   return (
     <AppShell>
@@ -49,7 +63,7 @@ export default async function EventFormPage({
             イベント一覧へ
           </Link>
           <a
-            href={event.form_url}
+            href={formUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-meta inline-flex items-center gap-1.5 underline-offset-2 hover:underline"
@@ -61,7 +75,11 @@ export default async function EventFormPage({
 
         <h1 className="mb-3 truncate text-lg font-bold">{event.title}</h1>
 
-        {embedUrl ? (
+        {closed ? (
+          <p className="card p-8 text-center text-sm text-ink-muted">
+            このイベントの受付は終了しました。
+          </p>
+        ) : embedUrl ? (
           <iframe
             src={embedUrl}
             title={`${event.title} 出席登録フォーム`}

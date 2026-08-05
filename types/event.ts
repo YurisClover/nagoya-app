@@ -8,6 +8,7 @@ export type EventWithStatus = {
     event_end_date: string;
     status: string; // publish or draft
     position: string; // general, executive, admin
+    prefill_url_template: string; // prefill member_id
     is_answered: boolean | null;
 }
 
