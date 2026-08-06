@@ -83,6 +83,12 @@ export async function GET() {
       const id = row[idIdx]?.toString().trim() || '';
       const senderId = row[senderIdIdx]?.toString().trim() || '';
       const recipientId = row[recipientIdIdx]?.toString().trim() || '';
+
+      // 自分自身宛（sender_id === recipient_id）のメッセージを除外
+      if (senderId && recipientId && senderId === recipientId) {
+        return;
+      }
+
       const subject = row[titleIdx]?.toString().trim() || '';
       const body = row[bodyIdx]?.toString().trim() || '';
       
@@ -95,10 +101,8 @@ export async function GET() {
 
       const createdAt = row[createdAtIdx]?.toString().trim() || '';
 
-     if (id || body) {
+      if (id || body) {
         const userInfo = userMap[senderId] || { name: senderId || '不明', memberId: senderId };
-        
-        // ★ 追加: recipientId に一致するユーザー情報を userMap から取得する
         const recipientInfo = userMap[recipientId] || { name: recipientId || '不明', memberId: recipientId };
 
         allParsedMessages.push({
@@ -107,7 +111,7 @@ export async function GET() {
           recipientId,
           userName: userInfo.name,
           memberId: userInfo.memberId,
-          recipientName: recipientInfo.name, // ★ 追加: 宛先のユーザー名
+          recipientName: recipientInfo.name,
           subject,
           body,
           isRead,
@@ -210,11 +214,19 @@ export async function GET() {
       }
     });
 
-    // 管理者画面なので、自分が送信したメッセージ、または自分宛てのメッセージ（または管理者に関係するもの）をすべて表示する
+    // ★ 修正: 共通の 'admin' を除外し、現在ログイン中の管理者ID（currentMemberId）に完全に一致するもののみに絞り込む
+    const isCurrentAdmin = (id: string) => {
+      if (!id || !currentMemberId) return false;
+      return String(id).trim() === String(currentMemberId).trim();
+    };
+
     const filteredThreadList = threadList.filter((parent: any) => {
-      const isParentInvolvingAdmin = isAdmin(parent.senderId) || isAdmin(parent.recipientId);
-      const hasReplyInvolvingAdmin = parent.replies.some((r: any) => isAdmin(r.senderId) || isAdmin(r.recipientId));
-      return isParentInvolvingAdmin || hasReplyInvolvingAdmin;
+      const isParentInvolved =
+        isCurrentAdmin(parent.senderId) || isCurrentAdmin(parent.recipientId);
+      const hasReplyInvolved = parent.replies.some(
+        (r: any) => isCurrentAdmin(r.senderId) || isCurrentAdmin(r.recipientId)
+      );
+      return isParentInvolved || hasReplyInvolved;
     });
 
     // 抽出後の filteredThreadList に対してソート処理を行う

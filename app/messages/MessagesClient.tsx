@@ -4,16 +4,21 @@ import React, { useState, useEffect } from 'react';
 import ContactAdminModal from '@/components/ContactAdminModal';
 import InquiryItem, { ReceivedMessage } from '@/components/admin/messages/InquiryItem';
 
-export default function MessagesClient() {
+interface MessagesClientProps {
+  currentUserId: string;
+}
+
+export default function MessagesClient({ currentUserId }: MessagesClientProps) {
+  // ★ useSession の呼び出しは削除
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [messages, setMessages] = useState<ReceivedMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // ★ 変更点1: isBackground という引数を追加し、trueの時は「読み込み中」を表示しないようにする
   const fetchMessages = async (isBackground = false) => {
     try {
-      if (!isBackground) setLoading(true); // バックグラウンドフェッチでない時だけローディング表示
+      if (!isBackground) setLoading(true);
       
       const res = await fetch('/api/messages');
       const data = await res.json();
@@ -24,6 +29,7 @@ export default function MessagesClient() {
           senderId: item.senderId || item.sender_id || '',
           recipientId: item.recipientId || item.recipient_id || '',
           userName: item.userName || item.sender_name || '事務局',
+          recipientName: item.recipientName || item.recipient_name || '事務局',
           memberId: item.memberId || item.member_id || '',
           subject: item.subject || item.title || '(件名なし)',
           body: item.body || '',
@@ -32,7 +38,9 @@ export default function MessagesClient() {
           replies: (item.replies || []).map((r: any, rIdx: number) => ({
             id: String(r.id || r.reply_id || `reply-${idx}-${rIdx}`),
             senderId: r.senderId || r.sender_id || '',
+            recipientId: r.recipientId || r.recipient_id || '',
             userName: r.userName || r.sender_name || '',
+            recipientName: r.recipientName || r.recipient_name || '',
             memberId: r.memberId || r.member_id || '',
             subject: r.subject || r.title || '',
             body: r.body || '',
@@ -50,17 +58,13 @@ export default function MessagesClient() {
     }
   };
 
-  // ★ 変更点2: useEffect に setInterval（ポーリング）を追加
   useEffect(() => {
-    // 1. 初回マウント時はローディングを表示して取得
     fetchMessages(false);
 
-    // 2. 60秒ごとにバックグラウンドで自動再取得（画面をチラつかせない）
     const intervalId = setInterval(() => {
       fetchMessages(true);
-    }, 60000); // 60000ミリ秒 = 60秒（管理側の秒数に合わせて調整OKです）
+    }, 60000);
 
-    // 3. 画面を移動した時などはタイマーを解除する
     return () => clearInterval(intervalId);
   }, []);
 
@@ -118,7 +122,7 @@ export default function MessagesClient() {
       const data = await res.json();
       if (data.success) {
         alert('返信を送信しました');
-        fetchMessages(true); // 送信後は裏側でリストを最新化
+        fetchMessages(true);
         return true;
       } else {
         alert(`送信失敗: ${data.error}`);
@@ -159,7 +163,7 @@ export default function MessagesClient() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={() => {
-          fetchMessages(true); // 送信後は裏側でリストを最新化
+          fetchMessages(true);
         }}
       />
 
@@ -182,6 +186,7 @@ export default function MessagesClient() {
                 onToggle={() => handleToggle(inquiry)}
                 onSendReply={handleSendReply}
                 onDelete={handleDelete}
+                currentUserId={currentUserId}
               />
             ))}
           </div>
