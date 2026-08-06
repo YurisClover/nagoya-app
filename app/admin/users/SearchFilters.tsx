@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 // "use client";
 
 // import { useRouter, usePathname, useSearchParams } from "next/navigation";
@@ -104,6 +105,8 @@
 // //     </div>
 
 // //   )}
+=======
+>>>>>>> Stashed changes
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
@@ -122,13 +125,16 @@ export default function SearchFilters({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-
   const [searchTerm, setSearchTerm] = useState(initialQuery);
 
-  // URLが変わったら（ブラウザの戻るボタンなど）入力欄も同期させる
-  useEffect(() => {
+  // URLが変わったら（戻るボタンなど）入力欄も同期させる
+  // "adjust state during render" pattern — sync while render not from effect
+  // (react.dev/learn/you-might-not-need-an-effect)
+  const [prevInitialQuery, setPrevInitialQuery] = useState(initialQuery);
+  if (prevInitialQuery !== initialQuery) {
+    setPrevInitialQuery(initialQuery);
     setSearchTerm(initialQuery);
-  }, [initialQuery]);
+  }
 
   // URLパラメータを更新する関数
   const updateParams = (key: string, value: string) => {
@@ -189,9 +195,9 @@ export default function SearchFilters({
         className="px-3 py-2 border rounded text-sm focus:outline-none bg-white"
       >
         <option value="all">全ての役職</option>
-        <option value="一般会員">一般会員</option>
-        <option value="執行部">執行部</option>
-        <option value="管理者">管理者</option>
+        <option value="general">一般会員</option>
+        <option value="executive">執行部</option>
+        <option value="admin">管理者</option>
       </select>
 
       {/* ステータスフィルター */}
@@ -201,8 +207,8 @@ export default function SearchFilters({
         className="px-3 py-2 border rounded text-sm focus:outline-none bg-white"
       >
         <option value="all">すべてのステータス</option>
-        <option value="有効">有効</option>
-        <option value="無効">無効</option>
+        <option value="active">有効</option>
+        <option value="inactive">無効</option>
       </select>
     </div>
   );
