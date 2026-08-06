@@ -3,6 +3,7 @@ import { GoogleSpreadsheet, GoogleSpreadsheetWorksheet } from "google-spreadshee
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import type { EventWithStatus, EventSheetHealth } from "@/types/event";
+import { parseSheetDate } from "@/lib/datetime";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
@@ -27,6 +28,13 @@ function normalizeMemberId(v: unknown): string {
   return String(v ?? "").trim().replace(/\.0+$/, "");
 }
 
+/** event_id → newest */
+function eventIdNum(e: { event_id: string }): number {
+    const n = Number(e.event_id);
+    return Number.isFinite(n) ? n : -Infinity;
+}
+
+/** event sheet name: response_sheet first, if no fallback to title */
 function resolveSheetName(row: { get: (k: string) => unknown }): string {
   const explicit = String(row.get("response_sheet") ?? "").trim();
   return explicit || String(row.get("title") ?? "").trim();
@@ -161,34 +169,24 @@ async function loadSnapshot(): Promise<Snapshot> {
   today.setHours(0, 0, 0, 0);
 
   const upcoming = eventRows
-    .map((row, index) => {
-      // スプレッドシートから取得した日付文字列を解析
-      const rawDateStr = String(row.get("event_date") || "");
-      const parsed = parseEventDateTime(rawDateStr);
-
-      return {
-        id: index,
-        event_id: String(row.get("event_id") ?? "").trim(),
-        title: (row.get("title") || "タイトル未設定") as string,
-        event_date: formatEventDate(rawDateStr), // 表示用に整形
-        form_url: (row.get("form_url") || "#") as string,
-        location: (row.get("location") || "") as string,
-        event_end_date: (row.get("event_end_date") || "") as string,
-        
-        _sheetName: resolveSheetName(row),
-        _startDate: parsed ? parsed.start : null,
-        _endDate: parsed ? parsed.end : null,
-        _status: String(row.get("status") ?? "").trim().toLowerCase(),
-      };
-    })
-    // 終了日が今日以降、かつステータスが published のものを残す
-    .filter((e): e is typeof e & { _startDate: Date; _endDate: Date } => 
-      e._endDate !== null && 
-      e._endDate >= today && 
-      e._status === "published"
-    )
-    // 開始日が近い順に並び替え
-    .sort((a, b) => a._startDate.getTime() - b._startDate.getTime());
+    .map((row, index) => ({
+      id: index,
+      event_id: String(row.get("event_id") ?? "").trim(),
+      title: (row.get("title") || "タイトル未設定") as string,
+      event_date: (row.get("event_date") || "") as string,
+      form_url: (row.get("form_url") || "#") as string,
+      location: (row.get("location") || "") as string,
+      event_end_date: (row.get("event_end_date") || "") as string,
+      status: String(row.get("status") ?? "").trim(),
+      position: String(row.get("position") ?? "").trim(),
+      prefill_url_template: String(row.get("prefill_url_template") ?? "").trim(),
+      _deleted: String(row.get("is_deleted") ?? "").trim().toLowerCase(),
+      _sheetName: resolveSheetName(row),
+      _dateObj: parseSheetDate(row.get("event_date") || "", { yearHint: "future" }),
+    }))
+    .filter((e) => !["true", "1", "yes"].includes(e._deleted)) // soft delete (is_deleted)
+    .filter((e): e is typeof e & { _dateObj: Date } => e._dateObj !== null && e._dateObj >= today)
+    .sort((a, b) => eventIdNum(b) - eventIdNum(a));
 
   const answers = new Map<string, Set<string> | null>();
   await Promise.all(
@@ -204,8 +202,7 @@ async function loadSnapshot(): Promise<Snapshot> {
   );
 
   return {
-    // 内部計算用のプロパティ（_startDateなど）を除外してフロントエンドに渡す
-    events: upcoming.map(({ _startDate, _endDate, _sheetName, _status, ...rest }) => rest),
+    events: upcoming.map(({ _dateObj, _sheetName, _deleted, ...rest }) => rest),
     answers,
   };
 }
@@ -225,10 +222,25 @@ async function getSnapshot(): Promise<Snapshot> {
 
   return inflight;
 }
+/** admin: all event, 
+ * executive: published (general, executive), 
+ * general: published (general) */
+export type EventViewer = { memberId?: string; role?: string };
+function canSee(e: EventItem, role: string): boolean {
+  const r = role.trim().toLowerCase() || "general";
+  const status = e.status.trim().toLowerCase() || "published";
+  const pos = e.position.trim().toLowerCase() || "general";
+  if (r === "admin") return true;
+  if (status !== "published" && status !== "closed") return false; // draft → admin only
+  if (r === "executive") return pos === "general" || pos === "executive";
+  return pos === "general";
+}
 
-function buildResult(snap: Snapshot, memberId?: string): EventWithStatus[] {
-  const target = normalizeMemberId(memberId);
-  return snap.events.map((e) => {
+/** build result user — compare member_id in memory (0 API call) */
+function buildResult(snap: Snapshot, viewer?: EventViewer): EventWithStatus[] {
+  const target = normalizeMemberId(viewer?.memberId);
+  const role = viewer?.role ?? "";
+  return snap.events.filter((e) => canSee(e, role)).map((e) => {
     let is_answered: boolean | null = false;
     if (target) {
       const ids = snap.answers.get(e.event_id);
@@ -238,11 +250,11 @@ function buildResult(snap: Snapshot, memberId?: string): EventWithStatus[] {
   });
 }
 
-export async function getEventsData(memberId?: string): Promise<EventWithStatus[]> {
+export async function getEventsData(viewer?: EventViewer): Promise<EventWithStatus[]> {
   try {
-    return buildResult(await getSnapshot(), memberId);
+    return buildResult(await getSnapshot(), viewer);
   } catch (error) {
-    if (cached) return buildResult(cached.data, memberId);
+    if (cached) return buildResult(cached.data, viewer); // Sheet failed/429 → use past one
     throw error;
   }
 }

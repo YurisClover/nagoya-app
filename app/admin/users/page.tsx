@@ -1,6 +1,9 @@
 import Link from "next/link";
 import SearchFilters from "./SearchFilters";
-import { getPaginatedMembers } from "@/lib/sheets"; 
+import { getPaginatedMembers } from "@/lib/sheets";
+import { ROLE_LABELS, STATUS_LABELS, type UserRole, type UserStatus } from "@/types/user";
+import { formatDateJP } from "@/lib/datetime";
+import { requireAdmin } from "@/lib/guards";
 
 export default async function UsersPage({
   searchParams,
@@ -12,6 +15,8 @@ export default async function UsersPage({
     page?: string;
   }>;
 }) {
+  await requireAdmin();
+
   const resolvedParams = await searchParams;
   const query = resolvedParams.query || "";
   const role = resolvedParams.role || "all";
@@ -64,19 +69,19 @@ export default async function UsersPage({
                   <td className="p-3">{user.member_id}</td>
                   <td className="p-3">{user.user_name}</td>
                   <td className="p-3">{user.email}</td>
-                  <td className="p-3">{user.role}</td>
+                  <td className="p-3">{ROLE_LABELS[user.role as UserRole] ?? user.role}</td>
                   <td className="p-3">
                     <span
                       className={`px-2 py-1 rounded text-xs font-medium ${
-                        user.status === "有効"
+                        user.status === "active"
                           ? "bg-green-100 text-green-800"
                           : "bg-gray-100 text-gray-600"
                       }`}
                     >
-                      {user.status}
+                      {STATUS_LABELS[user.status as UserStatus] ?? user.status}
                     </span>
                   </td>
-                  <td className="p-3">{user.created_at}</td>
+                  <td className="p-3">{formatDateJP(user.created_at)}</td>
                   <td className="p-3">
                     <Link
                       href={`/admin/users/${user.member_id}/edit`}
