@@ -117,8 +117,6 @@ export function jstYearMonth(date: Date): string {
   }).formatToParts(date);
   const g = (t: string) => p.find((x) => x.type === t)!.value;
   return `${g("year")}-${g("month")}`;
-<<<<<<< Updated upstream
-=======
 }
 
 /**
@@ -266,5 +264,4 @@ export function formatDateJP(iso: string | null | undefined): string {
         month: "2-digit",
         day: "2-digit",
     });
->>>>>>> Stashed changes
 }
