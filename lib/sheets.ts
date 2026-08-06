@@ -4,6 +4,8 @@ import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST, parseSheetDate, jstYearMonth } from "./datetime";
 import { unstable_cache } from "next/cache";
+import { revalidateTag } from "next/cache";
+import { field } from "firebase/firestore/pipelines";
 
 export type SheetUser = {
   member_id: string;
@@ -387,3 +389,282 @@ export async function getPaginatedMembers(params: {
     endIndex,
   };
 }
+
+// ----------------------------------------------------
+// 新規会員の追加処理
+// ----------------------------------------------------
+export async function addMemberToSheet(newMember: {
+  member_id: string;
+  user_name: string;
+  email: string;
+  password_hash: string;
+  role: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}) {
+  try {
+    const sheet = await getUsersSheet();
+
+    // スプレッドシートの末尾に1行追加
+    await sheet.addRow({
+      member_id: newMember.member_id,
+      user_name: newMember.user_name,
+      password_hash: newMember.password_hash, // ハッシュ化された文字列を書き込む
+      email: newMember.email,
+      role: newMember.role,
+      status: newMember.status,
+      barcode_data: "",
+      created_at: newMember.created_at,
+      updated_at: newMember.updated_at,
+      deleted_at: "",
+    }, { raw: true }); // id must be raw (string)
+
+    // キャッシュを破棄して即時反映
+    revalidateTag("members", "default");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to add member to sheet:", error);
+    return { success: false, error: "スプレッドシートの更新に失敗しました。" };
+  }
+}
+
+// Edit user
+export async function updateMemberInSheet(
+    memberId: string,
+    fields: {
+        user_name: string;
+        email: string;
+        role: string;
+        status: string;
+        updated_at: string;
+        password_hash?: string;
+    }
+) {
+    try {
+        const sheet = await getUsersSheet();
+        const rows = await sheet.getRows();
+        const target = memberId.trim();
+        const row = rows.find(
+            (r) => String(r.get("member_id") ?? "").trim().replace(/\.0$/,"") === target
+        );
+        if(!row) {
+            return {success: false, error: "対象の会員が見つかりませんでした。"};
+        }
+
+        row.set("user_name", fields.user_name);
+        row.set("email", fields.email);
+        row.set("role", fields.role);
+        row.set("status", fields.status);
+        row.set("updated_at", fields.updated_at);
+        if(fields.password_hash) row.set("password_hash", fields.password_hash);
+        await row.save({ raw: true }); //raw
+
+        revalidateTag("member", "default");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to update member in sheet:", error);
+        return { success: false, error: "スプレッドシートの更新に失敗しました。"};
+    }
+}
+
+// ====================================================
+// グループ管理関連の最適化版コード
+// ====================================================
+
+export type Group = {
+  group_id: string;
+  group_name: string;
+  created_by: string;
+  created_at: string;
+};
+
+export type GroupWithMembers = Group & {
+  members: SheetUser[];
+};
+
+// 共通ドキュメント取得関数（doc.loadInfo() を1回だけ行う）
+async function getGoogleDoc() {
+  const sheetId = process.env.GOOGLE_SHEET_ID;
+  if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
+  const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
+  await doc.loadInfo();
+  return doc;
+}
+
+// 1. 全グループ＆所属メンバーの取得関数
+export async function getGroupsWithMembers(): Promise<GroupWithMembers[]> {
+  const doc = await getGoogleDoc();
+  const groupsSheet = doc.sheetsByTitle["Groups"];
+  const groupMembersSheet = doc.sheetsByTitle["GroupMembers"];
+  const usersSheet = doc.sheetsByTitle["Users"];
+
+  if (!groupsSheet || !groupMembersSheet || !usersSheet) {
+    throw new Error("必要なシートが見つかりません");
+  }
+
+  // 3つのシートの行データを並列取得
+  const [groupRows, memberRows, userRows] = await Promise.all([
+    groupsSheet.getRows(),
+    groupMembersSheet.getRows(),
+    usersSheet.getRows(),
+  ]);
+
+  const userMap = new Map<string, SheetUser>();
+  userRows.forEach((row) => {
+    if (!row.get("deleted_at")) {
+      userMap.set(String(row.get("member_id")), rowToUser(row));
+    }
+  });
+
+  const groupMembersMap = new Map<string, string[]>();
+  memberRows.forEach((row) => {
+    const gId = String(row.get("group_id"));
+    const mId = String(row.get("member_id"));
+    if (!groupMembersMap.has(gId)) {
+      groupMembersMap.set(gId, []);
+    }
+    groupMembersMap.get(gId)!.push(mId);
+  });
+
+  return groupRows.map((row) => {
+    const group_id = String(row.get("group_id"));
+    const memberIds = groupMembersMap.get(group_id) || [];
+    const members = memberIds
+      .map((id) => userMap.get(id))
+      .filter((u): u is SheetUser => u !== undefined);
+
+    return {
+      group_id,
+      group_name: String(row.get("group_name") ?? ""),
+      created_by: String(row.get("created_by") ?? ""),
+      created_at: String(row.get("created_at") ?? ""),
+      members,
+    };
+  });
+}
+
+// キャッシュ版の関数（画面表示はこちらを使う）
+export const getCachedGroupsWithMembers = unstable_cache(
+  async () => getGroupsWithMembers(),
+  ["groups-with-members-list"],
+  {
+    tags: ["groups"],
+    revalidate: 60,
+  }
+);
+
+// 2. 単一グループの取得
+export async function getGroupById(group_id: string): Promise<GroupWithMembers | null> {
+  const all = await getCachedGroupsWithMembers();
+  return all.find((g) => g.group_id === group_id) || null;
+}
+
+// 3. 新規グループ追加（一括追加で高速化）
+export async function addGroupToSheet(data: {
+  group_name: string;
+  member_ids: string[];
+  created_by: string;
+  created_at: string;
+}) {
+  try {
+    const doc = await getGoogleDoc();
+    const groupsSheet = doc.sheetsByTitle["Groups"];
+    const groupMembersSheet = doc.sheetsByTitle["GroupMembers"];
+
+    const rows = await groupsSheet.getRows();
+    const nextId = `G${String(rows.length + 1).padStart(4, "0")}`;
+
+    await groupsSheet.addRow({
+      group_id: nextId,
+      group_name: data.group_name,
+      created_by: data.created_by,
+      created_at: data.created_at,
+    });
+
+    // ★ addRows で一括追加（爆速化）
+    if (data.member_ids.length > 0) {
+      const newMemberRows = data.member_ids.map((member_id) => ({
+        group_id: nextId,
+        member_id,
+        created_at: data.created_at,
+      }));
+      await groupMembersSheet.addRows(newMemberRows);
+    }
+
+    revalidateTag("groups", "default");
+    return { success: true, group_id: nextId };
+  } catch (error) {
+    console.error("Failed to add group:", error);
+    return { success: false, error: "グループの追加に失敗しました。" };
+  }
+}
+
+// 4. グループ更新（一括削除＆一括追加で高速化）
+export async function updateGroupInSheet(
+  group_id: string,
+  data: { group_name: string; member_ids: string[]; updated_at: string }
+) {
+  try {
+    const doc = await getGoogleDoc();
+    const groupsSheet = doc.sheetsByTitle["Groups"];
+    const groupMembersSheet = doc.sheetsByTitle["GroupMembers"];
+
+    const groupRows = await groupsSheet.getRows();
+    const targetGroup = groupRows.find((r) => String(r.get("group_id")) === group_id);
+    if (targetGroup) {
+      targetGroup.set("group_name", data.group_name);
+      await targetGroup.save();
+    }
+
+    // 旧メンバーの削除
+    const memberRows = await groupMembersSheet.getRows();
+    const oldRows = memberRows.filter((r) => String(r.get("group_id")) === group_id);
+    for (const row of oldRows) {
+      await row.delete();
+    }
+
+    // ★ addRows で新メンバーを一括追加
+    if (data.member_ids.length > 0) {
+      const newMemberRows = data.member_ids.map((member_id) => ({
+        group_id,
+        member_id,
+        created_at: data.updated_at,
+      }));
+      await groupMembersSheet.addRows(newMemberRows);
+    }
+
+    revalidateTag("groups", "default");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update group:", error);
+    return { success: false, error: "グループの更新に失敗しました。" };
+  }
+}
+
+// 5. グループ物理削除
+export async function deleteGroupFromSheet(group_id: string) {
+  try {
+    const doc = await getGoogleDoc();
+    const groupsSheet = doc.sheetsByTitle["Groups"];
+    const groupMembersSheet = doc.sheetsByTitle["GroupMembers"];
+
+    const groupRows = await groupsSheet.getRows();
+    const targetGroup = groupRows.find((r) => String(r.get("group_id")) === group_id);
+    if (targetGroup) await targetGroup.delete();
+
+    const memberRows = await groupMembersSheet.getRows();
+    const targetMembers = memberRows.filter((r) => String(r.get("group_id")) === group_id);
+    for (const row of targetMembers) {
+      await row.delete();
+    }
+
+    revalidateTag("groups", "default");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to delete group:", error);
+    return { success: false, error: "グループの削除に失敗しました。" };
+  }
+}
+
