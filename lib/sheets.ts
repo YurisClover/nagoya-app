@@ -4,11 +4,8 @@ import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST, parseSheetDate, jstYearMonth } from "./datetime";
 import { unstable_cache } from "next/cache";
-<<<<<<< Updated upstream
-=======
 import { revalidateTag } from "next/cache";
 import { field } from "firebase/firestore/pipelines";
->>>>>>> Stashed changes
 
 export type SheetUser = {
   member_id: string;
@@ -391,9 +388,6 @@ export async function getPaginatedMembers(params: {
     startIndex: totalItems > 0 ? startIndex + 1 : 0,
     endIndex,
   };
-<<<<<<< Updated upstream
-}
-=======
 }
 
 // ----------------------------------------------------
@@ -674,4 +668,3 @@ export async function deleteGroupFromSheet(group_id: string) {
   }
 }
 
->>>>>>> Stashed changes
