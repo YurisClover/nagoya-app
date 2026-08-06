@@ -824,6 +824,16 @@ export function EventList({
               (event) => {
                 const formEditUrl =
                   `https://docs.google.com/forms/d/${event.form_id}/edit`;
+                  const responseSpreadsheetId =
+                 process.env
+                  .NEXT_PUBLIC_EVENT_RESPONSE_SPREADSHEET_ID ??
+                       "";
+
+const responseSheetUrl =
+  responseSpreadsheetId &&
+  event.response_sheet_id
+    ? `https://docs.google.com/spreadsheets/d/${responseSpreadsheetId}/edit#gid=${event.response_sheet_id}`
+    : "";
 
                 return (
                   <tr
@@ -883,28 +893,46 @@ export function EventList({
                     </td>
 
                     <td>
-                      <a
-                        href={
-                          formEditUrl
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        編集
-                      </a>
+  <a
+    href={
+      formEditUrl
+    }
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    編集
+  </a>
 
-                      {" / "}
+  {" / "}
 
-                      <a
-                        href={
-                          event.form_url
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        回答画面
-                      </a>
-                    </td>
+  <a
+    href={
+      event.form_url
+    }
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    回答画面
+  </a>
+
+  {" / "}
+
+  {responseSheetUrl ? (
+    <a
+      href={
+        responseSheetUrl
+      }
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      回答一覧を開く
+    </a>
+  ) : (
+    <span>
+      回答一覧なし
+    </span>
+  )}
+</td>
 
                     <td>
                       <EventStatusControl

@@ -1,5 +1,5 @@
 import "server-only";
-import { GoogleSpreadsheet, GoogleSpreadsheetWorksheet } from "google-spreadsheet";
+import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import type { EventPosition, EventSheetHealth, EventWithStatus } from "@/types/event";
@@ -8,7 +8,6 @@ import { parseSheetDate } from "./datetime";
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
 const TTL_MS = 60_000;
-
 const MEMBER_ID_HEADERS = [
   "会員IDをご記入ください。",
   "会員番号をご記入ください。",
@@ -36,12 +35,9 @@ function isEventPosition(value: unknown,): value is EventPosition {
   return ( value === "general" || value === "executive" );
 }
 
-function parseBoolean(value: unknown,): boolean {
-  if (typeof value === "boolean") {
+function parseBoolean(value: unknown,): boolean {if (typeof value === "boolean") {
     return value;
-  }
-
-  return [ "true","1","yes",].includes(
+  } return [ "true","1","yes",].includes(
     String(value ?? "")
       .trim()
       .toLowerCase(),
@@ -70,14 +66,6 @@ async function getDoc() {
   const doc = new GoogleSpreadsheet(SPREADSHEET_ID, auth);
   await doc.loadInfo();
   return doc;
-}
-
-/** read ALL member_id from answer sheet */
-async function readAnsweredIds(sheet: GoogleSpreadsheetWorksheet): Promise<Set<string> | null> {
-  const rows = await sheet.getRows();
-  const header = resolveMemberIdHeader(sheet.headerValues ?? []);
-  if (!header) return null; // have sheet but no 会員ID column → unknown (!= "not anwser")
-  return new Set(rows.map((r) => normalizeMemberId(r.get(header))).filter(Boolean));
 }
 
 async function loadSnapshot(): Promise<Snapshot> {
@@ -166,45 +154,100 @@ async function loadSnapshot(): Promise<Snapshot> {
     );
 
   /*
-   * 現在は旧方式の回答済み判定を
-   * 一時的に残している。
-   *
-   * answerシート1枚へ移行したら
-   * この処理を置き換える。
-   */
-  const answers = new Map<
-    string,
-    Set<string> | null
-  >();
+ * 検証済みの有効回答だけが入る
+ * answerシートを基準に、
+ * イベントごとの回答済み会員IDを作る。
+ */
+const answers = new Map<
+  string,
+  Set<string> | null
+>();
 
-  await Promise.all(
-    upcoming.map(
-      async (event) => {
-        const sheet =
-          doc.sheetsByTitle[
-            event._sheetName
-          ];
-
-        if (!sheet) {
-          return;
-        }
-
-        try {
-          answers.set(
-            event.event_id,
-            await readAnsweredIds(
-              sheet,
-            ),
-          );
-        } catch {
-          answers.set(
-            event.event_id,
-            null,
-          );
-        }
-      },
-    ),
+/*
+ * answerシートが正常に読めた場合、
+ * 回答が0件のイベントは空のSetになる。
+ */
+for (const event of upcoming) {
+  answers.set(
+    event.event_id,
+    new Set<string>(),
   );
+}
+
+const answerSheet =
+  doc.sheetsByTitle[
+    "answer"
+  ];
+
+if (!answerSheet) {
+  /*
+   * answerシート自体がない場合は、
+   * 回答状況を確認不能として扱う。
+   */
+  for (const event of upcoming) {
+    answers.set(
+      event.event_id,
+      null,
+    );
+  }
+} else {
+  try {
+    const answerRows =
+      await answerSheet.getRows();
+
+    for (const row of answerRows) {
+      const eventId =
+        String(
+          row.get(
+            "event_id",
+          ) ?? "",
+        ).trim();
+
+      const memberId =
+        normalizeMemberId(
+          row.get(
+            "member_id",
+          ),
+        );
+
+      if (
+        !eventId ||
+        !memberId
+      ) {
+        continue;
+      }
+
+      const memberIds =
+        answers.get(
+          eventId,
+        );
+
+      /*
+       * 現在表示対象になっているイベントだけ
+       * 回答済み情報へ追加する。
+       */
+      if (
+        memberIds instanceof Set
+      ) {
+        memberIds.add(
+          memberId,
+        );
+      }
+    }
+  } catch (error) {
+    console.error(
+      "answerシートの読み込みに失敗しました:",
+      error,
+    );
+
+    for (const event of upcoming) {
+      answers.set(
+        event.event_id,
+        null,
+      );
+    }
+  }
+}
 
   return {
     events: upcoming.map(
@@ -419,7 +462,7 @@ function buildResult(
         is_answered =
           ids == null
             ? null
-            : ids.has(target);
+            : ids.has( normalizeMemberId(target),);
       }
 
       return {

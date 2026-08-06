@@ -9,6 +9,9 @@ import {
   useRouter,
 } from "next/navigation";
 
+import SyncEventResponsesButton
+  from "@/components/SyncEventResponsesButton";
+
 type EventPosition =
   | "general"
   | "executive";
@@ -440,6 +443,10 @@ export function EventCreateForm() {
             : "作成してGoogleフォームを編集"}
         </button>
       </form>
+
+      <div className="mt-4">
+        <SyncEventResponsesButton />
+      </div>
 
       {message && (
         <p role="status">

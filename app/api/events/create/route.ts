@@ -12,11 +12,13 @@ import {
 } from "@/lib/google-forms";
 
 import {
+  configureGoogleFormResponseSheet,
   createGoogleFormPrefillTemplate,
 } from "@/lib/google-form-prefill";
 
 import {
   addEventToSheet,
+  updateEventResponseSheetInfo,
   type EventPosition,
 } from "@/lib/sheets/events";
 
@@ -301,6 +303,8 @@ export async function POST(
         ],
       });
 
+      
+
     createdFormId =
       googleForm.formId;
 
@@ -360,7 +364,38 @@ export async function POST(
          prefill_url_template:
          prefillUrlTemplate,
 
+         response_sheet_name:"",
+
+         response_sheet_id:"",
+
       });
+
+const responseSheet =
+  await configureGoogleFormResponseSheet({
+    formId:
+      googleForm.formId,
+
+    eventId:
+      String(
+        createdEvent.event_id,
+      ),
+
+    eventTitle:
+      title,
+  });
+
+await updateEventResponseSheetInfo({
+  eventId:
+    String(
+      createdEvent.event_id,
+    ),
+
+  responseSheetName:
+    responseSheet.sheetName,
+
+  responseSheetId:
+    responseSheet.sheetId,
+});
 
     /*
      * ⑥ 管理画面へ結果を返す

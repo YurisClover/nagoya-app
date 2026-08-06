@@ -32,6 +32,9 @@ export type SheetEvent = {
   registration_count: number;
   is_deleted: boolean;
   prefill_url_template: string;
+
+  response_sheet_name: string;
+  response_sheet_id: string;
 };
 
 const REQUIRED_EVENT_HEADERS = [
@@ -49,6 +52,8 @@ const REQUIRED_EVENT_HEADERS = [
   "registration_count",
   "is_deleted",
   "prefill_url_template",
+  "response_sheet_name",
+  "response_sheet_id",
 ] as const;
 
 function isEventStatus(
@@ -176,6 +181,20 @@ function mapEventRow(
       "prefill_url_template",
        ) ?? "",
        ).trim(),
+
+       response_sheet_name:
+  String(
+    row.get(
+      "response_sheet_name",
+    ) ?? "",
+  ).trim(),
+
+response_sheet_id:
+  String(
+    row.get(
+      "response_sheet_id",
+    ) ?? "",
+  ).trim(),
 
   };
 }
@@ -614,4 +633,110 @@ export async function softDeleteEvent(
     eventRow,
   );
 }
+
+type UpdateEventResponseSheetInfoInput = {
+  eventId: string;
+  responseSheetName: string;
+  responseSheetId: number;
+};
+
+export async function updateEventResponseSheetInfo({
+  eventId,
+  responseSheetName,
+  responseSheetId,
+}: UpdateEventResponseSheetInfoInput):
+Promise<SheetEvent> {
+  const normalizedEventId =
+    eventId.trim();
+
+  if (!normalizedEventId) {
+    throw new Error(
+      "イベントIDが指定されていません。",
+    );
+  }
+
+  const doc =
+    await getSpreadsheet();
+
+  await doc.loadInfo();
+
+  const sheet =
+    doc.sheetsByTitle[
+      "Events"
+    ];
+
+  if (!sheet) {
+    throw new Error(
+      "Eventsシートが見つかりません。",
+    );
+  }
+
+  await sheet.loadHeaderRow();
+
+  const headers =
+    sheet.headerValues ?? [];
+
+  const requiredHeaders = [
+    "event_id",
+    "response_sheet_name",
+    "response_sheet_id",
+  ];
+
+  const missingHeaders =
+    requiredHeaders.filter(
+      (header) =>
+        !headers.includes(
+          header,
+        ),
+    );
+
+  if (
+    missingHeaders.length > 0
+  ) {
+    throw new Error(
+      `Eventsシートに必要な列がありません：${missingHeaders.join(
+        "、",
+      )}`,
+    );
+  }
+
+  const rows =
+    await sheet.getRows();
+
+  const targetRow =
+    rows.find(
+      (row) =>
+        String(
+          row.get(
+            "event_id",
+          ) ?? "",
+        ).trim() ===
+        normalizedEventId,
+    );
+
+  if (!targetRow) {
+    throw new Error(
+      `イベントID ${normalizedEventId} が見つかりません。`,
+    );
+  }
+
+  targetRow.set(
+    "response_sheet_name",
+    responseSheetName.trim(),
+  );
+
+  targetRow.set(
+    "response_sheet_id",
+    String(
+      responseSheetId,
+    ),
+  );
+
+  await targetRow.save();
+
+  return mapEventRow(
+    targetRow,
+  );
+}
+
 
