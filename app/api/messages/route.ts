@@ -183,14 +183,23 @@ export async function GET() {
       }
     });
 
-    // 8. 【重要】スレッド内に「自分宛て（自分が受信者、または全会員宛て）」のメッセージが1つでも含まれるものだけに絞り込む
+    // 8. 【重要】スレッド内に「自分宛て（自分が受信者、または全会員宛て）」または「自分が送信したもの」が1つでも含まれるものに絞り込む
     const myRelatedThreads = threadList.filter((parent) => {
       const allMsgsInThread = [parent, ...parent.replies];
-      const hasReceivedMessage = allMsgsInThread.some((m: any) => {
-        const recId = m.recipient_id.toLowerCase();
-        return recId === myUserId.toLowerCase() || recId === "all" || recId === "全体";
+      const isRelevantToMe = allMsgsInThread.some((m: any) => {
+        const recId = (m.recipient_id || "").toLowerCase();
+        const senderId = (m.sender_id || "").toLowerCase();
+        const myId = myUserId.toLowerCase();
+      
+        // 自分が受信者、全会員宛て、あるいは自分が送信者のいずれかなら表示対象にする
+        return (
+          recId === myId || 
+          recId === "all" || 
+          recId === "全体" || 
+          senderId === myId
+        );
       });
-      return hasReceivedMessage;
+      return isRelevantToMe;
     });
 
     // 9. 各スレッドの返信を古い順にソートし、最終アクティビティ順に並び替え

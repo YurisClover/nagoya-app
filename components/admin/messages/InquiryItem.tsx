@@ -2,7 +2,8 @@
 
 'use client';
 
-import React, { useState } from 'react';
+// ★ useEffect を追加でインポートします
+import React, { useState, useEffect } from 'react';
 import { formatRelativeDateTime } from '@/lib/datetime';
 import InlineReplyForm from './InlineReplyForm';
 
@@ -33,44 +34,88 @@ export type ReceivedMessage = {
 interface InquiryItemProps {
   inquiry: ReceivedMessage;
   isExpanded: boolean;
+  currentUserId: string; // ★ 追加: ログイン中の管理者ID
   onToggle: () => void;
   onSendReply: (recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
-  onDelete?: (messageId: string) => Promise<void>;
+  onDelete?: (messageId: string, replyIds?: string[]) => Promise<void>;
+  onMarkAsRead?: (messageId: string) => Promise<void>; // ★ 追加: 既読処理を親から渡せるようにする（オプショナル）
 }
 
 export default function InquiryItem({
   inquiry,
   isExpanded,
+  currentUserId,
   onToggle,
   onSendReply,
   onDelete,
+  onMarkAsRead, // ★ 追加
 }: InquiryItemProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const hasThreadUnread = !inquiry.isRead || (inquiry.replies && inquiry.replies.some((r) => !r.isRead));
 
-  // 削除処理のハンドラー
-  const handleDelete = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // アコーディオン開閉を防ぐ
+  // ==========================================
+  // ★ 修正: 開いたまま新着メッセージが来た時の自動既読処理
+  // ==========================================
+  useEffect(() => {
+    // カードが閉じている時は何もしない
+    if (!isExpanded) return;
 
-    if (!confirm('このメッセージを削除してもよろしいですか？')) return;
+    // 1. 親メッセージが未読で、かつ自分が送信者ではないかチェック
+    const isParentUnread = !inquiry.isRead && inquiry.senderId !== currentUserId;
+
+    // 2. 返信履歴の中の「未読」かつ「自分以外が送信」したメッセージのIDをすべて抽出
+    const unreadReplyIds = inquiry.replies
+      ?.filter((r) => !r.isRead && r.senderId !== currentUserId)
+      .map((r) => r.id) || [];
+
+    const hasUnreadReplies = unreadReplyIds.length > 0;
+
+    // 未読のものが含まれていれば既読処理を実行
+    if (isParentUnread || hasUnreadReplies) {
+      const handleRead = async () => {
+        try {
+          // 3. コメントアウトを外して、直接APIを叩く
+          // ※API側（route.ts）の仕様に合わせて messageId と replyIds を送る
+          const res = await fetch('/api/admin/inquiries/read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              messageId: inquiry.id, // route.tsで必須チェックがあるため親IDは必ず送る
+              replyIds: unreadReplyIds // 未読の返信IDの配列を送る
+            }),
+          });
+
+          if (res.ok) {
+            console.log('スプレッドシートの既読化に成功しました');
+            
+            // API成功後に親コンポーネントの処理（リストの再取得など）を呼ぶ
+            if (onMarkAsRead) {
+              await onMarkAsRead(inquiry.id);
+            }
+          } else {
+            console.error('既読化APIエラー:', await res.text());
+          }
+        } catch (error) {
+          console.error('自動既読処理に失敗しました:', error);
+        }
+      };
+
+      handleRead();
+    }
+  }, [isExpanded, inquiry, currentUserId, onMarkAsRead]);
+  // ==========================================
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('このメッセージとスレッド内の返信をすべて削除してもよろしいですか？')) return;
 
     try {
       setIsDeleting(true);
       if (onDelete) {
-        await onDelete(inquiry.id);
-      } else {
-        const res = await fetch('/api/messages/delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messageId: inquiry.id }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          alert('削除が完了しました');
-          window.location.reload();
-        } else {
-          alert(`削除失敗: ${data.error}`);
-        }
+        // 返信履歴のIDをすべて配列にする
+        const replyIds = inquiry.replies?.map((r) => r.id) || [];
+        // 親メッセージのIDと、子メッセージのID配列を両方渡す
+        await onDelete(inquiry.id, replyIds);
       }
     } catch (err) {
       console.error(err);
@@ -83,23 +128,18 @@ export default function InquiryItem({
   return (
     <div
       className={`border rounded-xl transition overflow-hidden ${
-        hasThreadUnread
-          ? 'bg-[#eaf2fd] border-blue-200 shadow-sm' // 未読時の薄青背景
-          : 'bg-white border-slate-200'              // 既読時の白背景
+        hasThreadUnread ? 'bg-[#eaf2fd] border-blue-200 shadow-sm' : 'bg-white border-slate-200'
       }`}
     >
       <div
         onClick={onToggle}
         className="p-4 cursor-pointer hover:opacity-90 transition flex items-center justify-between"
       >
-        {/* 左側：アイコン + 差出人情報・件名 */}
         <div className="flex items-center space-x-3.5 flex-1 min-w-0 mr-4">
-          {/* アイコン */}
           <div className="w-12 h-12 rounded-full bg-[#1b365d] text-white font-bold flex items-center justify-center text-lg flex-shrink-0 shadow-xs">
             {inquiry.userName ? inquiry.userName.charAt(0).toUpperCase() : '事'}
           </div>
 
-          {/* メッセージ概要 */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center space-x-2">
               <span className="font-bold text-base text-slate-900 leading-tight truncate">
@@ -118,14 +158,11 @@ export default function InquiryItem({
           </div>
         </div>
 
-        {/* 右側：送信時刻 + 削除ボタン */}
         <div className="flex items-center space-x-3 flex-shrink-0">
-          {/* 送信時刻 */}
           <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
             {formatRelativeDateTime(inquiry.createdAt)}
           </span>
 
-          {/* 削除ボタン */}
           <button
             type="button"
             onClick={handleDelete}
@@ -133,34 +170,20 @@ export default function InquiryItem({
             title="メッセージを削除"
             className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              />
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
         </div>
       </div>
 
-      {/* アコーディオン開閉時の詳細・スレッド表示 */}
       {isExpanded && (
         <div className="px-4 pb-5 pt-2 border-t border-slate-200/60 bg-white/50 space-y-4">
-          {/* 問い合わせ本文 */}
           <div className="bg-white p-4 rounded-lg border border-slate-200 text-sm text-slate-800 whitespace-pre-wrap">
             <p className="text-xs text-slate-400 mb-1 font-semibold">【問い合わせ本文】</p>
             {inquiry.body}
           </div>
 
-          {/* 返信履歴 */}
           {inquiry.replies && inquiry.replies.length > 0 && (
             <div className="pl-4 space-y-3 border-l-2 border-[#1b365d]">
               <p className="text-xs font-bold text-slate-600">返信履歴</p>
@@ -181,17 +204,23 @@ export default function InquiryItem({
           )}
 
           {/* インライン返信フォーム */}
-          {/* ▼ memberId があればそれを使い、なければ親の recipientId を使う（これで絶対にブレません） */}
           {(() => {
-            const targetRecipientId = inquiry.memberId || inquiry.recipientId;
+            const ADMIN_ID = currentUserId;
+            const opponentId = inquiry.senderId === ADMIN_ID ? inquiry.recipientId : inquiry.senderId;
+
+            const isMyMessage = inquiry.senderId === ADMIN_ID;
+
+            const targetUserName = isMyMessage
+              ? ((inquiry as any).recipientName || 'お相手')
+              : inquiry.userName;
 
             return (
               <InlineReplyForm
-                userName={inquiry.userName}
-                senderId={inquiry.senderId}
+                userName={targetUserName}
+                recipientId={opponentId}
                 subject={inquiry.subject}
-                onSendReply={(replyTitle, replyText) =>
-                  onSendReply(targetRecipientId, replyTitle, replyText)
+                onSendReply={async (_, replyTitle, replyText) =>
+                  await onSendReply(opponentId, replyTitle, replyText)
                 }
               />
             );

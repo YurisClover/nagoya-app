@@ -10,7 +10,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
-    const { messageId } = await request.json();
+    // ★ 修正: replyIds も受け取れるように取得
+    const { messageId, replyIds } = await request.json();
     if (!messageId) {
       return NextResponse.json({ success: false, error: 'messageId が指定されていません' }, { status: 400 });
     }
@@ -48,33 +49,47 @@ export async function POST(request: Request) {
     if (idIdx === -1) idIdx = 0; // A列
     if (deleteFlagIdx === -1) deleteFlagIdx = 7; // H列 (index 7)
 
-    // 2. 対象メッセージの行番号を検索 (ヘッダー行があるので index + 1)
-    let rowIndex = -1;
+    const colLetter = String.fromCharCode(65 + deleteFlagIdx);
+
+    // ★ 修正: 削除対象となるすべてのID（親メッセージID + 返信ID一覧）のSetを作成
+    const targetIds = new Set<string>([
+      messageId,
+      ...(Array.isArray(replyIds) ? replyIds : []),
+    ]);
+
+    // ★ 修正: 対象となる全ての行を探して更新リクエスト（Promise）を作成
+    const updatePromises: Promise<any>[] = [];
+
     for (let i = 1; i < rows.length; i++) {
-      if (rows[i][idIdx]?.toString().trim() === messageId) {
-        rowIndex = i + 1; // スプレッドシートは1始まり
-        break;
+      const currentId = rows[i][idIdx]?.toString().trim();
+      if (currentId && targetIds.has(currentId)) {
+        const rowIndex = i + 1; // スプレッドシートは1始まり
+        
+        updatePromises.push(
+          sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: `Messages!${colLetter}${rowIndex}`,
+            valueInputOption: 'RAW',
+            requestBody: {
+              values: [['true']],
+            },
+          })
+        );
       }
     }
 
-    if (rowIndex === -1) {
+    if (updatePromises.length === 0) {
       return NextResponse.json({ success: false, error: '該当メッセージが見つかりませんでした' }, { status: 404 });
     }
 
-    // 3. delete_flag の列記号を取得 (例: H列)
-    const colLetter = String.fromCharCode(65 + deleteFlagIdx);
+    // ★ 並列ですべての該当行（親＋子）の delete_flag を更新
+    await Promise.all(updatePromises);
 
-    // 4. delete_flag を文字列の "true" に更新 (論理削除)
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `Messages!${colLetter}${rowIndex}`,
-      valueInputOption: 'RAW', // ★ 変更: 'USER_ENTERED' から 'RAW' に変更して自動変換を防ぐ
-      requestBody: {
-        values: [['true']], // ★ 変更: booleanの true ではなく、文字列の 'true' に変更
-      },
+    return NextResponse.json({ 
+      success: true, 
+      message: 'メッセージおよびスレッド内の返信を削除しました',
+      deletedCount: updatePromises.length 
     });
-
-    return NextResponse.json({ success: true, message: 'メッセージを削除しました' });
   } catch (error: any) {
     console.error('Delete Message Error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

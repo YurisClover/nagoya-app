@@ -4,13 +4,20 @@ import React, { useState, useEffect, useCallback } from 'react';
 import MessageForm from '@/components/admin/messages/MessageForm';
 import InquiryList from '@/components/admin/messages/InquiryList';
 import { ReceivedMessage } from '@/components/admin/messages/InquiryItem';
+import { SessionProvider, useSession } from 'next-auth/react';
 
 type Group = {
   group_id: string;
   group_name: string;
 };
 
-export default function AdminMessagePage() {
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. 中身のコンポーネント
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function AdminMessageContent() {
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as any)?.member_id || session?.user?.id || '';
+
   const [groups, setGroups] = useState<Group[]>([]);
   const [inquiries, setInquiries] = useState<ReceivedMessage[]>([]);
   const [isLoadingInquiries, setIsLoadingInquiries] = useState<boolean>(true);
@@ -51,8 +58,6 @@ export default function AdminMessagePage() {
         const res = await fetch('/api/admin/inquiries');
         const data = await res.json();
         if (data.success && Array.isArray(data.inquiries)) {
-          
-          // ★ delete_flag が true / 'true' のデータを取り除くフィルターを追加
           const filteredInquiries = data.inquiries.filter((item: any) => {
             const isDeleted =
               item.delete_flag === true ||
@@ -100,7 +105,14 @@ export default function AdminMessagePage() {
     return () => clearInterval(intervalId);
   }, [fetchInquiries]);
 
-  const handleMarkAsRead = async (inquiry: ReceivedMessage) => {
+  // ★ 既読更新処理（文字列IDとオブジェクトのどちらが渡されても対応できるように修正）
+  const handleMarkAsRead = async (target: ReceivedMessage | string) => {
+    const inquiry = typeof target === 'string'
+      ? inquiries.find((item) => item.id === target)
+      : target;
+
+    if (!inquiry) return;
+
     const replyIds = inquiry.replies ? inquiry.replies.map((r) => r.id).filter(Boolean) : [];
 
     const newInquiries = inquiries.map((item) => {
@@ -158,6 +170,7 @@ export default function AdminMessagePage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        alert('送信が完了しました');
         await fetchInquiries(true);
         return true;
       } else {
@@ -170,17 +183,18 @@ export default function AdminMessagePage() {
     }
   };
 
-  const handleDeleteMessage = async (messageId: string) => {
+  // ★ 修正: 子メッセージID(replyIds)も配列で受け取り、APIに渡す
+  const handleDeleteMessage = async (messageId: string, replyIds: string[] = []) => {
     try {
       const res = await fetch('/api/messages/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId }),
+        body: JSON.stringify({ messageId, replyIds }), // ★ replyIds を追加
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
-        alert('メッセージを削除しました'); // ★ 追加: 削除完了アラートメッセージ
+        alert('メッセージを削除しました');
         await fetchInquiries(true);
       } else {
         alert(`削除失敗: ${data.error || 'メッセージの削除に失敗しました'}`);
@@ -214,10 +228,22 @@ export default function AdminMessagePage() {
         isLoading={isLoadingInquiries}
         lastUpdated={lastUpdated}
         unreadCountTotal={unreadCountTotal}
+        currentUserId={currentUserId}
         onMarkAsRead={handleMarkAsRead}
         onSendReply={handleSendReply}
         onDeleteMessage={handleDeleteMessage}
       />
     </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2. ページのガワ
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+export default function AdminMessagePage() {
+  return (
+    <SessionProvider>
+      <AdminMessageContent />
+    </SessionProvider>
   );
 }

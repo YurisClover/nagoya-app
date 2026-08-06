@@ -95,8 +95,11 @@ export async function GET() {
 
       const createdAt = row[createdAtIdx]?.toString().trim() || '';
 
-      if (id || body) {
+     if (id || body) {
         const userInfo = userMap[senderId] || { name: senderId || '不明', memberId: senderId };
+        
+        // ★ 追加: recipientId に一致するユーザー情報を userMap から取得する
+        const recipientInfo = userMap[recipientId] || { name: recipientId || '不明', memberId: recipientId };
 
         allParsedMessages.push({
           id,
@@ -104,6 +107,7 @@ export async function GET() {
           recipientId,
           userName: userInfo.name,
           memberId: userInfo.memberId,
+          recipientName: recipientInfo.name, // ★ 追加: 宛先のユーザー名
           subject,
           body,
           isRead,
@@ -206,11 +210,11 @@ export async function GET() {
       }
     });
 
-    // 一般ユーザーからのメッセージ（管理者以外が送信者）が1つでも含まれるスレッドのみに絞り込む
+    // 管理者画面なので、自分が送信したメッセージ、または自分宛てのメッセージ（または管理者に関係するもの）をすべて表示する
     const filteredThreadList = threadList.filter((parent: any) => {
-      const isParentFromUser = !isAdmin(parent.senderId);
-      const hasReplyFromUser = parent.replies.some((r: any) => !isAdmin(r.senderId));
-      return isParentFromUser || hasReplyFromUser;
+      const isParentInvolvingAdmin = isAdmin(parent.senderId) || isAdmin(parent.recipientId);
+      const hasReplyInvolvingAdmin = parent.replies.some((r: any) => isAdmin(r.senderId) || isAdmin(r.recipientId));
+      return isParentInvolvingAdmin || hasReplyInvolvingAdmin;
     });
 
     // 抽出後の filteredThreadList に対してソート処理を行う

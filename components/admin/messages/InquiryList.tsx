@@ -1,4 +1,4 @@
-//受信メッセージ一覧をまとめるコンポーネント
+// 受信メッセージをまとめるコンポーネント
 
 'use client';
 
@@ -10,6 +10,7 @@ interface InquiryListProps {
   isLoading: boolean;
   lastUpdated: string;
   unreadCountTotal: number;
+  currentUserId: string; // ★ 追加
   onMarkAsRead: (inquiry: ReceivedMessage) => void;
   onSendReply: (recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
   onDeleteMessage?: (messageId: string) => Promise<void>;
@@ -20,13 +21,13 @@ export default function InquiryList({
   isLoading,
   lastUpdated,
   unreadCountTotal,
+  currentUserId, // ★ 追加
   onMarkAsRead,
   onSendReply,
   onDeleteMessage,
 }: InquiryListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // delete_flag (または isDeleted / deleteFlag) が true のものを画面表示から除外
   const activeInquiries = inquiries.filter((item: any) => {
     const isDeleted =
       item.delete_flag === true ||
@@ -66,15 +67,16 @@ export default function InquiryList({
 
       {isLoading ? (
         <p className="text-sm text-slate-500 py-4">読み込み中...</p>
-      ) : activeInquiries.length === 0 ? ( // ★ inquiries から activeInquiries に変更
+      ) : activeInquiries.length === 0 ? (
         <p className="text-sm text-slate-500 py-4">管理者宛てのメッセージはありません</p>
       ) : (
         <div className="space-y-4">
-          {activeInquiries.map((item) => ( // ★ inquiries から activeInquiries に変更
+          {activeInquiries.map((item) => (
             <InquiryItem
               key={item.id}
               inquiry={item}
               isExpanded={expandedId === item.id}
+              currentUserId={currentUserId} // ★ 追加
               onToggle={() => handleToggle(item)}
               onSendReply={onSendReply}
               onDelete={onDeleteMessage}
