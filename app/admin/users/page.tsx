@@ -29,13 +29,13 @@ export default async function UsersPage({
     await getPaginatedMembers({ query, role, status, page, limit });
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
       {/* 1. ヘッダーエリア */}
       <div className="flex justify-between items-center pb-4 border-b">
         <h1 className="text-2xl font-bold">ユーザー管理</h1>
         <Link
           href="/admin/users/new"
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+          className="btn btn-primary"
         >
           新規会員を登録
         </Link>
@@ -65,7 +65,7 @@ export default async function UsersPage({
           <tbody>
             {items.length > 0 ? (
               items.map((user) => (
-                <tr key={user.member_id} className="border-b hover:bg-gray-50">
+                <tr key={user.member_id} className="border-b hover:bg-surface-muted">
                   <td className="p-3">{user.member_id}</td>
                   <td className="p-3">{user.user_name}</td>
                   <td className="p-3">{user.email}</td>
@@ -85,7 +85,7 @@ export default async function UsersPage({
                   <td className="p-3">
                     <Link
                       href={`/admin/users/${user.member_id}/edit`}
-                      className="text-blue-600 hover:underline text-sm font-medium"
+                      className="text-brand hover:underline text-sm font-medium"
                     >
                       編集
                     </Link>
@@ -118,8 +118,8 @@ export default async function UsersPage({
               pathname: "/admin/users",
               query: { ...resolvedParams, page: Math.max(1, page - 1) },
             }}
-            className={`px-3 py-1 border rounded ${
-              page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-gray-100"
+            className={`px-3 py-1 rounded-control border border-line ${
+              page <= 1 ? "pointer-events-none opacity-40" : "hover:bg-surface-muted"
             }`}
           >
             前へ
@@ -139,10 +139,10 @@ export default async function UsersPage({
                       pathname: "/admin/users",
                       query: { ...resolvedParams, page: p },
                     }}
-                    className={`px-3 py-1 border rounded ${
+                    className={`px-3 py-1 rounded-control border border-line ${
                       p === page
-                        ? "bg-blue-600 text-white border-blue-600 font-bold"
-                        : "hover:bg-gray-100"
+                        ? "bg-brand text-white border-brand font-bold"
+                        : "hover:bg-surface-muted"
                     }`}
                   >
                     {p}
@@ -157,10 +157,10 @@ export default async function UsersPage({
               pathname: "/admin/users",
               query: { ...resolvedParams, page: Math.min(totalPages, page + 1) },
             }}
-            className={`px-3 py-1 border rounded ${
+            className={`px-3 py-1 rounded-control border border-line ${
               page >= totalPages
                 ? "pointer-events-none opacity-40"
-                : "hover:bg-gray-100"
+                : "hover:bg-surface-muted"
             }`}
           >
             次へ

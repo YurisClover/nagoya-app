@@ -11,7 +11,10 @@ type Props = {
     members:  Member[];
   };
   allUsers: Member[];
-  action: (prevState: any, formData: FormData) => Promise<any>;
+  action: (
+    prevState: { error: string } | null,
+    formData: FormData
+  ) => Promise<{ error: string } | null>;
   isEdit?: boolean;
 };
 
@@ -91,7 +94,7 @@ export default function GroupForm({ initialData, allUsers, action, isEdit = fals
                 className="p-2 text-sm hover:bg-blue-50 cursor-pointer flex justify-between items-center"
               >
                 <span>{u.user_name} ({u.email})</span>
-                <span className="text-xs text-blue-600 font-medium">追加</span>
+                <span className="text-xs text-brand font-medium">追加</span>
               </div>
             ))}
           </div>
@@ -106,7 +109,7 @@ export default function GroupForm({ initialData, allUsers, action, isEdit = fals
             {selectedMembers.map((m) => (
               <span
                 key={m.member_id}
-                className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-200"
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-b text-blue-700 rounded-full text-xs font-medium border border-blue-200 hover:bg-blue-50"
               >
                 {m.user_name}
                 <button
@@ -127,13 +130,13 @@ export default function GroupForm({ initialData, allUsers, action, isEdit = fals
         <button
           type="submit"
           disabled={isPending}
-          className="px-5 py-2 bg-blue-600 text-white text-sm rounded font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="btn btn-primary"
         >
           {isPending ? "保存中..." : isEdit ? "更新する" : "作成する"}
         </button>
         <Link
           href="/admin/groups"
-          className="px-5 py-2 border text-sm rounded font-medium hover:bg-gray-100 flex items-center"
+          className="btn btn-secondary"
         >
           キャンセル
         </Link>

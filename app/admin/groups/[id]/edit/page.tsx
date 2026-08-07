@@ -22,7 +22,7 @@ export default async function EditGroupPage({
   }
 
   return (
-    <div className="p-6">
+    <div>
       <GroupForm
         initialData={group}
         allUsers={allUsers}
