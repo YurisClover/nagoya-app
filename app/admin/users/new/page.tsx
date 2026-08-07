@@ -8,7 +8,7 @@ export default function NewUserPage() {
   const [state, formAction, isPending] = useActionState(createMemberAction, null);
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex justify-between items-center pb-4 border-b">
         <h1 className="text-2xl font-bold">新規会員登録</h1>
         <Link

@@ -168,6 +168,7 @@ body {
 
   /* page layout */
   .page-container { @apply mx-auto w-full max-w-md p-6; }
+  .page-container-admin { @apply mx-auto w-full max-w-6xl p-4 sm:p-6; }
 
   /* ── menu card square icon ── */
   .icon-tile { @apply mb-2 flex h-9 w-9 items-center justify-center rounded-lg sm:h-11 sm:w-11; }
@@ -186,6 +187,7 @@ body {
   .btn-secondary { @apply border border-line bg-surface-muted text-ink hover:bg-line; }
   .btn-ghost     { @apply text-white/90 hover:bg-white/15; }
   .btn-block     { @apply w-full; }
+  .btn-danger    { @apply border border-danger/30 bg-surface text-danger hover:bg-danger/10; }
 
   /* ── badge ── */
   .badge       { @apply rounded-full bg-danger px-[6px] py-[1px] text-[9px] font-medium text-white; }

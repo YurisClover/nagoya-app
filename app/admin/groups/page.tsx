@@ -9,13 +9,13 @@ export default async function GroupsPage() {
   const groups = await getCachedGroupsWithMembers();
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* ヘッダー */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">グループ管理</h1>
         <Link
           href="/admin/groups/new"
-          className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+          className="btn btn-primary"
         >
           ＋ グループを作成
         </Link>
@@ -60,7 +60,7 @@ export default async function GroupsPage() {
               <div className="flex justify-between items-center pt-3 border-t">
                 <Link
                   href={`/admin/groups/${group.group_id}/edit`}
-                  className="px-3 py-1.5 border text-xs font-medium rounded hover:bg-gray-50 text-gray-700"
+                  className="btn btn-secondary px-3 py-1.5 text-xs"
                 >
                   編集
                 </Link>
@@ -71,7 +71,7 @@ export default async function GroupsPage() {
                 <button
                   type="button"
                   disabled
-                  className="px-4 py-1.5 bg-gray-200 text-gray-500 text-xs font-medium rounded cursor-not-allowed"
+                  className="btn btn-secondary px-4 py-1.5 text-xs"
                 >
                   送信
                 </button>

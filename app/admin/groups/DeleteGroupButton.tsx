@@ -18,7 +18,7 @@ export default function DeleteGroupButton({
     >
       <button
         type="submit"
-        className="px-3 py-1.5 border border-red-200 text-xs font-medium rounded text-red-600 hover:bg-red-50"
+        className="btn btn-danger px-3 py-1.5 text-xs"
       >
         削除
       </button>

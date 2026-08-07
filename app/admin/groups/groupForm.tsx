@@ -127,13 +127,13 @@ export default function GroupForm({ initialData, allUsers, action, isEdit = fals
         <button
           type="submit"
           disabled={isPending}
-          className="px-5 py-2 bg-blue-600 text-white text-sm rounded font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="btn btn-primary"
         >
           {isPending ? "保存中..." : isEdit ? "更新する" : "作成する"}
         </button>
         <Link
           href="/admin/groups"
-          className="px-5 py-2 border text-sm rounded font-medium hover:bg-gray-100 flex items-center"
+          className="btn btn-secondary"
         >
           キャンセル
         </Link>

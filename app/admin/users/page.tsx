@@ -29,13 +29,13 @@ export default async function UsersPage({
     await getPaginatedMembers({ query, role, status, page, limit });
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
       {/* 1. ヘッダーエリア */}
       <div className="flex justify-between items-center pb-4 border-b">
         <h1 className="text-2xl font-bold">ユーザー管理</h1>
         <Link
           href="/admin/users/new"
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+          className="btn btn-primary"
         >
           新規会員を登録
         </Link>
