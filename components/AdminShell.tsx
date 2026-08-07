@@ -43,7 +43,7 @@ export default function AdminShell({
 
         {/* every admin pages are in same container (same size and position) */}
         <main className="flex-1 overflow-y-auto">
-          <div className="page-container-admin">{children}</div>
+          <div className="mx-auto w-full max-w-6xl p-4 sm:p-6">{children}</div>
         </main>
       </div>
     </div>

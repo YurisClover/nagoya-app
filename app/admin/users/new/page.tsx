@@ -9,57 +9,33 @@ export default function NewUserPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div className="flex justify-between items-center pb-4 border-b">
+      <div className="flex items-center justify-between border-b border-line pb-4">
         <h1 className="text-2xl font-bold">新規会員登録</h1>
-        <Link
-          href="/admin/users"
-          className="px-4 py-2 border rounded text-sm hover:bg-gray-100"
-        >
+        <Link href="/admin/users" className="btn btn-secondary px-4 py-2 text-sm">
           一覧に戻る
         </Link>
       </div>
 
-      {/* エラーメッセージ表示 */}
-      {state?.error && (
-        <div className="p-3 bg-red-100 text-red-700 text-sm rounded border border-red-200">
-          {state.error}
-        </div>
-      )}
+      {state?.error && <div className="field-error card border-danger p-3">{state.error}</div>}
 
-      {/* 入力フォーム */}
-      <form action={formAction} className="space-y-4">
-        {/* 氏名 */}
+      <form action={formAction} className="card space-y-4 p-5 sm:p-6">
         <div>
-          <label className="block text-sm font-medium mb-1">
-            氏名 <span className="text-red-500">*</span>
+          <label className="field-label">
+            氏名 <span className="text-danger">*</span>
           </label>
-          <input
-            type="text"
-            name="user_name"
-            required
-            placeholder="山田 太郎"
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+          <input type="text" name="user_name" required placeholder="山田 太郎" className="field-input" />
         </div>
 
-        {/* メールアドレス */}
         <div>
-          <label className="block text-sm font-medium mb-1">
-            メールアドレス <span className="text-red-500">*</span>
+          <label className="field-label">
+            メールアドレス <span className="text-danger">*</span>
           </label>
-          <input
-            type="email"
-            name="email"
-            required
-            placeholder="yamada@example.com"
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+          <input type="email" name="email" required placeholder="yamada@example.com" className="field-input" />
         </div>
 
-        {/* パスワード（bcryptハッシュ化して登録） */}
         <div>
-          <label className="block text-sm font-medium mb-1">
-            初期パスワード <span className="text-red-500">*</span>
+          <label className="field-label">
+            初期パスワード <span className="text-danger">*</span>
           </label>
           <input
             type="password"
@@ -67,50 +43,32 @@ export default function NewUserPage() {
             required
             minLength={8}
             placeholder="8文字以上で入力"
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="field-input"
           />
         </div>
 
-        {/* 役職 */}
         <div>
-          <label className="block text-sm font-medium mb-1">役職</label>
-          <select
-            name="role"
-            defaultValue="general"
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none bg-white"
-          >
+          <label className="field-label">役職</label>
+          <select name="role" defaultValue="general" className="field-input bg-surface">
             <option value="general">一般会員 (general)</option>
             <option value="executive">執行部 (executive)</option>
             <option value="admin">管理者 (admin)</option>
           </select>
         </div>
 
-        {/* ステータス */}
         <div>
-          <label className="block text-sm font-medium mb-1">ステータス</label>
-          <select
-            name="status"
-            defaultValue="active"
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none bg-white"
-          >
+          <label className="field-label">ステータス</label>
+          <select name="status" defaultValue="active" className="field-input bg-surface">
             <option value="active">有効</option>
             <option value="inactive">無効</option>
           </select>
         </div>
 
-        {/* ボタン操作 */}
-        <div className="pt-4 flex gap-3">
-          <button
-            type="submit"
-            disabled={isPending}
-            className="px-5 py-2 bg-blue-600 text-white text-sm rounded font-medium hover:bg-blue-700 disabled:opacity-50"
-          >
+        <div className="flex gap-3 border-t border-line pt-4">
+          <button type="submit" disabled={isPending} className="btn btn-primary">
             {isPending ? "登録中..." : "登録する"}
           </button>
-          <Link
-            href="/admin/users"
-            className="px-5 py-2 border text-sm rounded font-medium hover:bg-gray-100 flex items-center"
-          >
+          <Link href="/admin/users" className="btn btn-secondary">
             キャンセル
           </Link>
         </div>
