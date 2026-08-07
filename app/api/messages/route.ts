@@ -16,9 +16,9 @@ export async function GET() {
     }
 
     // 2. Google API 認証情報
-    const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-    const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-    const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+    const clientEmail = process.env.GOOGLE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = (process.env.GOOGLE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY)?.replace(/\\n/g, "\n");
+    const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID || process.env.GOOGLE_SHEET_ID;
 
     if (!clientEmail || !privateKey || !spreadsheetId) {
       return NextResponse.json(
@@ -37,11 +37,11 @@ export async function GET() {
 
     const sheets = google.sheets({ version: "v4", auth: authClient });
 
-    // 3. Messages シートと Users シートを並行取得
+    // 3. Messages シート(A:I列) と Users シートを並行取得
     const [messagesRes, usersRes] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId,
-        range: "Messages!A:H",
+        range: "Messages!A1:Z",
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId,
@@ -56,7 +56,7 @@ export async function GET() {
       return NextResponse.json({ success: true, messages: [] });
     }
 
-    // Users のマップ作成
+    // Users のマップ作成 (member_id -> user_name)
     const uHeaders = (userRows[0] || []).map((h: string) => h.toLowerCase().trim());
     let uMemberIdIdx = uHeaders.findIndex((h) => h === "member_id" || h === "id" || h === "memberid");
     let uNameIdx = uHeaders.findIndex((h) => h === "user_name" || h === "username" || h === "name");
@@ -68,7 +68,7 @@ export async function GET() {
     userRows.slice(1).forEach((row) => {
       const mId = row[uMemberIdIdx]?.toString().trim();
       const uName = row[uNameIdx]?.toString().trim();
-      if (mId) userNameMap.set(mId, uName || "事務局");
+      if (mId) userNameMap.set(mId, uName || mId);
     });
 
     // Messages ヘッダーの列位置を取得
@@ -81,6 +81,7 @@ export async function GET() {
     let isReadIdx = msgHeaders.findIndex((h) => h === "isread" || h === "read");
     let createdAtIdx = msgHeaders.findIndex((h) => h === "createdat" || h === "date");
     let deleteFlagIdx = msgHeaders.findIndex((h) => h === "deleteflag" || h === "deleted");
+    let parentIdIdx = msgHeaders.findIndex((h) => h === "parentid" || h === "parent");
 
     if (idIdx === -1) idIdx = 0;
     if (senderIdIdx === -1) senderIdIdx = 1;
@@ -90,125 +91,117 @@ export async function GET() {
     if (isReadIdx === -1) isReadIdx = 5;
     if (createdAtIdx === -1) createdAtIdx = 6;
     if (deleteFlagIdx === -1) deleteFlagIdx = 7;
+    if (parentIdIdx === -1) parentIdIdx = 8;
 
     const myUserId = String(currentMemberId).trim();
 
-    // 4. すべての有効なメッセージをオブジェクト化
-    const allMessages = messageRows.slice(1).map((row) => {
-      const isReadRaw = row[isReadIdx]?.toString().trim().toLowerCase() || "";
+    // 4. すべての有効なメッセージをオブジェクト化（小文字 'true' で判定）
+    const allMessages = messageRows.slice(1).map((row, index) => {
+      const isReadRaw = row[isReadIdx]?.toString().trim().toLowerCase() || "false";
       const isRead = isReadRaw === "true" || isReadRaw === "1" || isReadRaw === "既読";
-      const deleteFlagRaw = row[deleteFlagIdx]?.toString().trim().toLowerCase() || "";
+
+      const deleteFlagRaw = row[deleteFlagIdx]?.toString().trim().toLowerCase() || "false";
       const isDeleted = deleteFlagRaw === "true" || deleteFlagRaw === "1";
 
       const senderId = row[senderIdIdx]?.toString().trim() || "";
       const recipientId = row[recipientIdIdx]?.toString().trim() || "";
+      const parentId = row[parentIdIdx]?.toString().trim() || "";
+
+      const senderName = userNameMap.get(senderId) || senderId;
+      const recipientName =
+        recipientId === "all" || recipientId === "全体"
+          ? "全会員"
+          : userNameMap.get(recipientId) || recipientId;
 
       return {
-        id: row[idIdx]?.toString().trim() || "",
+        id: row[idIdx]?.toString().trim() || `msg-${index}`,
+        parentId,
         sender_id: senderId,
         recipient_id: recipientId,
-        sender_name: userNameMap.get(senderId) || (senderId === "10001234" ? "事務局" : senderId),
+        sender_name: senderName,
+        recipient_name: recipientName,
         title: row[titleIdx]?.toString().trim() || "",
         body: row[bodyIdx]?.toString().trim() || "",
         is_read: isRead,
         created_at: row[createdAtIdx]?.toString().trim() || "",
         is_deleted: isDeleted,
       };
-    }).filter(m => !m.is_deleted);
+    }).filter((m) => !m.is_deleted);
 
-    // 5. 件名から "Re: " や "(全会員)" などの修飾語をきれいに取り除く正規化関数
-    const normalizeSubject = (subj: string) => {
-      return subj
-        .replace(/^(re|ｒｅ):\s*/i, "")
-        .replace(/^[（(]全会員[）)]\s*/i, "")
-        .trim()
-        .toLowerCase();
-    };
-
+    // 5. parent_id をもとに正確にスレッド構築
+    const threadMap = new Map<string, any>();
     const threadList: any[] = [];
 
-    // 6. 親スレッド（Re: がついていないもの、または新規の起点）を時系列順に抽出
+    // ① parentId が空のメッセージを親スレッドとして作成
     allMessages.forEach((msg) => {
-      const isReply = /^Re:\s*/i.test(msg.title) || msg.title.toLowerCase().startsWith('re:');
-      if (!isReply) {
-        threadList.push({
+      if (!msg.parentId) {
+        const parentObj = {
           ...msg,
-          cleanSubject: normalizeSubject(msg.title),
           replies: [],
-        });
+        };
+        threadMap.set(msg.id, parentObj);
+        threadList.push(parentObj);
       }
     });
 
-    threadList.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-    // 7. 返信メッセージを正しい親スレッドに紐づける
+    // ② parentId があるメッセージを対応する親スレッドの replies に追加
     allMessages.forEach((msg) => {
-      const isParent = threadList.some((t) => t.id === msg.id);
-      if (isParent) return; // 親として登録済みのものはスキップ
+      if (!msg.parentId) return;
 
-      const cleanSubject = normalizeSubject(msg.title);
-      const msgTime = new Date(msg.created_at).getTime() || 0;
-
-      // 同じ正規化件名を持ち、送信日時が親以降のものを候補にする
-      let candidates = threadList.filter(
-        (t) =>
-          t.cleanSubject === cleanSubject &&
-          new Date(t.created_at).getTime() <= msgTime
-      );
-
-      // 一致する候補がない場合のフォールバック（直近のスレッドを探す）
-      if (candidates.length === 0) {
-        candidates = threadList.filter(
-          (t) => new Date(t.created_at).getTime() <= msgTime
-        );
-      }
-
-      if (candidates.length > 0) {
-        candidates.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        const targetParent = candidates[0];
-
-        const exists = targetParent.id === msg.id || targetParent.replies.some((r: any) => r.id === msg.id);
+      const parentThread = threadMap.get(msg.parentId);
+      if (parentThread) {
+        const exists = parentThread.replies.some((r: any) => r.id === msg.id);
         if (!exists) {
-          targetParent.replies.push({
-            id: msg.id,
-            sender_id: msg.sender_id,
-            recipient_id: msg.recipient_id,
-            sender_name: msg.sender_name,
-            title: msg.title,
-            body: msg.body,
-            is_read: msg.is_read,
-            created_at: msg.created_at,
+          parentThread.replies.push(msg);
+        }
+      } else {
+        // フォールバック対応
+        const fallbackParent = threadList.find(
+          (t) =>
+            t.title.replace(/^Re:\s*/i, "").trim().toLowerCase() ===
+            msg.title.replace(/^Re:\s*/i, "").trim().toLowerCase()
+        );
+        if (fallbackParent) {
+          fallbackParent.replies.push(msg);
+        } else {
+          threadList.push({
+            ...msg,
+            replies: [],
           });
         }
       }
     });
 
-    // 8. 【重要】スレッド内に「自分宛て（自分が受信者、または全会員宛て）」または「自分が送信したもの」が1つでも含まれるものに絞り込む
+    // 6. 自分に関係するスレッドに絞り込み
     const myRelatedThreads = threadList.filter((parent) => {
       const allMsgsInThread = [parent, ...parent.replies];
-      const isRelevantToMe = allMsgsInThread.some((m: any) => {
+      return allMsgsInThread.some((m: any) => {
         const recId = (m.recipient_id || "").toLowerCase();
         const senderId = (m.sender_id || "").toLowerCase();
         const myId = myUserId.toLowerCase();
-      
-        // 自分が受信者、全会員宛て、あるいは自分が送信者のいずれかなら表示対象にする
+
         return (
-          recId === myId || 
-          recId === "all" || 
-          recId === "全体" || 
+          recId === myId ||
+          recId === "all" ||
+          recId === "全体" ||
           senderId === myId
         );
       });
-      return isRelevantToMe;
     });
 
-    // 9. 各スレッドの返信を古い順にソートし、最終アクティビティ順に並び替え
-    const formattedThreads = myRelatedThreads.map((parent) => {
-      parent.replies.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    // 7. 日時ソートと最終レスポンス整形
+    const parseTime = (dateStr: string) => {
+      if (!dateStr) return 0;
+      const t = new Date(dateStr.replace(/-/g, "/")).getTime();
+      return isNaN(t) ? 0 : t;
+    };
 
-      let latestTime = new Date(parent.created_at).getTime() || 0;
+    const formattedThreads = myRelatedThreads.map((parent) => {
+      parent.replies.sort((a: any, b: any) => parseTime(a.created_at) - parseTime(b.created_at));
+
+      let latestTime = parseTime(parent.created_at);
       parent.replies.forEach((r: any) => {
-        const rTime = new Date(r.created_at).getTime() || 0;
+        const rTime = parseTime(r.created_at);
         if (rTime > latestTime) latestTime = rTime;
       });
       parent._latestTimestamp = latestTime;
@@ -220,6 +213,7 @@ export async function GET() {
         sender_id: parent.sender_id,
         recipient_id: parent.recipient_id,
         sender_name: parent.sender_name,
+        recipient_name: parent.recipient_name,
         title: parent.title,
         body: parent.body,
         is_read: parentIsRead,
@@ -230,7 +224,9 @@ export async function GET() {
           return {
             reply_id: r.id,
             sender_id: r.sender_id,
+            recipient_id: r.recipient_id,
             sender_name: r.sender_name,
+            recipient_name: r.recipient_name,
             title: r.title,
             body: r.body,
             is_read: replyIsRead,

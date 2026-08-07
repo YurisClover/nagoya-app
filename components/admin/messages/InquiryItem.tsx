@@ -2,7 +2,6 @@
 
 'use client';
 
-// ★ useEffect を追加でインポートします
 import React, { useState, useEffect } from 'react';
 import { formatRelativeDateTime } from '@/lib/datetime';
 import InlineReplyForm from './InlineReplyForm';
@@ -10,7 +9,9 @@ import InlineReplyForm from './InlineReplyForm';
 export type ReplyMessage = {
   id: string;
   senderId: string;
+  recipientId?: string;
   userName: string;
+  recipientName?: string;
   memberId?: string;
   subject: string;
   body: string;
@@ -23,6 +24,7 @@ export type ReceivedMessage = {
   senderId: string;
   recipientId: string;
   userName: string;
+  recipientName?: string;
   memberId?: string;
   subject: string;
   body: string;
@@ -34,11 +36,12 @@ export type ReceivedMessage = {
 interface InquiryItemProps {
   inquiry: ReceivedMessage;
   isExpanded: boolean;
-  currentUserId: string; // ★ 追加: ログイン中の管理者ID
+  currentUserId: string; // ログイン中のユーザーID
   onToggle: () => void;
-  onSendReply: (recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
+  // ★ parentMessageId を第1引数に追加
+  onSendReply: (parentMessageId: string, recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
   onDelete?: (messageId: string, replyIds?: string[]) => Promise<void>;
-  onMarkAsRead?: (messageId: string) => Promise<void>; // ★ 追加: 既読処理を親から渡せるようにする（オプショナル）
+  onMarkAsRead?: (messageId: string) => Promise<void>;
 }
 
 export default function InquiryItem({
@@ -48,47 +51,43 @@ export default function InquiryItem({
   onToggle,
   onSendReply,
   onDelete,
-  onMarkAsRead, // ★ 追加
+  onMarkAsRead,
 }: InquiryItemProps) {
   const [isDeleting, setIsDeleting] = useState(false);
-  const hasThreadUnread = !inquiry.isRead || (inquiry.replies && inquiry.replies.some((r) => !r.isRead));
+
+  // ★ 自分以外（相手）からの未読メッセージ、または自分以外（相手）からの未読返信があるか判定
+  const isParentUnread = !inquiry.isRead && String(inquiry.senderId).trim() !== String(currentUserId).trim();
+  const hasUnreadReplies = inquiry.replies
+    ? inquiry.replies.some((r) => !r.isRead && String(r.senderId).trim() !== String(currentUserId).trim())
+    : false;
+  const hasThreadUnread = isParentUnread || hasUnreadReplies;
 
   // ==========================================
-  // ★ 修正: 開いたまま新着メッセージが来た時の自動既読処理
+  // 開いたまま新着メッセージが来た時の自動既読処理
   // ==========================================
   useEffect(() => {
-    // カードが閉じている時は何もしない
     if (!isExpanded) return;
 
-    // 1. 親メッセージが未読で、かつ自分が送信者ではないかチェック
     const isParentUnread = !inquiry.isRead && inquiry.senderId !== currentUserId;
-
-    // 2. 返信履歴の中の「未読」かつ「自分以外が送信」したメッセージのIDをすべて抽出
     const unreadReplyIds = inquiry.replies
       ?.filter((r) => !r.isRead && r.senderId !== currentUserId)
       .map((r) => r.id) || [];
 
     const hasUnreadReplies = unreadReplyIds.length > 0;
 
-    // 未読のものが含まれていれば既読処理を実行
     if (isParentUnread || hasUnreadReplies) {
       const handleRead = async () => {
         try {
-          // 3. コメントアウトを外して、直接APIを叩く
-          // ※API側（route.ts）の仕様に合わせて messageId と replyIds を送る
           const res = await fetch('/api/admin/inquiries/read', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-              messageId: inquiry.id, // route.tsで必須チェックがあるため親IDは必ず送る
-              replyIds: unreadReplyIds // 未読の返信IDの配列を送る
+              messageId: inquiry.id,
+              replyIds: unreadReplyIds
             }),
           });
 
           if (res.ok) {
-            console.log('スプレッドシートの既読化に成功しました');
-            
-            // API成功後に親コンポーネントの処理（リストの再取得など）を呼ぶ
             if (onMarkAsRead) {
               await onMarkAsRead(inquiry.id);
             }
@@ -103,7 +102,6 @@ export default function InquiryItem({
       handleRead();
     }
   }, [isExpanded, inquiry, currentUserId, onMarkAsRead]);
-  // ==========================================
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -112,9 +110,7 @@ export default function InquiryItem({
     try {
       setIsDeleting(true);
       if (onDelete) {
-        // 返信履歴のIDをすべて配列にする
         const replyIds = inquiry.replies?.map((r) => r.id) || [];
-        // 親メッセージのIDと、子メッセージのID配列を両方渡す
         await onDelete(inquiry.id, replyIds);
       }
     } catch (err) {
@@ -137,7 +133,7 @@ export default function InquiryItem({
       >
         <div className="flex items-center space-x-3.5 flex-1 min-w-0 mr-4">
           <div className="w-12 h-12 rounded-full bg-[#1b365d] text-white font-bold flex items-center justify-center text-lg flex-shrink-0 shadow-xs">
-            {inquiry.userName ? inquiry.userName.charAt(0).toUpperCase() : '事'}
+            {inquiry.userName ? inquiry.userName.charAt(0).toUpperCase() : 'U'}
           </div>
 
           <div className="flex-1 min-w-0">
@@ -187,6 +183,7 @@ export default function InquiryItem({
           {inquiry.replies && inquiry.replies.length > 0 && (
             <div className="pl-4 space-y-3 border-l-2 border-[#1b365d]">
               <p className="text-xs font-bold text-slate-600">返信履歴</p>
+              {/* ★ .reverse() を外し、古い返信が上で新しい返信が下（時系列順）になるように修正 */}
               {inquiry.replies.map((reply) => (
                 <div key={reply.id} className="bg-white border border-slate-200 p-3 rounded-lg text-sm">
                   <div className="flex items-center justify-between mb-1">
@@ -205,22 +202,22 @@ export default function InquiryItem({
 
           {/* インライン返信フォーム */}
           {(() => {
-            const ADMIN_ID = currentUserId;
-            const opponentId = inquiry.senderId === ADMIN_ID ? inquiry.recipientId : inquiry.senderId;
+            const isMyMessage = String(inquiry.senderId).trim() === String(currentUserId).trim();
+            const opponentId = isMyMessage ? inquiry.recipientId : inquiry.senderId;
 
-            const isMyMessage = inquiry.senderId === ADMIN_ID;
-
+            // 自分が送信者の場合は宛先（recipientName）、受信した場合は差出人（userName）を表示
             const targetUserName = isMyMessage
-              ? ((inquiry as any).recipientName || 'お相手')
-              : inquiry.userName;
+              ? (inquiry.recipientName || '宛先')
+              : (inquiry.userName || '差出人');
 
             return (
               <InlineReplyForm
+                parentMessageId={inquiry.id} // ★ 親メッセージの message_id を渡す
                 userName={targetUserName}
                 recipientId={opponentId}
                 subject={inquiry.subject}
-                onSendReply={async (_, replyTitle, replyText) =>
-                  await onSendReply(opponentId, replyTitle, replyText)
+                onSendReply={async (pId, rId, replyTitle, replyText) =>
+                  await onSendReply(pId, rId, replyTitle, replyText)
                 }
               />
             );

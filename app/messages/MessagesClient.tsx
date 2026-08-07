@@ -9,8 +9,6 @@ interface MessagesClientProps {
 }
 
 export default function MessagesClient({ currentUserId }: MessagesClientProps) {
-  // ★ useSession の呼び出しは削除
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [messages, setMessages] = useState<ReceivedMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,17 +17,17 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
   const fetchMessages = async (isBackground = false) => {
     try {
       if (!isBackground) setLoading(true);
-      
+
       const res = await fetch('/api/messages');
       const data = await res.json();
-      
+
       if (data.success && Array.isArray(data.messages)) {
         const formattedMessages: ReceivedMessage[] = data.messages.map((item: any, idx: number) => ({
           id: String(item.id || item.message_id || `msg-${idx}`),
           senderId: item.senderId || item.sender_id || '',
           recipientId: item.recipientId || item.recipient_id || '',
-          userName: item.userName || item.sender_name || '事務局',
-          recipientName: item.recipientName || item.recipient_name || '事務局',
+          userName: item.userName || item.sender_name || 'ユーザー',
+          recipientName: item.recipientName || item.recipient_name || '宛先',
           memberId: item.memberId || item.member_id || '',
           subject: item.subject || item.title || '(件名なし)',
           body: item.body || '',
@@ -104,15 +102,19 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
   };
 
   const handleSendReply = async (
+    parentMessageId: string,
     recipientId: string,
     replyTitle: string,
     replyText: string
   ): Promise<boolean> => {
     try {
+      const targetParentId = parentMessageId || expandedId || undefined;
+
       const res = await fetch('/api/messages/reply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          parentMessageId: targetParentId,
           recipientId,
           title: replyTitle,
           body: replyText,
@@ -178,17 +180,38 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
           </div>
         ) : (
           <div className="space-y-3">
-            {messages.map((inquiry, index) => (
-              <InquiryItem
-                key={inquiry.id || `inquiry-${index}`}
-                inquiry={inquiry}
-                isExpanded={expandedId === inquiry.id}
-                onToggle={() => handleToggle(inquiry)}
-                onSendReply={handleSendReply}
-                onDelete={handleDelete}
-                currentUserId={currentUserId}
-              />
-            ))}
+           {[...messages]
+            .sort((a: any, b: any) => {
+              const getLatestTime = (item: any) => {
+                let latest = item.createdAt || '';
+                if (item.replies && Array.isArray(item.replies)) {
+                  item.replies.forEach((reply: any) => {
+                    if (reply.createdAt && reply.createdAt > latest) {
+                      latest = reply.createdAt;
+                    }
+                  });
+                }
+                // 日付文字列をタイムスタンプ（数値）に変換。無効な場合は 0
+                return latest ? new Date(latest).getTime() : 0;
+              };
+
+              const timeA = getLatestTime(a);
+              const timeB = getLatestTime(b);
+
+              // 数値の大きい方（新しい方）を上にする
+              return timeB - timeA;
+            })
+              .map((inquiry, index) => (
+                <InquiryItem
+                  key={inquiry.id || `inquiry-${index}`}
+                  inquiry={inquiry}
+                  isExpanded={expandedId === inquiry.id}
+                  onToggle={() => handleToggle(inquiry)}
+                  onSendReply={(pId, recId, title, body) => handleSendReply(pId, recId, title, body)}
+                  onDelete={handleDelete}
+                  currentUserId={currentUserId}
+                />
+              ))}
           </div>
         )}
       </div>

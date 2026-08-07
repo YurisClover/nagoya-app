@@ -68,6 +68,27 @@ function AdminMessageContent() {
             return !isDeleted;
           });
 
+          // ★ タイムスタンプ（数値）に変換して新しい順（降順）にソート
+          filteredInquiries.sort((a: any, b: any) => {
+            const getLatestTime = (item: any) => {
+              let latest = item.createdAt || item.created_at || '';
+              if (item.replies && Array.isArray(item.replies)) {
+                item.replies.forEach((reply: any) => {
+                  const replyTime = reply.createdAt || reply.created_at || '';
+                  if (replyTime > latest) {
+                    latest = replyTime;
+                  }
+                });
+              }
+              return latest ? new Date(latest).getTime() : 0;
+            };
+
+            const timeA = getLatestTime(a);
+            const timeB = getLatestTime(b);
+
+            return timeB - timeA;
+          });
+
           setInquiries(filteredInquiries);
           setLastUpdated(
             new Date().toLocaleTimeString('ja-JP', {
@@ -105,7 +126,7 @@ function AdminMessageContent() {
     return () => clearInterval(intervalId);
   }, [fetchInquiries]);
 
-  // ★ 既読更新処理（文字列IDとオブジェクトのどちらが渡されても対応できるように修正）
+  // 既読更新処理
   const handleMarkAsRead = async (target: ReceivedMessage | string) => {
     const inquiry = typeof target === 'string'
       ? inquiries.find((item) => item.id === target)
@@ -154,16 +175,22 @@ function AdminMessageContent() {
     }
   };
 
-  const handleSendReply = async (recipientId: string, replyTitle: string, replyText: string) => {
+  // 返信送信処理
+  const handleSendReply = async (
+    parentMessageId: string,
+    recipientId: string,
+    replyTitle: string,
+    replyText: string
+  ) => {
     try {
-      const res = await fetch('/api/send-notification', {
+      const res = await fetch('/api/admin/inquiries/reply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          recipient_id: recipientId,
-          title: replyTitle,
+          parentMessageId,
+          recipientId,
+          subject: replyTitle,
           body: replyText,
-          url: '/messages',
         }),
       });
 
@@ -183,13 +210,13 @@ function AdminMessageContent() {
     }
   };
 
-  // ★ 修正: 子メッセージID(replyIds)も配列で受け取り、APIに渡す
+  // メッセージ削除処理
   const handleDeleteMessage = async (messageId: string, replyIds: string[] = []) => {
     try {
       const res = await fetch('/api/messages/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId, replyIds }), // ★ replyIds を追加
+        body: JSON.stringify({ messageId, replyIds }),
       });
 
       const data = await res.json();

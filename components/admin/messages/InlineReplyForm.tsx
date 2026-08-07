@@ -1,17 +1,24 @@
-// 受信メッセージに返信するフォームコンポーネント
+// 返信フォームコンポーネント
 
 'use client';
 
 import React, { useState } from 'react';
 
 interface InlineReplyFormProps {
+  parentMessageId: string; // 親メッセージの message_id
   userName: string;
-  recipientId: string; // ★ senderId から明確に recipientId に変更
+  recipientId: string;
   subject: string;
-  onSendReply: (recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
+  onSendReply: (parentMessageId: string, recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
 }
 
-export default function InlineReplyForm({ userName, recipientId, subject, onSendReply }: InlineReplyFormProps) {
+export default function InlineReplyForm({
+  parentMessageId,
+  userName,
+  recipientId,
+  subject,
+  onSendReply,
+}: InlineReplyFormProps) {
   const [replyText, setReplyText] = useState('');
   const [isReplying, setIsReplying] = useState(false);
 
@@ -26,8 +33,8 @@ export default function InlineReplyForm({ userName, recipientId, subject, onSend
     const cleanSubject = subject.replace(/^Re:\s*/i, '').trim();
     const replyTitle = `Re: ${cleanSubject}`;
 
-    // ★ 常に正しい宛先IDを親に返す
-    const success = await onSendReply(recipientId, replyTitle, text);
+    // ★ 親メッセージの parentMessageId も一緒に引き渡す
+    const success = await onSendReply(parentMessageId, recipientId, replyTitle, text);
     setIsReplying(false);
 
     if (success) {

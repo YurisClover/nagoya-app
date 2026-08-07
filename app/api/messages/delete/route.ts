@@ -1,4 +1,3 @@
-// src/app/api/messages/delete/route.ts
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { auth } from '@/auth';
@@ -10,15 +9,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
-    // ★ 修正: replyIds も受け取れるように取得
     const { messageId, replyIds } = await request.json();
     if (!messageId) {
       return NextResponse.json({ success: false, error: 'messageId が指定されていません' }, { status: 400 });
     }
 
-    const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-    const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+    const clientEmail = process.env.GOOGLE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = (process.env.GOOGLE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY)?.replace(/\\n/g, '\n');
+    const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID || process.env.GOOGLE_SHEET_ID;
 
     if (!clientEmail || !privateKey || !spreadsheetId) {
       return NextResponse.json({ success: false, error: '環境変数が設定されていません' }, { status: 500 });
@@ -31,10 +29,10 @@ export async function POST(request: Request) {
 
     const sheets = google.sheets({ version: 'v4', auth: authClient });
 
-    // 1. Messagesシートの全データを取得
+    // Messagesシートの全データを取得（A:I列）
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Messages!A:H',
+      range: 'Messages!A:I',
     });
 
     const rows = response.data.values || [];
@@ -43,28 +41,45 @@ export async function POST(request: Request) {
     }
 
     const headers = rows[0].map((h: string) => h.toLowerCase().trim());
-    let idIdx = headers.findIndex((h) => h === 'message_id' || h === 'id');
-    let deleteFlagIdx = headers.findIndex((h) => h === 'delete_flag');
+    let idIdx = headers.findIndex((h) => h === 'message_id' || h === 'id' || h === 'messageid');
+    let deleteFlagIdx = headers.findIndex((h) => h === 'delete_flag' || h === 'deleteflag');
+    let parentIdIdx = headers.findIndex((h) => h === 'parent_id' || h === 'parentid' || h === 'parent');
 
     if (idIdx === -1) idIdx = 0; // A列
     if (deleteFlagIdx === -1) deleteFlagIdx = 7; // H列 (index 7)
+    if (parentIdIdx === -1) parentIdIdx = 8; // I列 (index 8)
 
     const colLetter = String.fromCharCode(65 + deleteFlagIdx);
 
-    // ★ 修正: 削除対象となるすべてのID（親メッセージID + 返信ID一覧）のSetを作成
+    // 削除対象のIDセット初期化（明示的に指定されたID群）
     const targetIds = new Set<string>([
       messageId,
       ...(Array.isArray(replyIds) ? replyIds : []),
     ]);
 
-    // ★ 修正: 対象となる全ての行を探して更新リクエスト（Promise）を作成
+    // ★ スプレッドシート内を走査し、削除対象のメッセージを親（parent_id）に持つ子メッセージも自動で巻き込む
+    let added = true;
+    while (added) {
+      added = false;
+      for (let i = 1; i < rows.length; i++) {
+        const currentId = rows[i][idIdx]?.toString().trim();
+        const parentId = rows[i][parentIdIdx]?.toString().trim();
+
+        if (currentId && parentId && targetIds.has(parentId) && !targetIds.has(currentId)) {
+          targetIds.add(currentId);
+          added = true;
+        }
+      }
+    }
+
     const updatePromises: Promise<any>[] = [];
 
     for (let i = 1; i < rows.length; i++) {
       const currentId = rows[i][idIdx]?.toString().trim();
       if (currentId && targetIds.has(currentId)) {
-        const rowIndex = i + 1; // スプレッドシートは1始まり
+        const rowIndex = i + 1; // スプレッドシートの行番号（1始まり）
         
+        // H列（delete_flag）を 'true' に更新
         updatePromises.push(
           sheets.spreadsheets.values.update({
             spreadsheetId,
@@ -82,12 +97,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: '該当メッセージが見つかりませんでした' }, { status: 404 });
     }
 
-    // ★ 並列ですべての該当行（親＋子）の delete_flag を更新
     await Promise.all(updatePromises);
 
     return NextResponse.json({ 
       success: true, 
-      message: 'メッセージおよびスレッド内の返信を削除しました',
+      message: 'メッセージおよびスレッド内の返信をすべて削除しました',
       deletedCount: updatePromises.length 
     });
   } catch (error: any) {

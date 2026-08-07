@@ -10,10 +10,15 @@ interface InquiryListProps {
   isLoading: boolean;
   lastUpdated: string;
   unreadCountTotal: number;
-  currentUserId: string; // ★ 追加
-  onMarkAsRead: (inquiry: ReceivedMessage) => void;
-  onSendReply: (recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
-  onDeleteMessage?: (messageId: string) => Promise<void>;
+  currentUserId: string;
+  onMarkAsRead: (target: ReceivedMessage | string) => void;
+  onSendReply: (
+    parentMessageId: string,
+    recipientId: string,
+    replyTitle: string,
+    replyText: string
+  ) => Promise<boolean>;
+  onDeleteMessage?: (messageId: string, replyIds?: string[]) => Promise<void>;
 }
 
 export default function InquiryList({
@@ -21,23 +26,45 @@ export default function InquiryList({
   isLoading,
   lastUpdated,
   unreadCountTotal,
-  currentUserId, // ★ 追加
+  currentUserId,
   onMarkAsRead,
   onSendReply,
   onDeleteMessage,
 }: InquiryListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const activeInquiries = inquiries.filter((item: any) => {
-    const isDeleted =
-      item.delete_flag === true ||
-      item.delete_flag === 'true' ||
-      item.deleteFlag === true ||
-      item.deleteFlag === 'true' ||
-      item.isDeleted === true;
+  // ★ [...inquiries] で配列のコピーを作ってから処理する
+  const activeInquiries = [...inquiries]
+    .filter((item: any) => {
+      const isDeleted =
+        item.delete_flag === true ||
+        item.delete_flag === 'true' ||
+        item.deleteFlag === true ||
+        item.deleteFlag === 'true' ||
+        item.isDeleted === true;
 
-    return !isDeleted;
-  });
+      return !isDeleted;
+    })
+    .sort((a: any, b: any) => {
+      // 親メッセージと全返信の中から最も新しい日時を取得
+      const getLatestTime = (item: any) => {
+        let latest = item.created_at || '';
+        if (item.replies && Array.isArray(item.replies)) {
+          item.replies.forEach((reply: any) => {
+            if (reply.created_at && reply.created_at > latest) {
+              latest = reply.created_at;
+            }
+          });
+        }
+        return latest;
+      };
+
+      const timeA = getLatestTime(a);
+      const timeB = getLatestTime(b);
+
+      // 新しい順（降順）にソート
+      return timeB.localeCompare(timeA);
+    });
 
   const handleToggle = (inquiry: ReceivedMessage) => {
     const isOpening = expandedId !== inquiry.id;
@@ -76,10 +103,13 @@ export default function InquiryList({
               key={item.id}
               inquiry={item}
               isExpanded={expandedId === item.id}
-              currentUserId={currentUserId} // ★ 追加
+              currentUserId={currentUserId}
               onToggle={() => handleToggle(item)}
               onSendReply={onSendReply}
               onDelete={onDeleteMessage}
+              onMarkAsRead={async (messageId) => {
+                onMarkAsRead(messageId);
+              }}
             />
           ))}
         </div>

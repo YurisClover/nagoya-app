@@ -1,15 +1,19 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
+import { auth } from '@/auth';
 
 export async function POST(req: Request) {
   try {
-    const { messageId, replyIds } = await req.json();
+    const session = await auth();
+    if (!session) {
+      return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
+    }
 
-    if (!messageId) {
-      return NextResponse.json(
-        { success: false, error: 'messageIdが指定されていません' },
-        { status: 400 }
-      );
+    const { messageId, replyIds = [] } = await req.json();
+    const targetIds = new Set([messageId, ...replyIds].filter(Boolean));
+
+    if (targetIds.size === 0) {
+      return NextResponse.json({ success: true });
     }
 
     const clientEmail = process.env.GOOGLE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
@@ -17,81 +21,59 @@ export async function POST(req: Request) {
     const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID || process.env.GOOGLE_SHEET_ID;
 
     if (!clientEmail || !privateKey || !spreadsheetId) {
-      return NextResponse.json(
-        { success: false, error: '環境変数が設定されていません' },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, error: '環境変数が設定されていません' }, { status: 500 });
     }
 
-    const auth = new google.auth.GoogleAuth({
+    const authClient = new google.auth.GoogleAuth({
       credentials: { client_email: clientEmail, private_key: privateKey },
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    const sheets = google.sheets({ version: 'v4', auth });
+    const sheets = google.sheets({ version: 'v4', auth: authClient });
 
-    // Messagesシートを取得
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: 'Messages!A1:Z',
     });
 
     const rows = res.data.values || [];
-    if (rows.length <= 1) {
-      return NextResponse.json({ success: true, updatedCount: 0 });
-    }
+    if (rows.length <= 1) return NextResponse.json({ success: true });
 
-    // ヘッダーの揺れ（is_read, isRead, isread 等）を確実に検知できるように正規化
-    const header = rows[0].map((h: any) => String(h).toLowerCase().replace(/[_-\s]/g, '').trim());
-    let idIdx = header.findIndex((h) => h === 'messageid' || h === 'id' || h === 'message_id');
-    let isReadIdx = header.findIndex((h) => h === 'isread' || h === 'is_read' || h === 'read');
+    const header = rows[0].map((h: any) => String(h).toLowerCase().trim());
+    let idIdx = header.findIndex((h) => h === 'message_id' || h === 'id' || h === 'messageid');
+    let isReadIdx = header.findIndex((h) => h === 'is_read' || h === 'isread' || h === 'read');
 
     if (idIdx === -1) idIdx = 0;
-    if (isReadIdx === -1) isReadIdx = 5; // 見つからない場合のデフォルト（F列）
+    if (isReadIdx === -1) isReadIdx = 5; // F列
 
-    // 既読対象とするメッセージIDのセット（親ID + 配下の返信ID群）
-    const idsToMarkRead = new Set<string>([messageId, ...(replyIds || [])]);
-
-    const updatePromises: Promise<any>[] = [];
-
-    rows.slice(1).forEach((row, index) => {
-      const currentId = row[idIdx]?.toString().trim();
-      if (currentId && idsToMarkRead.has(currentId)) {
-        const rowIndex = index + 2; // ヘッダーを考慮した1-basedの行番号
-
-        // 行データをコピーして、is_read の列だけを強制的に 'true' に書き換える
-        const updatedRow = [...row];
-        while (updatedRow.length <= isReadIdx) {
-          updatedRow.push('');
-        }
-        updatedRow[isReadIdx] = 'true';
-
-        // 該当行の範囲（A列からデータが存在する最後の列まで）を指定して丸ごと更新
-        const lastColIdx = Math.max(updatedRow.length - 1, isReadIdx);
-        const lastColChar = String.fromCharCode(65 + lastColIdx);
-        const range = `Messages!A${rowIndex}:${lastColChar}${rowIndex}`;
-
-        updatePromises.push(
-          sheets.spreadsheets.values.update({
-            spreadsheetId,
-            range,
-            valueInputOption: 'RAW',
-            requestBody: {
-              values: [updatedRow],
-            },
-          })
-        );
+    const updateData: any[] = [];
+    rows.forEach((row, index) => {
+      if (index === 0) return;
+      const mId = row[idIdx]?.toString().trim();
+      if (targetIds.has(mId)) {
+        const rowIndex = index + 1;
+        const colLetter = String.fromCharCode(65 + isReadIdx); // F列
+        // F列（is_read）を小文字 'true' に更新
+        updateData.push({
+          range: `Messages!${colLetter}${rowIndex}`,
+          values: [['true']],
+        });
       }
     });
 
-    await Promise.all(updatePromises);
+    if (updateData.length > 0) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          valueInputOption: 'RAW',
+          data: updateData,
+        },
+      });
+    }
 
-    return NextResponse.json({ success: true, updatedCount: updatePromises.length });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('既読処理エラー:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || '更新エラー' },
-      { status: 500 }
-    );
+    console.error('既読更新エラー:', error);
+    return NextResponse.json({ success: false, error: error.message || '既読更新エラー' }, { status: 500 });
   }
 }

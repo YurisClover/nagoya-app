@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import { auth } from '@/auth';
 import dns from 'node:dns';
 import { nowJST } from '@/lib/datetime';
+import crypto from 'crypto';
 
 // ローカル開発環境（npm run dev）の時だけ IPv4 を優先にし、デプロイ環境（IPv6-Only等）では設定しない
 if (process.env.NODE_ENV === 'development') {
@@ -134,14 +135,14 @@ export async function POST(request: Request) {
           isGroupMatch = true;
           const rawMemberIdsStr = matchedGroup[gMemberIdsIdx].toString();
 
-          // カンマ分割・整形し、送信者自身を除外 ＋ ★ Usersのstatusがactiveのユーザーのみ抽出
+          // カンマ分割・整形し、送信者自身を除外 ＋ Usersのstatusがactiveのユーザーのみ抽出
           targetMemberIds = rawMemberIdsStr
             .split(/[,，、]/)
             .map((id: string) => id.trim())
             .filter((id: string) => {
               if (!id || id === targetSenderId) return false;
               const user = userMapByMemberId.get(id);
-              return user ? user.isActive : false; // statusがactiveのみ
+              return user ? user.isActive : false;
             });
         }
       }
@@ -152,13 +153,11 @@ export async function POST(request: Request) {
     // 5. グループ指定でなかった場合 (全体指定 'all' / 管理者指定 'admin' / 個別指定)
     if (!isGroupMatch) {
       if (rawRecipient === 'all') {
-        // ★ 全体配信：送信者自身を除外 ＆ statusがactiveの全ユーザー
         targetMemberIds = Array.from(userMapByMemberId.values())
           .filter((user) => user.memberId !== targetSenderId && user.isActive)
           .map((user) => user.memberId);
 
       } else if (rawRecipient === 'admin') {
-        // ★ 管理者宛て：roleがadmin かつ statusがactiveのユーザー
         targetMemberIds = Array.from(userMapByMemberId.values())
           .filter((user) => user.memberId !== targetSenderId && user.role === 'admin' && user.isActive)
           .map((user) => user.memberId);
@@ -171,7 +170,6 @@ export async function POST(request: Request) {
         }
 
       } else {
-        // ★ 個別配信：member_id または user_name から指定されたユーザーを特定
         const targetUser = userMapByMemberId.get(rawRecipient) || userMapByName.get(rawRecipient);
 
         if (!targetUser) {
@@ -184,7 +182,6 @@ export async function POST(request: Request) {
           );
         }
 
-        // 個別指定されたユーザーが非アクティブ（inactive）の場合
         if (!targetUser.isActive) {
           return NextResponse.json(
             {
@@ -204,28 +201,29 @@ export async function POST(request: Request) {
 
     // 保存日時は JST 形式 (+09:00付き) で生成
     const createdAt = nowJST();
+    const parentId = bodyData.parent_id || bodyData.parentId || '';
 
-    // 6. 対象メンバーそれぞれに対して1件ずつメッセージ行を作成
+    // 6. 対象メンバーそれぞれに対して1件ずつメッセージ行を作成（A〜I列の完全対応）
     const rowsToAppend = targetMemberIds.map((recipientMemberId) => {
-      // ★ 送信者と受信者が同じ（自分宛て）の場合は、最初から既読（'true'）にする
       const isRead = String(targetSenderId).trim() === String(recipientMemberId).trim() ? 'true' : 'false';
 
       return [
-        crypto.randomUUID(),   // A: message_id (UUID)
-        targetSenderId,        // B: sender_id (送信者の member_id)
-        recipientMemberId,     // C: recipient_id (受信者の member_id)
-        bodyData.title,        // D: title
-        bodyData.body,         // E: body
-        isRead,                // F: is_read (自分宛てなら 'true', それ以外は 'false')
-        createdAt,             // G: created_at (nowJST())
-        'false',               // H: delete_flag (デフォルトは 'false')
+        crypto.randomUUID(),           // A: message_id (UUID)
+        targetSenderId,                // B: sender_id (送信者の member_id)
+        recipientMemberId,             // C: recipient_id (受信者の member_id)
+        bodyData.title || '',          // D: subject (title)
+        bodyData.body || '',           // E: body
+        isRead,                        // F: is_read
+        createdAt,                     // G: created_at (nowJST())
+        'false',                       // H: delete_flag
+        parentId,                      // I: parent_id （※ここを追加してI列と一致させました）
       ];
     });
 
-    // 7. Messagesシートに一括保存
+    // 7. Messagesシートに一括保存（A:I列に変更）
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Messages!A:H',
+      range: 'Messages!A:I',
       valueInputOption: 'RAW', 
       requestBody: {
         values: rowsToAppend,
@@ -234,8 +232,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      savedCount: rowsToAppend.length,       // 実際に送信が成功した件数
-      totalCount: targetMemberIds.length,     // 送信対象の全件数
+      savedCount: rowsToAppend.length,
+      totalCount: targetMemberIds.length,
       sender_id: targetSenderId,
       target_members: targetMemberIds,
     });
