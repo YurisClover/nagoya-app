@@ -1,9 +1,8 @@
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import { listNewsletterPdfs } from "@/lib/drive";
 import AppShell from "@/components/AppShell";
 import Pagination from "./pagination";
 import { Building2, ExternalLink } from "lucide-react";
+import { requireUser } from "@/lib/guards";
 
 function OfficialSiteCard() {
   return (
@@ -22,8 +21,7 @@ function OfficialSiteCard() {
 }
 
 export default async function PdfListPage() {
-  const session = await auth();
-  if (!session) redirect("/login");
+  await requireUser();
 
   let pdfList;
   try {

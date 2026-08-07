@@ -50,7 +50,7 @@ export default function Sidebar({ unreadCount = 0, user }: SidebarProps) {
                 href={item.href}
                 className={`flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-brand text-white font-semibold"
+                    ? "bg-chrome text-white font-semibold"
                     : "text-white/70 hover:bg-chrome hover:text-white"
                 }`}
               >

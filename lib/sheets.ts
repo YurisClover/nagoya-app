@@ -353,9 +353,9 @@ export async function getPaginatedMembers(params: {
   status: string;
   page: number;
   limit: number;
+  sort?: "asc" | "desc";
 }) {
   const allMembers = await getCachedMembers();
-
   // 物理削除 (deleted_at に値が入っているもの) を自動除外
   const activeMembers = allMembers.filter((m) => !m.deleted_at);
 
@@ -374,6 +374,14 @@ export async function getPaginatedMembers(params: {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+  // sort
+  const dir = params.sort === "asc" ? 1 : -1;
+  const idNum = (m: { member_id: string }) => {
+    const n = Number(String(m.member_id).trim());
+    return Number.isFinite(n) ? n : -Infinity;
+  };
+  filtered.sort((a, b) => (idNum(a) - idNum(b)) * dir);
+  
   // 10件分切り出しとページネーション計算
   const totalItems = filtered.length;
   const totalPages = Math.ceil(totalItems / params.limit) || 1;
@@ -461,7 +469,7 @@ export async function updateMemberInSheet(
         if(fields.password_hash) row.set("password_hash", fields.password_hash);
         await row.save({ raw: true }); //raw
 
-        updateTag("member");
+        updateTag("members");
         return { success: true };
     } catch (error) {
         console.error("Failed to update member in sheet:", error);
