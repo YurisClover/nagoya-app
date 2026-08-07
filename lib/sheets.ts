@@ -4,7 +4,7 @@ import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST, parseSheetDate, jstYearMonth } from "./datetime";
 import { unstable_cache } from "next/cache";
-import { revalidateTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { field } from "firebase/firestore/pipelines";
 
 export type SheetUser = {
@@ -421,7 +421,7 @@ export async function addMemberToSheet(newMember: {
     }, { raw: true }); // id must be raw (string)
 
     // キャッシュを破棄して即時反映
-    revalidateTag("members", "default");
+    updateTag("members");
 
     return { success: true };
   } catch (error) {
@@ -461,7 +461,7 @@ export async function updateMemberInSheet(
         if(fields.password_hash) row.set("password_hash", fields.password_hash);
         await row.save({ raw: true }); //raw
 
-        revalidateTag("member", "default");
+        updateTag("member");
         return { success: true };
     } catch (error) {
         console.error("Failed to update member in sheet:", error);
@@ -573,32 +573,53 @@ export async function addGroupToSheet(data: {
     const groupsSheet = doc.sheetsByTitle["Groups"];
     const groupMembersSheet = doc.sheetsByTitle["GroupMembers"];
 
+    // group_id = most value + 1
     const rows = await groupsSheet.getRows();
-    const nextId = `G${String(rows.length + 1).padStart(4, "0")}`;
+    const maxId = rows.reduce((max, r) => {
+      const n = Number(String(r.get("group_id") ?? "").trim());
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    const nextId = String(maxId + 1);
 
-    await groupsSheet.addRow({
-      group_id: nextId,
-      group_name: data.group_name,
-      created_by: data.created_by,
-      created_at: data.created_at,
-    });
+    await groupsSheet.addRow(
+      {
+        group_id: nextId,
+        group_name: data.group_name,
+        created_by: data.created_by,
+        created_at: data.created_at,
+      },
+      { raw: true }
+    );
 
-    // ★ addRows で一括追加（爆速化）
     if (data.member_ids.length > 0) {
       const newMemberRows = data.member_ids.map((member_id) => ({
         group_id: nextId,
         member_id,
         created_at: data.created_at,
       }));
-      await groupMembersSheet.addRows(newMemberRows);
+      await groupMembersSheet.addRows(newMemberRows, { raw: true });
     }
 
-    revalidateTag("groups", "default");
-    return { success: true, group_id: nextId };
+    updateTag("groups");
+    return { success: true };
   } catch (error) {
     console.error("Failed to add group:", error);
-    return { success: false, error: "グループの追加に失敗しました。" };
+    return { success: false, error: "グループの作成に失敗しました。" };
   }
+}
+
+// normalize check id
+function sameId(cell: unknown, id: string): boolean {
+    return String(cell ?? "").trim().replace(/\.0$/,"") === id.trim();
+}
+
+// delete row bottom up ↑
+async function deleteRowsBottomUp(rows:
+  { rowNumber: number; delete: () => Promise<void> }[]) {
+    const sorted = [...rows].sort((a, b) => b.rowNumber - a.rowNumber);
+    for (const row of sorted){
+        await row.delete();
+    }
 }
 
 // 4. グループ更新（一括削除＆一括追加で高速化）
@@ -612,18 +633,17 @@ export async function updateGroupInSheet(
     const groupMembersSheet = doc.sheetsByTitle["GroupMembers"];
 
     const groupRows = await groupsSheet.getRows();
-    const targetGroup = groupRows.find((r) => String(r.get("group_id")) === group_id);
-    if (targetGroup) {
-      targetGroup.set("group_name", data.group_name);
-      await targetGroup.save();
+    const targetGroup = groupRows.find((r) => sameId(r.get("group_id"), group_id));
+    if (!targetGroup) {
+      return { success: false, error: "対象のグループが見つかりませんでした。" };
     }
+    targetGroup.set("group_name", data.group_name);
+    await targetGroup.save({ raw: true });
 
-    // 旧メンバーの削除
+    // 旧メンバーの削除 bottom up ↑
     const memberRows = await groupMembersSheet.getRows();
-    const oldRows = memberRows.filter((r) => String(r.get("group_id")) === group_id);
-    for (const row of oldRows) {
-      await row.delete();
-    }
+    const oldRows = memberRows.filter((r) => sameId(r.get("group_id"), group_id));
+    await deleteRowsBottomUp(oldRows);
 
     // ★ addRows で新メンバーを一括追加
     if (data.member_ids.length > 0) {
@@ -632,10 +652,10 @@ export async function updateGroupInSheet(
         member_id,
         created_at: data.updated_at,
       }));
-      await groupMembersSheet.addRows(newMemberRows);
+      await groupMembersSheet.addRows(newMemberRows, { raw: true });
     }
 
-    revalidateTag("groups", "default");
+    updateTag("groups");
     return { success: true };
   } catch (error) {
     console.error("Failed to update group:", error);
@@ -651,20 +671,17 @@ export async function deleteGroupFromSheet(group_id: string) {
     const groupMembersSheet = doc.sheetsByTitle["GroupMembers"];
 
     const groupRows = await groupsSheet.getRows();
-    const targetGroup = groupRows.find((r) => String(r.get("group_id")) === group_id);
+    const targetGroup = groupRows.find((r) => sameId(r.get("group_id"), group_id));
     if (targetGroup) await targetGroup.delete();
 
     const memberRows = await groupMembersSheet.getRows();
-    const targetMembers = memberRows.filter((r) => String(r.get("group_id")) === group_id);
-    for (const row of targetMembers) {
-      await row.delete();
-    }
+    const targetMembers = memberRows.filter((r) => sameId(r.get("group_id"), group_id));
+    await deleteRowsBottomUp(targetMembers);
 
-    revalidateTag("groups", "default");
+    updateTag("groups");
     return { success: true };
   } catch (error) {
     console.error("Failed to delete group:", error);
     return { success: false, error: "グループの削除に失敗しました。" };
   }
 }
-
