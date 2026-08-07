@@ -1,17 +1,15 @@
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ExternalLink } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import PdfViewerLoader from "@/components/PdfViewerLoader";
+import { requireUser } from "@/lib/guards";
 
 export default async function PdfViewPage({
   params,
 }: {
   params: Promise<{ fileId: string }>; 
 }) {
-  const session = await auth();
-  if (!session) redirect("/login");
+  await requireUser();
 
   const { fileId } = await params;
 

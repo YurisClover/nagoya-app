@@ -4,6 +4,7 @@ import { getPaginatedMembers } from "@/lib/sheets";
 import { ROLE_LABELS, STATUS_LABELS, type UserRole, type UserStatus } from "@/types/user";
 import { formatDateJP } from "@/lib/datetime";
 import { requireAdmin } from "@/lib/guards";
+import { resolve } from "path";
 
 export default async function UsersPage({
   searchParams,
@@ -13,6 +14,7 @@ export default async function UsersPage({
     role?: string;
     status?: string;
     page?: string;
+    sort?: string;
   }>;
 }) {
   await requireAdmin();
@@ -22,11 +24,12 @@ export default async function UsersPage({
   const role = resolvedParams.role || "all";
   const status = resolvedParams.status || "all";
   const page = Number(resolvedParams.page) || 1;
+  const sort = resolvedParams.sort === "asc" ? "asc" : "desc";
   const limit = 10;
 
   // 実データ取得関数を呼び出し
   const { items, totalItems, totalPages, startIndex, endIndex } =
-    await getPaginatedMembers({ query, role, status, page, limit });
+    await getPaginatedMembers({ query, role, status, page, limit, sort });
 
   return (
     <div className="space-y-6">
@@ -53,13 +56,24 @@ export default async function UsersPage({
         <table className="w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b bg-gray-50">
-              <th className="p-3 font-semibold">会員番号</th>
+              <th className="p-3 font-semibold whitespace-nowrap">
+                <Link
+                    href={{
+                    pathname: "/admin/users",
+                    query: { ...resolvedParams, sort: sort === "desc" ? "asc" : "desc", page: 1 },
+                    }}
+                    className="inline-flex items-center gap-1 hover:text-brand"
+                    title="会員番号で並び替え"
+                >
+                    会員番号 {sort === "desc" ? "▼" : "▲"}
+                </Link>
+              </th>
               <th className="p-3 font-semibold">氏名</th>
               <th className="p-3 font-semibold">メールアドレス</th>
-              <th className="p-3 font-semibold">役職</th>
-              <th className="p-3 font-semibold">ステータス</th>
-              <th className="p-3 font-semibold">登録日</th>
-              <th className="p-3 font-semibold">操作</th>
+              <th className="w-24 whitespace-nowrap p-3 text-center font-semibold">役職</th>
+              <th className="w-24 whitespace-nowrap p-3 text-center font-semibold">ステータス</th>
+              <th className="w-28 whitespace-nowrap p-3 text-center font-semibold">登録日</th>
+              <th className="w-16 whitespace-nowrap p-3 text-center font-semibold">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -69,8 +83,8 @@ export default async function UsersPage({
                   <td className="p-3">{user.member_id}</td>
                   <td className="p-3">{user.user_name}</td>
                   <td className="p-3">{user.email}</td>
-                  <td className="p-3">{ROLE_LABELS[user.role as UserRole] ?? user.role}</td>
-                  <td className="p-3">
+                  <td className="p-3 text-center">{ROLE_LABELS[user.role as UserRole] ?? user.role}</td>
+                  <td className="p-3 text-center">
                     <span
                       className={`px-2 py-1 rounded text-xs font-medium ${
                         user.status === "active"
@@ -81,8 +95,8 @@ export default async function UsersPage({
                       {STATUS_LABELS[user.status as UserStatus] ?? user.status}
                     </span>
                   </td>
-                  <td className="p-3">{formatDateJP(user.created_at)}</td>
-                  <td className="p-3">
+                  <td className="p-3 text-center">{formatDateJP(user.created_at)}</td>
+                  <td className="p-3 text-center">
                     <Link
                       href={`/admin/users/${user.member_id}/edit`}
                       className="text-brand hover:underline text-sm font-medium"

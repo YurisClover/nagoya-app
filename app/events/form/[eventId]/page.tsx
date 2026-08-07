@@ -1,9 +1,9 @@
-import { auth } from "@/auth";
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ExternalLink } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { getEventsData } from "@/lib/events";
+import { requireUser } from "@/lib/guards";
 
 // only Google Forms
 function toEmbedUrl(formUrl: string): string | null {
@@ -34,8 +34,7 @@ export default async function EventFormPage({
 }: {
   params: Promise<{ eventId: string }>; // key must be same name as [eventId] folder
 }) {
-  const session = await auth();
-  if (!session) redirect("/login");
+  const session = await requireUser();
   const { eventId } = await params;
 
   // event that user no permission to see (draft/役員向け) → 404
