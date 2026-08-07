@@ -292,7 +292,7 @@ export async function logActivity(type: string, description: string): Promise<vo
       type: type,
       description: description,
       created_at: nowJST(),
-    });
+    }, {raw: true,},);
   } catch (error) {
     console.error("アクティビティログの記録に失敗しました:", error);
   }
@@ -415,7 +415,7 @@ export async function addMemberToSheet(newMember: {
       barcode_data: "",
       created_at: newMember.created_at,
       deleted_at: "",
-    });
+    }, {raw: true,},);
 
     // キャッシュを破棄して即時反映
     revalidateTag("members", "default");
@@ -539,16 +539,16 @@ export async function addGroupToSheet(data: {
       group_name: data.group_name,
       created_by: data.created_by,
       created_at: data.created_at,
-    });
+    }, {raw: true,},);
 
-    // ★ addRows で一括追加（爆速化）
+    // addRows で一括追加
     if (data.member_ids.length > 0) {
       const newMemberRows = data.member_ids.map((member_id) => ({
         group_id: nextId,
         member_id,
         created_at: data.created_at,
       }));
-      await groupMembersSheet.addRows(newMemberRows);
+      await groupMembersSheet.addRows(newMemberRows,{raw: true,},);
     }
 
     revalidateTag("groups", "default");
@@ -590,7 +590,7 @@ export async function updateGroupInSheet(
         member_id,
         created_at: data.updated_at,
       }));
-      await groupMembersSheet.addRows(newMemberRows);
+      await groupMembersSheet.addRows(newMemberRows,{raw: true,},);
     }
 
     revalidateTag("groups", "default");

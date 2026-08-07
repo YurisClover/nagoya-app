@@ -1,60 +1,67 @@
 import "server-only";
 
+
 import {
   GoogleSpreadsheet,
   type GoogleSpreadsheetWorksheet,
 } from "google-spreadsheet";
 
+
 import {
   JWT,
 } from "google-auth-library";
+
 
 import {
   getServiceAccountCredentials,
 } from "@/lib/google-auth";
 
-import {
-  APPLY_TOKEN_HEADER,
-  validateEventResponseToken,
-} from "@/lib/event-response-validation";
 
 const MAIN_SPREADSHEET_ID =
   process.env.GOOGLE_SHEET_ID
     ?.trim() ?? "";
+
 
 const RESPONSE_SPREADSHEET_ID =
   process.env
     .GOOGLE_FORM_RESPONSE_SPREADSHEET_ID
     ?.trim() ?? "";
 
+
 const SHEETS_SCOPE = [
   "https://www.googleapis.com/auth/spreadsheets",
 ];
 
+
 const ANSWER_SHEET_NAME =
   "answer";
+
 
 const RESULT_HEADER =
   "判定結果";
 
+
+const MEMBER_ID_HEADER =
+  "会員ID";
+
+
 const MEMBER_ID_RESULT_HEADER =
-  "復号会員ID";
+  "判定会員ID";
+
 
 const ERROR_HEADER =
   "判定エラー";
 
+
 const VALIDATED_AT_HEADER =
   "判定日時";
 
-const APPLY_TOKEN_HEADERS = [
-  APPLY_TOKEN_HEADER,
-  "申込確認コード",
-] as const;
 
 const TIMESTAMP_HEADERS = [
   "タイムスタンプ",
   "Timestamp",
 ] as const;
+
 
 const REQUIRED_RESULT_HEADERS = [
   RESULT_HEADER,
@@ -62,6 +69,7 @@ const REQUIRED_RESULT_HEADERS = [
   ERROR_HEADER,
   VALIDATED_AT_HEADER,
 ];
+
 
 const ANSWER_HEADERS = [
   "answer_id",
@@ -73,6 +81,7 @@ const ANSWER_HEADERS = [
   "synced_at",
 ] as const;
 
+
 type ValidAnswer = {
   eventId: string;
   memberId: string;
@@ -80,6 +89,7 @@ type ValidAnswer = {
   answersJson: string;
   validatedAt: string;
 };
+
 
 export type EventResponseSyncResult = {
   processed: number;
@@ -99,6 +109,7 @@ export type EventResponseSyncResult = {
   }>;
 };
 
+
 function normalizeMemberId(
   value: unknown,
 ): string {
@@ -106,6 +117,7 @@ function normalizeMemberId(
     .trim()
     .replace(/\.0+$/, "");
 }
+
 
 function parseBoolean(
   value: unknown,
@@ -115,6 +127,7 @@ function parseBoolean(
   ) {
     return value;
   }
+
 
   return [
     "true",
@@ -126,6 +139,7 @@ function parseBoolean(
       .toLowerCase(),
   );
 }
+
 
 function getEventIdFromSheetName(
   sheetName: string,
@@ -140,11 +154,13 @@ function getEventIdFromSheetName(
       /^回答_([^_]+)(?:_|$)/,
     );
 
+
   return (
     match?.[1]?.trim() ||
     null
   );
 }
+
 
 function formatDateTime(
   date: Date,
@@ -165,6 +181,7 @@ function formatDateTime(
       },
     ).formatToParts(date);
 
+
   const values =
     Object.fromEntries(
       parts.map(
@@ -175,11 +192,13 @@ function formatDateTime(
       ),
     );
 
+
   return [
     `${values.year}-${values.month}-${values.day}`,
     `${values.hour}:${values.minute}:${values.second}`,
   ].join(" ");
 }
+
 
 async function createSpreadsheetDoc(
   spreadsheetId: string,
@@ -191,11 +210,13 @@ async function createSpreadsheetDoc(
     );
   }
 
+
   const {
     client_email,
     private_key,
   } =
     getServiceAccountCredentials();
+
 
   const auth =
     new JWT({
@@ -204,16 +225,20 @@ async function createSpreadsheetDoc(
       scopes: SHEETS_SCOPE,
     });
 
+
   const doc =
     new GoogleSpreadsheet(
       spreadsheetId,
       auth,
     );
 
+
   await doc.loadInfo();
+
 
   return doc;
 }
+
 
 async function loadActiveMemberIds(
   mainDoc: GoogleSpreadsheet,
@@ -223,14 +248,17 @@ async function loadActiveMemberIds(
       "Users"
     ];
 
+
   if (!usersSheet) {
     throw new Error(
       "Usersシートが見つかりません。",
     );
   }
 
+
   const rows =
     await usersSheet.getRows();
+
 
   const memberIds =
     rows
@@ -252,6 +280,7 @@ async function loadActiveMemberIds(
       )
       .filter(Boolean);
 
+
   if (
     memberIds.length === 0
   ) {
@@ -260,10 +289,12 @@ async function loadActiveMemberIds(
     );
   }
 
+
   return new Set(
     memberIds,
   );
 }
+
 
 async function getAnswerSheet(
   mainDoc: GoogleSpreadsheet,
@@ -273,16 +304,20 @@ async function getAnswerSheet(
       ANSWER_SHEET_NAME
     ];
 
+
   if (!answerSheet) {
     throw new Error(
       "answerシートが見つかりません。",
     );
   }
 
+
   await answerSheet.loadHeaderRow();
+
 
   const headers =
     answerSheet.headerValues ?? [];
+
 
   const missingHeaders =
     ANSWER_HEADERS.filter(
@@ -291,6 +326,7 @@ async function getAnswerSheet(
           header,
         ),
     );
+
 
   if (
     missingHeaders.length > 0
@@ -302,32 +338,32 @@ async function getAnswerSheet(
     );
   }
 
+
   return answerSheet;
 }
+
 
 function assertRequiredHeaders(
   sheet:
     GoogleSpreadsheetWorksheet,
 ): {
-  applyTokenHeader: string;
+  memberIdHeader: string;
   timestampHeader: string;
 } {
   const headers =
     sheet.headerValues ?? [];
 
-  const applyTokenHeader =
-    APPLY_TOKEN_HEADERS.find(
-      (header) =>
-        headers.includes(
-          header,
-        ),
-    );
 
-  if (!applyTokenHeader) {
+  if (
+    !headers.includes(
+      MEMBER_ID_HEADER,
+    )
+  ) {
     throw new Error(
-      `${sheet.title}に申込確認コード列がありません。`,
+      `${sheet.title}に会員ID列がありません。`,
     );
   }
+
 
   const timestampHeader =
     TIMESTAMP_HEADERS.find(
@@ -337,11 +373,13 @@ function assertRequiredHeaders(
         ),
     );
 
+
   if (!timestampHeader) {
     throw new Error(
       `${sheet.title}にタイムスタンプ列がありません。`,
     );
   }
+
 
   const missingHeaders =
     REQUIRED_RESULT_HEADERS.filter(
@@ -350,6 +388,7 @@ function assertRequiredHeaders(
           header,
         ),
     );
+
 
   if (
     missingHeaders.length > 0
@@ -361,16 +400,19 @@ function assertRequiredHeaders(
     );
   }
 
+
   return {
-    applyTokenHeader,
+    memberIdHeader:
+      MEMBER_ID_HEADER,
     timestampHeader,
   };
 }
 
+
 function createAnswersJson({
   sheet,
   row,
-  applyTokenHeader,
+  memberIdHeader,
   timestampHeader,
 }: {
   sheet:
@@ -380,13 +422,12 @@ function createAnswersJson({
       (header: string) =>
         unknown;
   };
-  applyTokenHeader: string;
+  memberIdHeader: string;
   timestampHeader: string;
 }): string {
   const excludedHeaders =
     new Set([
-      applyTokenHeader,
-      ...APPLY_TOKEN_HEADERS,
+      memberIdHeader,
       timestampHeader,
       ...TIMESTAMP_HEADERS,
       RESULT_HEADER,
@@ -395,8 +436,10 @@ function createAnswersJson({
       VALIDATED_AT_HEADER,
     ]);
 
+
   const answers:
     Record<string, string> = {};
+
 
   for (
     const header of
@@ -410,16 +453,19 @@ function createAnswersJson({
       continue;
     }
 
+
     answers[header] =
       String(
         row.get(header) ?? "",
       ).trim();
   }
 
+
   return JSON.stringify(
     answers,
   );
 }
+
 
 async function syncResponseSheet({
   sheet,
@@ -435,70 +481,61 @@ async function syncResponseSheet({
   const rows =
     await sheet.getRows();
 
+
   const {
-    applyTokenHeader,
+    memberIdHeader,
     timestampHeader,
   } =
     assertRequiredHeaders(
       sheet,
     );
 
+
   let processed = 0;
   let valid = 0;
   let invalid = 0;
   let skipped = 0;
 
+
   const validAnswers:
     ValidAnswer[] = [];
 
+
   for (const row of rows) {
-    const validation =
-      validateEventResponseToken({
-        token:
-          row.get(
-            applyTokenHeader,
-          ),
-
-        expectedEventId:
-          eventId,
-      });
-
     let result:
       "有効" | "無効";
 
-    let memberId = "";
+
+    const memberId =
+      normalizeMemberId(
+        row.get(
+          memberIdHeader,
+        ),
+      );
+
+
     let error = "";
 
-    if (!validation.valid) {
+
+    if (!memberId) {
       result = "無効";
       error =
-        validation.error;
+        "会員IDが入力されていません";
+      invalid += 1;
+    } else if (
+      !activeMemberIds.has(
+        memberId,
+      )
+    ) {
+      result = "無効";
+      error =
+        "Usersシートに会員が存在しません";
       invalid += 1;
     } else {
-      memberId =
-        normalizeMemberId(
-          validation.memberId,
-        );
-
-      if (!memberId) {
-        result = "無効";
-        error =
-          "会員IDを取得できません";
-        invalid += 1;
-      } else if (
-        !activeMemberIds.has(
-          memberId,
-        )
-      ) {
-        result = "無効";
-        error =
-          "Usersシートに会員が存在しません";
-        invalid += 1;
-      } else {
-        result = "有効";
-        valid += 1;
-      }
+      result = "有効";
+      valid += 1;
     }
+
 
     const currentResult =
       String(
@@ -507,12 +544,14 @@ async function syncResponseSheet({
         ) ?? "",
       ).trim();
 
+
     const currentMemberId =
       normalizeMemberId(
         row.get(
           MEMBER_ID_RESULT_HEADER,
         ),
       );
+
 
     const currentError =
       String(
@@ -521,12 +560,14 @@ async function syncResponseSheet({
         ) ?? "",
       ).trim();
 
+
     const currentValidatedAt =
       String(
         row.get(
           VALIDATED_AT_HEADER,
         ) ?? "",
       ).trim();
+
 
     const hasChanged =
       currentResult !== result ||
@@ -535,8 +576,10 @@ async function syncResponseSheet({
       currentError !== error ||
       !currentValidatedAt;
 
+
     let validatedAt =
       currentValidatedAt;
+
 
     if (hasChanged) {
       validatedAt =
@@ -544,32 +587,39 @@ async function syncResponseSheet({
           new Date(),
         );
 
+
       row.set(
         RESULT_HEADER,
         result,
       );
+
 
       row.set(
         MEMBER_ID_RESULT_HEADER,
         memberId,
       );
 
+
       row.set(
         ERROR_HEADER,
         error,
       );
+
 
       row.set(
         VALIDATED_AT_HEADER,
         validatedAt,
       );
 
+
       await row.save();
+
 
       processed += 1;
     } else {
       skipped += 1;
     }
+
 
     if (
       result === "有効"
@@ -584,18 +634,21 @@ async function syncResponseSheet({
             ) ?? "",
           ).trim(),
 
+
         answersJson:
           createAnswersJson({
             sheet,
             row,
-            applyTokenHeader,
+            memberIdHeader,
             timestampHeader,
           }),
+
 
         validatedAt,
       });
     }
   }
+
 
   return {
     processed,
@@ -605,6 +658,7 @@ async function syncResponseSheet({
     validAnswers,
   };
 }
+
 
 async function upsertValidAnswers({
   answerSheet,
@@ -621,38 +675,45 @@ async function upsertValidAnswers({
   const rows =
     await answerSheet.getRows();
 
+
   const rowByKey =
-  new Map<
-    string,
-    (typeof rows)[number]
-  >();
+    new Map<
+      string,
+      (typeof rows)[number]
+    >();
 
-for (const row of rows) {
-  const eventId =
-    String(
-      row.get(
-        "event_id",
-      ) ?? "",
-    ).trim();
 
-  const memberId =
-    normalizeMemberId(
-      row.get(
-        "member_id",
-      ),
+  for (const row of rows) {
+    const eventId =
+      String(
+        row.get(
+          "event_id",
+        ) ?? "",
+      ).trim();
+
+
+    const memberId =
+      normalizeMemberId(
+        row.get(
+          "member_id",
+        ),
+      );
+
+
+    const rowKey =
+      `${eventId}::${memberId}`;
+
+
+    rowByKey.set(
+      rowKey,
+      row,
     );
+  }
 
-  const rowKey =
-    `${eventId}::${memberId}`;
-
-  rowByKey.set(
-    rowKey,
-    row,
-  );
-}
 
   let inserted = 0;
   let updated = 0;
+
 
   for (
     const answer of
@@ -661,8 +722,10 @@ for (const row of rows) {
     const key =
       `${answer.eventId}::${answer.memberId}`;
 
+
     const existingRow =
       rowByKey.get(key);
+
 
     const answerId =
       existingRow
@@ -673,6 +736,7 @@ for (const row of rows) {
           ).trim() ||
           `ans_${answer.eventId}_${answer.memberId}`
         : `ans_${answer.eventId}_${answer.memberId}`;
+
 
     const sourceValues = {
       answer_id:
@@ -689,24 +753,33 @@ for (const row of rows) {
         answer.validatedAt,
     };
 
+
     if (!existingRow) {
       const newRow =
-        await answerSheet.addRow({
-          ...sourceValues,
-          synced_at:
-            formatDateTime(
-              new Date(),
-            ),
-        });
+        await answerSheet.addRow(
+          {
+            ...sourceValues,
+            synced_at:
+              formatDateTime(
+                new Date(),
+              ),
+          },
+          {
+            raw: true,
+          },
+        );
+
 
       rowByKey.set(
         key,
         newRow,
       );
 
+
       inserted += 1;
       continue;
     }
+
 
     const hasChanged =
       Object.entries(
@@ -721,9 +794,11 @@ for (const row of rows) {
           String(value).trim(),
       );
 
+
     if (!hasChanged) {
       continue;
     }
+
 
     for (
       const [
@@ -739,6 +814,7 @@ for (const row of rows) {
       );
     }
 
+
     existingRow.set(
       "synced_at",
       formatDateTime(
@@ -746,16 +822,20 @@ for (const row of rows) {
       ),
     );
 
+
     await existingRow.save();
+
 
     updated += 1;
   }
+
 
   return {
     inserted,
     updated,
   };
 }
+
 
 async function updateEventRegistrationCounts({
   mainDoc,
@@ -770,21 +850,26 @@ async function updateEventRegistrationCounts({
       "Events"
     ];
 
+
   if (!eventsSheet) {
     throw new Error(
       "Eventsシートが見つかりません。",
     );
   }
 
+
   await eventsSheet.loadHeaderRow();
+
 
   const headers =
     eventsSheet.headerValues ?? [];
+
 
   const requiredHeaders = [
     "event_id",
     "registration_count",
   ];
+
 
   const missingHeaders =
     requiredHeaders.filter(
@@ -793,6 +878,7 @@ async function updateEventRegistrationCounts({
           header,
         ),
     );
+
 
   if (
     missingHeaders.length > 0
@@ -804,6 +890,7 @@ async function updateEventRegistrationCounts({
     );
   }
 
+
   const [
     answerRows,
     eventRows,
@@ -813,8 +900,10 @@ async function updateEventRegistrationCounts({
       eventsSheet.getRows(),
     ]);
 
+
   const countByEventId =
     new Map<string, number>();
+
 
   for (
     const row of answerRows
@@ -826,6 +915,7 @@ async function updateEventRegistrationCounts({
         ) ?? "",
       ).trim();
 
+
     const memberId =
       normalizeMemberId(
         row.get(
@@ -833,12 +923,14 @@ async function updateEventRegistrationCounts({
         ),
       );
 
+
     if (
       !eventId ||
       !memberId
     ) {
       continue;
     }
+
 
     countByEventId.set(
       eventId,
@@ -850,7 +942,9 @@ async function updateEventRegistrationCounts({
     );
   }
 
+
   let updated = 0;
+
 
   for (
     const row of eventRows
@@ -862,14 +956,17 @@ async function updateEventRegistrationCounts({
         ) ?? "",
       ).trim();
 
+
     if (!eventId) {
       continue;
     }
+
 
     const nextCount =
       countByEventId.get(
         eventId,
       ) ?? 0;
+
 
     const currentRaw =
       String(
@@ -878,8 +975,10 @@ async function updateEventRegistrationCounts({
         ) ?? "",
       ).trim();
 
+
     const currentCount =
       Number(currentRaw);
+
 
     if (
       currentRaw !== "" &&
@@ -892,18 +991,23 @@ async function updateEventRegistrationCounts({
       continue;
     }
 
+
     row.set(
       "registration_count",
       nextCount,
     );
 
+
     await row.save();
+
 
     updated += 1;
   }
 
+
   return updated;
 }
+
 
 /**
  * 回答一覧を検証し、
@@ -921,11 +1025,13 @@ Promise<EventResponseSyncResult> {
         "GOOGLE_FORM_RESPONSE_SPREADSHEET_ID",
       ),
 
+
       createSpreadsheetDoc(
         MAIN_SPREADSHEET_ID,
         "GOOGLE_SHEET_ID",
       ),
     ]);
+
 
   const [
     activeMemberIds,
@@ -936,10 +1042,12 @@ Promise<EventResponseSyncResult> {
         mainDoc,
       ),
 
+
       getAnswerSheet(
         mainDoc,
       ),
     ]);
+
 
   const result:
     EventResponseSyncResult = {
@@ -953,8 +1061,10 @@ Promise<EventResponseSyncResult> {
       sheets: [],
     };
 
+
   const allValidAnswers:
     ValidAnswer[] = [];
+
 
   for (
     const sheet of
@@ -965,9 +1075,11 @@ Promise<EventResponseSyncResult> {
         sheet.title,
       );
 
+
     if (!eventId) {
       continue;
     }
+
 
     const sheetResult =
       await syncResponseSheet({
@@ -976,21 +1088,27 @@ Promise<EventResponseSyncResult> {
         activeMemberIds,
       });
 
+
     result.processed +=
       sheetResult.processed;
+
 
     result.valid +=
       sheetResult.valid;
 
+
     result.invalid +=
       sheetResult.invalid;
+
 
     result.skipped +=
       sheetResult.skipped;
 
+
     allValidAnswers.push(
       ...sheetResult.validAnswers,
     );
+
 
     result.sheets.push({
       sheetName:
@@ -1007,6 +1125,7 @@ Promise<EventResponseSyncResult> {
     });
   }
 
+
   const answerResult =
     await upsertValidAnswers({
       answerSheet,
@@ -1014,20 +1133,23 @@ Promise<EventResponseSyncResult> {
         allValidAnswers,
     });
 
-    result.answerInserted =
-      answerResult.inserted;
 
-    result.answerUpdated =
-      answerResult.updated;
+  result.answerInserted =
+    answerResult.inserted;
 
-    result.registrationCountsUpdated =
-      await updateEventRegistrationCounts({
+
+  result.answerUpdated =
+    answerResult.updated;
+
+
+  result.registrationCountsUpdated =
+    await updateEventRegistrationCounts({
       mainDoc,
       answerSheet,
-  });
+    });
+
 
   return result;
 }
-
 
 

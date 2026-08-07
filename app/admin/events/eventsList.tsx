@@ -1,25 +1,9 @@
 "use client";
+import {useEffect,useRef,useState,} from "react";
+import {formatEventPeriod, }from "@/lib/datetime";
+import type {EventPosition,EventStatus,SheetEvent,} from "@/lib/sheets/events";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
-import {
-  formatEventPeriod, 
-}from "@/lib/datetime";
-
-import type {
-  EventPosition,
-  EventStatus,
-  SheetEvent,
-} from "@/lib/sheets/events";
-
-type EventListProps = {
-  events: SheetEvent[];
-};
-
+type EventListProps = {events: SheetEvent[];};
 type UpdateStatusResult = {
   success: boolean;
   error?: string;
@@ -56,17 +40,10 @@ Record<EventPosition, string> = {
 
 type EventDeleteControlProps = {
   event: SheetEvent;
-  updatingEventId:
-    string | null;
-
-  tryStartUpdate:
-    (eventId: string) => boolean;
-
-  finishUpdate:
-    () => void;
-
-  onDeleted:
-    (eventId: string) => void;
+  updatingEventId:string | null;
+  tryStartUpdate:(eventId: string) => boolean;
+  finishUpdate:() => void;
+  onDeleted:(eventId: string) => void;
 };
 
 function EventDeleteControl({
@@ -75,103 +52,42 @@ function EventDeleteControl({
   tryStartUpdate,
   finishUpdate,
   onDeleted,
-}: EventDeleteControlProps) {
-  const [
-    isDeleting,
-    setIsDeleting,
-  ] = useState(false);
-
-  const [
-    errorMessage,
-    setErrorMessage,
-  ] = useState("");
-
-  const isAnyUpdating =
-    updatingEventId !== null;
+ }: EventDeleteControlProps) {
+  const [isDeleting,setIsDeleting,] = useState(false);
+  const [errorMessage,setErrorMessage,] = useState("");
+  const isAnyUpdating =updatingEventId !== null;
 
   async function handleDelete() {
-    const confirmed =
-      window.confirm(
-        `「${event.title}」を削除しますか？\nGoogleフォームも非公開・受付停止になります。`,
-      );
-
+    const confirmed =window.confirm(`「${event.title}」を削除しますか？\nGoogleフォームも非公開・受付停止になります。`, );
     if (!confirmed) {
       return;
-    }
-
-    const started =
-      tryStartUpdate(
-        event.event_id,
-      );
-
-    if (!started) {
+     }
+     const started =tryStartUpdate(event.event_id,);
+     if (!started) {
       return;
-    }
-
-    setIsDeleting(true);
-    setErrorMessage("");
-
-    try {
-      const response =
-        await fetch(
-          "/api/events/delete",
-          {
+     }
+     setIsDeleting(true);
+     setErrorMessage("");
+     try {
+      const response = await fetch("/api/events/delete",{
             method: "PATCH",
-
-            headers: {
-              "Content-Type":
-                "application/json",
+            headers: {"Content-Type": "application/json",},
+            body: JSON.stringify({eventId:event.event_id,}),
             },
-
-            body: JSON.stringify({
-              eventId:
-                event.event_id,
-            }),
-          },
-        );
-
-      const result =
-        (await response.json()) as
-          DeleteEventResult;
-
-      if (
-        !response.ok ||
-        !result.success
-      ) {
-        const errorText = [
-          result.error ??
-            "イベントの削除に失敗しました。",
-
-          result.detail
-            ? `詳細: ${result.detail}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join("\n");
-
-        setErrorMessage(
-          errorText,
-        );
-
-        return;
-      }
-
-      /*
-       * 削除成功時だけ、
-       * 一覧stateから対象イベントを除外する。
-       */
-      onDeleted(
-        event.event_id,
-      );
+           );
+         const result = (await response.json()) as DeleteEventResult;
+          if (!response.ok || !result.success) {
+           const errorText = [result.error ??"イベントの削除に失敗しました。", result.detail ? `詳細: ${result.detail}` : "",]
+            .filter(Boolean)
+            .join("\n");
+            setErrorMessage( errorText, );
+           return;
+           }
+       //削除成功時だけ一覧stateから対象イベントを除外する
+       onDeleted(event.event_id,);
     } catch (error) {
-      const detail =
-        error instanceof Error
-          ? error.message
-          : "不明な通信エラー";
-
-      setErrorMessage(
-        `イベント削除中に通信エラーが発生しました。\n詳細: ${detail}`,
-      );
+      const detail = error instanceof Error ? error.message : "不明な通信エラー";
+          setErrorMessage(`イベント削除中に通信エラーが発生しました。\n詳細: ${detail}`,);
     } finally {
       setIsDeleting(false);
       finishUpdate();
@@ -182,9 +98,7 @@ function EventDeleteControl({
     <div>
       <button
         type="button"
-        disabled={
-          isAnyUpdating
-        }
+        disabled={isAnyUpdating}
         onClick={
           handleDelete
         }
@@ -765,216 +679,201 @@ export function EventList({
 
   return (
     <section>
-      <h2>
-        作成済みイベント
-      </h2>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+  {displayedEvents.map(
+    (event) => {
+      const formEditUrl =
+        `https://docs.google.com/forms/d/${event.form_id}/edit`;
 
-      <p>
-        公開状態を変更すると、GoogleフォームとEventsシートの両方に反映されます。
-      </p>
+      const responseSpreadsheetId =
+        process.env
+          .NEXT_PUBLIC_EVENT_RESPONSE_SPREADSHEET_ID ??
+        "";
 
-      <p role="note">公開状態はGoogleフォーム側で直接変更せず、この管理画面から変更してください</p>
+      const responseSheetUrl =
+        responseSpreadsheetId &&
+        event.response_sheet_id
+          ? `https://docs.google.com/spreadsheets/d/${responseSpreadsheetId}/edit#gid=${event.response_sheet_id}`
+          : "";
 
-      <div
-        style={{
-          overflowX: "auto",
-        }}
-      >
-        <table>
-          <thead>
-            <tr>
-              <th>
-                イベント名
-              </th>
+      return (
+        <article
+          key={event.event_id}
+          className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+        >
+          {/* イベント名・状態 */}
+          <div className="border-b border-slate-100 pb-4">
+            <div className="flex items-start justify-between gap-4">
+              <h2 className="text-lg font-bold text-slate-900">
+                {event.title}
+              </h2>
 
-              <th>
-                開催日時
-              </th>
+              <span
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                  event.status ===
+                  "published"
+                    ? "bg-blue-100 text-blue-800"
+                    : event.status ===
+                        "closed"
+                      ? "bg-slate-200 text-slate-700"
+                      : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                {
+                  STATUS_LABELS[
+                    event.status
+                  ]
+                }
+              </span>
+            </div>
 
-              <th>
-                開催場所
-              </th>
+            <p className="mt-2 text-sm text-slate-600">
+              {formatEventPeriod(
+                event.event_date,
+                event.event_end_date,
+              )}
+            </p>
 
-              <th>
+            <p className="mt-1 text-sm text-slate-600">
+              開催場所：
+              <span className="font-medium text-slate-800">
+                {event.location ||
+                  "未設定"}
+              </span>
+            </p>
+          </div>
+
+          {/* 対象者・申込数 */}
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-slate-50 p-3">
+              <p className="mb-2 text-xs font-medium text-slate-500">
                 対象者
-              </th>
+              </p>
 
-              <th>
-                現在の状態
-              </th>
+              <EventPositionControl
+                event={event}
+                updatingEventId={
+                  updatingEventId
+                }
+                tryStartUpdate={
+                  tryStartUpdate
+                }
+                finishUpdate={
+                  finishUpdate
+                }
+                onUpdated={
+                  handleEventUpdated
+                }
+              />
+            </div>
 
-              <th>
+            <div className="rounded-lg bg-slate-50 p-3">
+              <p className="text-xs font-medium text-slate-500">
                 申込数
-              </th>
+              </p>
 
-              <th>
-                Googleフォーム
-              </th>
+              <p className="mt-1 text-xl font-bold text-slate-900">
+                {
+                  event.registration_count
+                }
+                <span className="ml-1 text-sm font-normal text-slate-500">
+                  名
+                </span>
+              </p>
+            </div>
+          </div>
 
-              <th>
-                状態変更
-              </th>
+          {/* Googleフォーム・回答一覧 */}
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <p className="mb-2 text-xs font-medium text-slate-500">
+              フォーム・回答
+            </p>
 
-              <th>削除</th>
-            </tr>
-          </thead>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+              <a
+                href={formEditUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-blue-700 hover:underline"
+              >
+                フォーム編集
+              </a>
 
-          <tbody>
-            {displayedEvents.map(
-              (event) => {
-                const formEditUrl =
-                  `https://docs.google.com/forms/d/${event.form_id}/edit`;
-                  const responseSpreadsheetId =
-                 process.env
-                  .NEXT_PUBLIC_EVENT_RESPONSE_SPREADSHEET_ID ??
-                       "";
+              <a
+                href={
+                  event.form_url
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-blue-700 hover:underline"
+              >
+                回答画面
+              </a>
 
-const responseSheetUrl =
-  responseSpreadsheetId &&
-  event.response_sheet_id
-    ? `https://docs.google.com/spreadsheets/d/${responseSpreadsheetId}/edit#gid=${event.response_sheet_id}`
-    : "";
+              {responseSheetUrl ? (
+                <a
+                  href={
+                    responseSheetUrl
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-blue-700 hover:underline"
+                >
+                  回答一覧を開く
+                </a>
+              ) : (
+                <span className="text-slate-400">
+                  回答一覧なし
+                </span>
+              )}
+            </div>
+          </div>
 
-                return (
-                  <tr
-                    key={
-                      event.event_id
-                    }
-                  >
+          {/* 状態変更・削除 */}
+          <div className="mt-4 flex flex-wrap items-end justify-between gap-4 border-t border-slate-100 pt-4">
+            <div>
+              <p className="mb-2 text-xs font-medium text-slate-500">
+                公開状態
+              </p>
 
-                    <td>
-                      {event.title}
-                    </td>
+              <EventStatusControl
+                event={event}
+                updatingEventId={
+                  updatingEventId
+                }
+                tryStartUpdate={
+                  tryStartUpdate
+                }
+                finishUpdate={
+                  finishUpdate
+                }
+                onUpdated={
+                  handleEventUpdated
+                }
+              />
+            </div>
 
-                    <td>
-                      {formatEventPeriod(
-                        event.event_date,
-                        event.event_end_date,
-                      )}
-                    </td>
-
-                    <td>
-                      {event.location ||
-                        "未設定"}
-                    </td>
-
-                    
-
-                    <td>
-                      <EventPositionControl
-                          event={event}
-                          updatingEventId={
-                          updatingEventId
-                          }
-                          tryStartUpdate={
-                          tryStartUpdate
-                          }
-                          finishUpdate={
-                          finishUpdate
-                          }
-                          onUpdated={
-                          handleEventUpdated
-                          }
-                          />
-                          </td>
-
-                    <td>
-                      {
-                        STATUS_LABELS[
-                          event.status
-                        ]
-                      }
-                    </td>
-
-                    <td>
-                      {
-                        event.registration_count
-                      }
-                    </td>
-
-                    <td>
-  <a
-    href={
-      formEditUrl
-    }
-    target="_blank"
-    rel="noopener noreferrer"
-  >
-    編集
-  </a>
-
-  {" / "}
-
-  <a
-    href={
-      event.form_url
-    }
-    target="_blank"
-    rel="noopener noreferrer"
-  >
-    回答画面
-  </a>
-
-  {" / "}
-
-  {responseSheetUrl ? (
-    <a
-      href={
-        responseSheetUrl
-      }
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      回答一覧を開く
-    </a>
-  ) : (
-    <span>
-      回答一覧なし
-    </span>
+            <EventDeleteControl
+              event={event}
+              updatingEventId={
+                updatingEventId
+              }
+              tryStartUpdate={
+                tryStartUpdate
+              }
+              finishUpdate={
+                finishUpdate
+              }
+              onDeleted={
+                handleEventDeleted
+              }
+            />
+          </div>
+        </article>
+      );
+    },
   )}
-</td>
-
-                    <td>
-                      <EventStatusControl
-                        event={event}
-                        updatingEventId={
-                          updatingEventId
-                        }
-                        tryStartUpdate={
-                          tryStartUpdate
-                        }
-                        finishUpdate={
-                          finishUpdate
-                        }
-                        onUpdated={
-                          handleEventUpdated
-                        }
-                      />
-                    </td>
-                    <td>
-  <EventDeleteControl
-    event={event}
-    updatingEventId={
-      updatingEventId
-    }
-    tryStartUpdate={
-      tryStartUpdate
-    }
-    finishUpdate={
-      finishUpdate
-    }
-    onDeleted={
-      handleEventDeleted
-    }
-  />
-</td>
-                  </tr>
-                );
-              },
-            )}
-          </tbody>
-        </table>
-      </div>
+</div>
     </section>
   );
 }

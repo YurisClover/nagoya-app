@@ -1,7 +1,7 @@
 import "server-only";
 
-export const APPLY_TOKEN_PLACEHOLDER =
-  "__APPLY_TOKEN__";
+export const MEMBER_ID_PLACEHOLDER =
+  "__MEMBER_ID__";
 
 type PrefillScriptResponse = {
   success?: boolean;
@@ -105,11 +105,11 @@ export async function createGoogleFormPrefillTemplate(
 
   if (
     !result.templateUrl.includes(
-      APPLY_TOKEN_PLACEHOLDER,
+      MEMBER_ID_PLACEHOLDER,
     )
   ) {
     throw new Error(
-      "事前入力URLに申込確認コード置換用の値が含まれていません。",
+      "事前入力URLに会員ID置換用の値が含まれていません。",
     );
   }
 

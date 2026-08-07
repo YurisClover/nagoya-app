@@ -302,7 +302,7 @@ export async function addEventToSheet(
   await sheet.addRow(
     {
       event_id:
-        createdEvent.event_id,
+        String(createdEvent.event_id),
 
       title:
         createdEvent.title,

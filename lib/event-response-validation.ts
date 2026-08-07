@@ -1,12 +1,11 @@
 import "server-only";
-import { verifyEventApplyToken,} from "@/lib/event-apply-token";
 
 /**
  * Googleフォーム上の質問名。
  * 実際の質問名と完全に一致させる。
  */
 export const APPLY_TOKEN_HEADER =
-  "会員ID申込確認コード";
+  "会員ID";
 
 export type EventResponseValidationResult =
   | {
@@ -23,16 +22,12 @@ export type EventResponseValidationResult =
     };
 
 /**
- * フォーム回答に含まれる申込確認コードを検証する。
+ * フォーム回答に含まれる会員IDを確認する。
  *
- * この段階では、
- * ・コードが存在するか
- * ・改ざんされていないか
- * ・回答対象のイベントと一致するか
+ * 暗号化・復号は行わず、
+ * 回答された値をそのまま会員IDとして扱う。
  *
- * を確認する。
- *
- * 会員がUsersシートに存在するかは、
+ * Usersシートに会員が存在するかは、
  * 次の同期処理で確認する。
  */
 export function validateEventResponseToken({
@@ -42,16 +37,23 @@ export function validateEventResponseToken({
   token: unknown;
   expectedEventId: string;
 }): EventResponseValidationResult {
-  const normalizedToken = String(token ?? "").trim();
-  const normalizedEventId = expectedEventId.trim();
+  const memberId =
+    String(
+      token ?? "",
+    ).trim();
 
-  if (!normalizedToken) {
+  const normalizedEventId =
+    expectedEventId.trim();
+
+  if (!memberId) {
     return {
       valid: false,
-      eventId: null,
+      eventId:
+        normalizedEventId ||
+        null,
       memberId: null,
       error:
-        "申込確認コードがありません",
+        "会員IDがありません",
     };
   }
 
@@ -65,33 +67,11 @@ export function validateEventResponseToken({
     };
   }
 
-  const payload = verifyEventApplyToken( normalizedToken, );
-
-  if (!payload) {
-    return {
-      valid: false,
-      eventId: null,
-      memberId: null,
-      error:
-        "申込確認コードが不正です",
-    };
-  }
-
-  if (payload.eventId !== normalizedEventId ) {
-    return {
-      valid: false,
-      eventId:
-        payload.eventId,
-      memberId: null,
-      error:
-        "イベントが一致しません",
-    };
-  }
-
   return {
     valid: true,
-    eventId:payload.eventId,
-    memberId:payload.memberId,
+    eventId:
+      normalizedEventId,
+    memberId,
     error: "",
   };
 }

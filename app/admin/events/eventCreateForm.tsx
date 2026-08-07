@@ -9,9 +9,6 @@ import {
   useRouter,
 } from "next/navigation";
 
-import SyncEventResponsesButton
-  from "@/components/SyncEventResponsesButton";
-
 type EventPosition =
   | "general"
   | "executive";
@@ -290,27 +287,40 @@ export function EventCreateForm() {
         return;
       }
 
-      setMessage(
-        "イベントを準備中の状態で作成しました。",
-      );
-
-      setFormEditUrl(
-        editUrl,
-      );
-
       formElement.reset();
 
-      /*
-       * 元のイベント管理画面へ
-       * 新しいイベント一覧を反映する。
-       */
-      router.refresh();
+if (googleFormWindow) {
+  /*
+   * Googleフォームの編集画面を
+   * 別タブで開く。
+   */
+  googleFormWindow.location.href =
+    editUrl;
 
-      if (googleFormWindow) {
-        googleFormWindow
-          .location.href =
-          editUrl;
-      }
+  /*
+   * 元のタブはイベント一覧へ戻す。
+   */
+  router.push(
+    "/admin/events",
+  );
+
+  router.refresh();
+
+  return;
+}
+
+/*
+ * ポップアップがブロックされた場合は
+ * 作成画面にリンクを表示する。
+ */
+setMessage(
+  "イベントを準備中の状態で作成しました。",
+);
+
+setFormEditUrl(
+  editUrl,
+);
+
     } catch (error) {
       googleFormWindow?.close();
 
@@ -334,10 +344,6 @@ export function EventCreateForm() {
 
   return (
     <section>
-      <h2>
-        イベントを作成
-      </h2>
-
       <p>
         イベント作成後、Googleフォームの編集画面が開きます。
         作成時点ではイベントは準備中で、Googleフォームは非公開・受付停止です。
@@ -444,9 +450,7 @@ export function EventCreateForm() {
         </button>
       </form>
 
-      <div className="mt-4">
-        <SyncEventResponsesButton />
-      </div>
+      
 
       {message && (
         <p role="status">
