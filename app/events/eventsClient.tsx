@@ -9,11 +9,21 @@ type EventsClientProps = {
   role?: string;
 };
 
+// const fetcher = async (
+//   url: string,
+// ): Promise<EventWithStatus[]> => {
+//   const response =
+//     await fetch(url);
 const fetcher = async (
   url: string,
 ): Promise<EventWithStatus[]> => {
   const response =
-    await fetch(url);
+    await fetch(
+      url,
+      {
+        cache: "no-store",
+      },
+    );
 
   if (!response.ok) {
     throw new Error(
@@ -54,13 +64,34 @@ export default function EventsClient({
   } = useSWR<EventWithStatus[]>(
     `/api/events?position=${position}`,
     fetcher,
-    {
-      revalidateOnFocus: true,
-      refreshInterval: 60_000,
-      dedupingInterval: 30_000,
-      focusThrottleInterval:
-        30_000,
-    },
+    
+      // revalidateOnFocus: true,
+      // refreshInterval: 60_000,
+      // dedupingInterval: 30_000,
+      // focusThrottleInterval: 30_000,
+    
+      {
+          /*
+           * イベント一覧へ戻った時は
+           * 最新状態を取得する。
+          */
+              revalidateOnMount: true,
+              revalidateOnFocus: true,
+
+           /*
+            * 開きっぱなしの場合の
+            * 定期更新は今まで通り1分。
+            */
+               refreshInterval: 60_000,
+
+            /*
+             * 回答直後に一覧へ戻った場合でも
+             * 再取得を抑制しすぎない。
+             */
+               dedupingInterval: 1_000,
+               focusThrottleInterval: 1_000,
+      },
+
   );
 
   return (

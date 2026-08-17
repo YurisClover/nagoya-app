@@ -4,6 +4,10 @@ import {
   useState,
 } from "react";
 
+import {
+  useRouter,
+} from "next/navigation";
+
 type SyncResult = {
   processed: number;
   valid: number;
@@ -14,7 +18,9 @@ type SyncResult = {
   registrationCountsUpdated: number;
 };
 
+
 export default function SyncEventResponsesButton() {
+  const router = useRouter();
   const [
     isSyncing,
     setIsSyncing,
@@ -77,6 +83,8 @@ export default function SyncEventResponsesButton() {
              `無効：${result.invalid}件`,
            ].join(" "),
           );
+
+          router.refresh();
 
 
     } catch (error) {

@@ -2,6 +2,7 @@ import {auth,} from "@/auth";
 import {getEventsData,} from "@/lib/events";
 import type {EventPosition,} from "@/types/event";
 import {type NextRequest,NextResponse,} from "next/server";
+import {getEventResponseStatusMap,} from "@/lib/event-response-status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,11 +54,32 @@ export async function GET(
           : "general";
     }
 
-    const data =
+  //   const data =
+  // await getEventsData(
+  //   {
+  //     memberId:
+  //       session.user.id ||
+  //       undefined,
+
+  //     role:
+  //       session.user.role ||
+  //       undefined,
+  //   },
+  //   position,
+  // );
+
+  //   return NextResponse.json(
+  //     data,
+  //   );
+  const memberId =
+  session.user.id?.trim();
+
+
+const data =
   await getEventsData(
     {
       memberId:
-        session.user.id ||
+        memberId ||
         undefined,
 
       role:
@@ -67,9 +89,43 @@ export async function GET(
     position,
   );
 
-    return NextResponse.json(
-      data,
-    );
+
+if (!memberId) {
+  return NextResponse.json(
+    data,
+  );
+}
+
+
+const responseStatusMap =
+  await getEventResponseStatusMap({
+    eventIds:
+      data.map(
+        (event) =>
+          event.event_id,
+      ),
+
+    memberId,
+  });
+
+
+const dataWithResponseStatus =
+  data.map(
+    (event) => ({
+      ...event,
+
+      is_answered:
+        responseStatusMap.get(
+          event.event_id,
+        ) ?? false,
+    }),
+  );
+
+
+return NextResponse.json(
+  dataWithResponseStatus,
+);
+
   } catch (error) {
     console.error(
       "User events API error:",

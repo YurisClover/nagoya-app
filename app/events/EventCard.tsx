@@ -84,6 +84,7 @@
 "use client";
 
 import Link from "next/link";
+
 import {
   CalendarDays,
   CheckCircle2,
@@ -99,27 +100,40 @@ import type {
   EventWithStatus,
 } from "@/types/event";
 
+
 interface EventCardProps {
   event: EventWithStatus;
 }
 
+
 export default function EventCard({
   event,
 }: EventCardProps) {
-  const hasLink = Boolean(
-    event.form_url &&
-      event.form_url !== "#",
-  );
-
+  /*
+   * /api/events側で
+   * 回答タブを一括確認済みなので、
+   * カード自身では通信しない。
+   */
   const answered =
     event.is_answered === true;
+
+
+  const hasLink =
+    Boolean(
+      event.form_url &&
+        event.form_url !== "#",
+    );
+
 
   const isClosed =
     event.status === "closed";
 
-  const inAppHref = event.event_id
-    ? `/events/form/${event.event_id}`
-    : null;
+
+  const inAppHref =
+    event.event_id
+      ? `/events/form/${event.event_id}`
+      : null;
+
 
   return (
     <div className="card flex flex-col gap-4">
@@ -153,6 +167,7 @@ export default function EventCard({
           </div>
         </div>
 
+
         <p className="text-meta mt-2 flex items-center gap-1.5">
           <CalendarDays
             size={14}
@@ -165,6 +180,7 @@ export default function EventCard({
           )}
         </p>
 
+
         {event.location && (
           <p className="text-meta mt-1 flex items-center gap-1.5">
             <MapPin
@@ -176,12 +192,15 @@ export default function EventCard({
           </p>
         )}
 
-        {event.is_answered === null && (
+
+        {event.is_answered ===
+          null && (
           <p className="text-meta mt-2">
             回答状況を確認できません
           </p>
         )}
       </div>
+
 
       {answered ? (
         <div className="mt-auto text-center">
@@ -194,18 +213,23 @@ export default function EventCard({
             出席登録済み
           </p>
 
+
           {!isClosed &&
             hasLink &&
             (inAppHref ? (
               <Link
-                href={inAppHref}
+                href={
+                  inAppHref
+                }
                 className="text-meta underline"
               >
                 回答を変更する
               </Link>
             ) : (
               <a
-                href={event.form_url}
+                href={
+                  event.form_url
+                }
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-meta underline"
@@ -226,14 +250,18 @@ export default function EventCard({
       ) : hasLink ? (
         inAppHref ? (
           <Link
-            href={inAppHref}
+            href={
+              inAppHref
+            }
             className="btn btn-primary mt-auto w-full"
           >
             出席登録フォームへ
           </Link>
         ) : (
           <a
-            href={event.form_url}
+            href={
+              event.form_url
+            }
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-primary mt-auto w-full"

@@ -77,41 +77,152 @@ async function createSpreadsheetDoc(
   return doc;
 }
 
+type BatchGetValuesResponse = {
+  valueRanges?: Array<{
+    range?: string;
+    values?: unknown[][];
+  }>;
+};
+
+
+function quoteSheetName(
+  sheetName: string,
+): string {
+  return `'${sheetName.replace(
+    /'/g,
+    "''",
+  )}'`;
+}
+
+
+function columnNumberToLetter(
+  columnNumber: number,
+): string {
+  let result = "";
+  let current =
+    columnNumber;
+
+
+  while (current > 0) {
+    current -= 1;
+
+    result =
+      String.fromCharCode(
+        65 +
+          (current % 26),
+      ) + result;
+
+    current =
+      Math.floor(
+        current / 26,
+      );
+  }
+
+
+  return result;
+}
+
+
+async function batchGetValues(
+  spreadsheetId: string,
+  ranges: string[],
+): Promise<BatchGetValuesResponse> {
+  if (ranges.length === 0) {
+    return {
+      valueRanges: [],
+    };
+  }
+
+
+  const {
+    client_email,
+    private_key,
+  } =
+    getServiceAccountCredentials();
+
+
+  const auth =
+    new JWT({
+      email: client_email,
+      key: private_key,
+      scopes: SHEETS_SCOPE,
+    });
+
+
+  const params =
+    new URLSearchParams();
+
+
+  for (const range of ranges) {
+    params.append(
+      "ranges",
+      range,
+    );
+  }
+
+
+  params.set(
+    "majorDimension",
+    "ROWS",
+  );
+
+
+  const response =
+    await auth.request<BatchGetValuesResponse>({
+      url:
+        `https://sheets.googleapis.com/v4/spreadsheets/` +
+        `${encodeURIComponent(
+          spreadsheetId,
+        )}/values:batchGet?` +
+        params.toString(),
+      method: "GET",
+    });
+
+
+  return response.data;
+}
+
 
 /**
- * Googleフォームの回答タブを直接確認し、
- * 指定会員が回答済みか判定する。
+ * 複数イベントのGoogleフォーム回答タブを
+ * まとめて確認する。
  *
- * answerシートへの同期は待たない。
+ * key   = event_id
+ * value = 回答済みか
  */
-export async function hasSubmittedEventResponse({
-  eventId,
+export async function getEventResponseStatusMap({
+  eventIds,
   memberId,
 }: {
-  eventId: string;
+  eventIds: string[];
   memberId: string;
-}): Promise<boolean> {
-  const normalizedEventId =
-    eventId.trim();
-
-
-  const normalizedMemberId =
+}): Promise<Map<string, boolean>> {
+  const targetMemberId =
     normalizeMemberId(
       memberId,
     );
 
 
-  if (!normalizedEventId) {
-    throw new Error(
-      "イベントIDが指定されていません。",
+  const result =
+    new Map<
+      string,
+      boolean
+    >();
+
+
+  for (const eventId of eventIds) {
+    result.set(
+      eventId,
+      false,
     );
   }
 
 
-  if (!normalizedMemberId) {
-    throw new Error(
-      "会員IDが指定されていません。",
-    );
+  if (
+    !targetMemberId ||
+    eventIds.length === 0
+  ) {
+    return result;
   }
 
 
@@ -145,104 +256,232 @@ export async function hasSubmittedEventResponse({
   }
 
 
+  const eventIdSet =
+    new Set(
+      eventIds,
+    );
+
+
   const eventRows =
     await eventsSheet.getRows();
 
 
-  const eventRow =
-    eventRows.find(
-      (row) =>
+  const sheetNameByEventId =
+    new Map<
+      string,
+      string
+    >();
+
+
+  for (const row of eventRows) {
+    const eventId =
+      String(
+        row.get(
+          "event_id",
+        ) ?? "",
+      ).trim();
+
+
+    if (
+      !eventIdSet.has(
+        eventId,
+      )
+    ) {
+      continue;
+    }
+
+
+    let sheetName =
+      String(
+        row.get(
+          "response_sheet_name",
+        ) ?? "",
+      ).trim();
+
+
+    /*
+     * 名前が取れない場合だけ
+     * response_sheet_idから探す。
+     */
+    if (!sheetName) {
+      const sheetIdRaw =
         String(
           row.get(
-            "event_id",
+            "response_sheet_id",
           ) ?? "",
-        ).trim() ===
-        normalizedEventId,
-    );
+        ).trim();
 
 
-  if (!eventRow) {
-    throw new Error(
-      "イベントが見つかりません。",
-    );
-  }
+      const sheetId =
+        Number(
+          sheetIdRaw,
+        );
 
 
-  const responseSheetName =
-    String(
-      eventRow.get(
-        "response_sheet_name",
-      ) ?? "",
-    ).trim();
-
-
-  const responseSheetIdRaw =
-    String(
-      eventRow.get(
-        "response_sheet_id",
-      ) ?? "",
-    ).trim();
-
-
-  const responseSheetId =
-    Number(
-      responseSheetIdRaw,
-    );
-
-
-  const responseSheet =
-    Number.isFinite(
-      responseSheetId,
-    ) &&
-    responseSheetIdRaw
-      ? responseDoc.sheetsByIndex.find(
-          (sheet) =>
-            sheet.sheetId ===
-            responseSheetId,
+      if (
+        sheetIdRaw &&
+        Number.isFinite(
+          sheetId,
         )
-      : responseSheetName
-        ? responseDoc.sheetsByTitle[
-            responseSheetName
-          ]
-        : undefined;
+      ) {
+        sheetName =
+          responseDoc.sheetsByIndex.find(
+            (sheet) =>
+              sheet.sheetId ===
+              sheetId,
+          )?.title ?? "";
+      }
+    }
 
 
-  if (!responseSheet) {
-    throw new Error(
-      "イベントの回答タブが見つかりません。",
-    );
+    if (sheetName) {
+      sheetNameByEventId.set(
+        eventId,
+        sheetName,
+      );
+    }
   }
 
 
-  await responseSheet.loadHeaderRow();
-
-
-  const headers =
-    responseSheet.headerValues ?? [];
-
-
-  if (
-    !headers.includes(
-      "会員ID",
-    )
-  ) {
-    throw new Error(
-      `${responseSheet.title}に会員ID列がありません。`,
+  /*
+   * まず1行目だけまとめて取得し、
+   * 各回答タブの「会員ID」が何列目か確認。
+   */
+  const headerEntries =
+    Array.from(
+      sheetNameByEventId.entries(),
     );
-  }
 
 
-  const rows =
-    await responseSheet.getRows();
+  const headerRanges =
+    headerEntries.map(
+      ([, sheetName]) =>
+        `${quoteSheetName(
+          sheetName,
+        )}!1:1`,
+    );
 
 
-  return rows.some(
-    (row) =>
-      normalizeMemberId(
-        row.get(
+  const headerResponse =
+    await batchGetValues(
+      RESPONSE_SPREADSHEET_ID,
+      headerRanges,
+    );
+
+
+  const memberColumnByEventId =
+    new Map<
+      string,
+      number
+    >();
+
+
+  headerEntries.forEach(
+    ([eventId], index) => {
+      const headers =
+        (
+          headerResponse
+            .valueRanges?.[
+              index
+            ]?.values?.[0] ??
+          []
+        ).map(
+          (value) =>
+            String(
+              value ?? "",
+            ).trim(),
+        );
+
+
+      const memberIdIndex =
+        headers.indexOf(
           "会員ID",
-        ),
-      ) ===
-      normalizedMemberId,
+        );
+
+
+      if (
+        memberIdIndex >= 0
+      ) {
+        /*
+         * A列 = 1
+         */
+        memberColumnByEventId.set(
+          eventId,
+          memberIdIndex + 1,
+        );
+      }
+    },
   );
+
+
+  /*
+   * 会員ID列だけをまとめて取得。
+   */
+  const responseEntries =
+    Array.from(
+      memberColumnByEventId.entries(),
+    );
+
+
+  const memberRanges =
+    responseEntries.map(
+      ([eventId, column]) => {
+        const sheetName =
+          sheetNameByEventId.get(
+            eventId,
+          )!;
+
+
+        const columnLetter =
+          columnNumberToLetter(
+            column,
+          );
+
+
+        return (
+          `${quoteSheetName(
+            sheetName,
+          )}!` +
+          `${columnLetter}2:${columnLetter}`
+        );
+      },
+    );
+
+
+  const memberResponse =
+    await batchGetValues(
+      RESPONSE_SPREADSHEET_ID,
+      memberRanges,
+    );
+
+
+  responseEntries.forEach(
+    ([eventId], index) => {
+      const values =
+        memberResponse
+          .valueRanges?.[
+            index
+          ]?.values ??
+        [];
+
+
+      const answered =
+        values.some(
+          (row) =>
+            normalizeMemberId(
+              row[0],
+            ) ===
+            targetMemberId,
+        );
+
+
+      result.set(
+        eventId,
+        answered,
+      );
+    },
+  );
+
+
+  return result;
 }

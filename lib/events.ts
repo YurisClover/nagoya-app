@@ -2,30 +2,32 @@ import "server-only";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
-import type { EventPosition, EventSheetHealth, EventWithStatus } from "@/types/event";
+import type { EventPosition, 
+  // EventSheetHealth, 
+  EventWithStatus } from "@/types/event";
 import { parseSheetDate } from "./datetime";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
 const TTL_MS = 60_000;
-const MEMBER_ID_HEADERS = [
-  "会員IDをご記入ください。",
-  "会員番号をご記入ください。",
-  "会員番号を記入してください。",
-  "会員ID",
-  "会員番号",
-];
+// const MEMBER_ID_HEADERS = [
+//   "会員IDをご記入ください。",
+//   "会員番号をご記入ください。",
+//   "会員番号を記入してください。",
+//   "会員ID",
+//   "会員番号",
+// ];
 
-/** find 会員ID first then pattern */
-function resolveMemberIdHeader(headers: string[]): string | null {
-  for (const c of MEMBER_ID_HEADERS) if (headers.includes(c)) return c;
-  return headers.find((h) => h.includes("会員") && (/ID/i.test(h) || h.includes("番号"))) ?? null;
-}
+// /** find 会員ID first then pattern */
+// function resolveMemberIdHeader(headers: string[]): string | null {
+//   for (const c of MEMBER_ID_HEADERS) if (headers.includes(c)) return c;
+//   return headers.find((h) => h.includes("会員") && (/ID/i.test(h) || h.includes("番号"))) ?? null;
+// }
 
-/** normalize member_id: if that column is number instead of plaintext */
-function normalizeMemberId(v: unknown): string {
-  return String(v ?? "").trim().replace(/\.0+$/, "");
-}
+// /** normalize member_id: if that column is number instead of plaintext */
+// function normalizeMemberId(v: unknown): string {
+//   return String(v ?? "").trim().replace(/\.0+$/, "");
+// }
 
 function isVisibleEventStatus(value: unknown,): value is EventWithStatus["status"] {
   return ( value === "published" || value === "closed" );
@@ -44,17 +46,18 @@ function parseBoolean(value: unknown,): boolean {if (typeof value === "boolean")
   );
 }
 
-/** event sheet name: response_sheet first, if no fallback to title */
-function resolveSheetName(row: { get: (k: string) => unknown }): string {
-  const explicit = String(row.get("response_sheet") ?? "").trim();
-  return explicit || String(row.get("title") ?? "").trim();
-}
+// /** event sheet name: response_sheet first, if no fallback to title */
+// function resolveSheetName(row: { get: (k: string) => unknown }): string {
+//   const explicit = String(row.get("response_sheet_name") ?? "").trim();
+//   return explicit || String(row.get("title") ?? "").trim();
+// }
+
 
 type EventItem = Omit<EventWithStatus, "is_answered">;
 type Snapshot = {
   events: EventItem[];
   // key = event_id | Set = OK | null = can't find column or can't read | no key = no sheet
-  answers: Map<string, Set<string> | null>;
+  //answers: Map<string, Set<string> | null>;
 };
 
 let cached: { data: Snapshot; expires: number } | null = null;
@@ -71,194 +74,141 @@ async function getDoc() {
 async function loadSnapshot(): Promise<Snapshot> {
   const doc = await getDoc();
   const eventsSheet = doc.sheetsByTitle["Events"];
-
   if (!eventsSheet) {
     throw new Error("Eventsシートが見つかりません。",);
-  }
-  const eventRows =await eventsSheet.getRows();
-  const now = new Date();
-  const upcoming = eventRows.flatMap((row, index) => {
-      const eventId = String(row.get("event_id") ?? "",).trim();
+   }
+   const eventRows =await eventsSheet.getRows();
+   const now = new Date();
 
-      const status = String(row.get("status") ?? "",).trim();
-
-      const position = String(row.get("position") ?? "",).trim();
-
-      const isDeleted = parseBoolean(row.get("is_deleted"),);
-
-      const startDate = parseSheetDate(row.get("event_date") ??"", { yearHint: "future",},);
-
-      const endDate = parseSheetDate(row.get("event_end_date",) ?? "",{ yearHint: "future",},);
-
-      if (!eventId ||!isVisibleEventStatus(status,) ||!isEventPosition(position, ) ||
+   const upcoming = eventRows.flatMap((row, index) => {
+    const eventId = String(row.get("event_id") ?? "",).trim();
+    const status = String(row.get("status") ?? "",).trim();
+    const position = String(row.get("position") ?? "",).trim();
+    const isDeleted = parseBoolean(row.get("is_deleted"),);
+    const startDate = parseSheetDate(row.get("event_date") ??"", { yearHint: "future",},);
+    const endDate = parseSheetDate(row.get("event_end_date",) ?? "",{ yearHint: "future",},);
+    if (!eventId ||!isVisibleEventStatus(status,) ||!isEventPosition(position, ) ||
       isDeleted || !startDate || !endDate || endDate.getTime() <= now.getTime() ) {
         return [];
       }
+      const numericId = Number(eventId);
+       return [
+           {
+           id: Number.isFinite( numericId,) ? numericId : index,
+           event_id: eventId,
+           title: String(row.get("title") ??"タイトル未設定", ),
+           event_date: String(row.get( "event_date", ) ?? "",  ),
+           event_end_date: String( row.get( "event_end_date", ) ?? "", ),
+           form_url: String( row.get("form_url") ?? "#", ),
+           prefill_url_template:String(row.get("prefill_url_template",) ?? "",).trim(),
+           location: String(row.get("location") ?? "", ),
+           position,
+           status,
+          // _sheetName: resolveSheetName(row),
+           _dateObj: startDate,
+             },
+            ];
+           })
+     .sort( (a, b) => a._dateObj.getTime() - b._dateObj.getTime(),);
 
-      const numericId =
-        Number(eventId);
+//   /*
+//  * 検証済みの有効回答だけが入る
+//  * answerシートを基準に、
+//  * イベントごとの回答済み会員IDを作る。
+//  */
+// const answers = new Map<
+//   string,
+//   Set<string> | null
+// >();
 
-      return [
-        {
-          id: Number.isFinite(
-            numericId,
-          )
-            ? numericId
-            : index,
+// /*
+//  * answerシートが正常に読めた場合、
+//  * 回答が0件のイベントは空のSetになる。
+//  */
+// for (const event of upcoming) {
+//   answers.set(
+//     event.event_id,
+//     new Set<string>(),
+//   );
+// }
 
-          event_id: eventId,
+// const answerSheet =
+//   doc.sheetsByTitle[
+//     "answer"
+//   ];
 
-          title: String(
-            row.get("title") ??
-              "タイトル未設定",
-          ),
+// if (!answerSheet) {
+//   /*
+//    * answerシート自体がない場合は、
+//    * 回答状況を確認不能として扱う。
+//    */
+//   for (const event of upcoming) {
+//     answers.set(
+//       event.event_id,
+//       null,
+//     );
+//   }
+// } else {
+//   try {
+//     const answerRows =
+//       await answerSheet.getRows();
 
-          event_date: String(
-            row.get(
-              "event_date",
-            ) ?? "",
-          ),
+//     for (const row of answerRows) {
+//       const eventId =
+//         String(
+//           row.get(
+//             "event_id",
+//           ) ?? "",
+//         ).trim();
 
-          event_end_date: String(
-            row.get(
-              "event_end_date",
-            ) ?? "",
-          ),
+//       const memberId =
+//         normalizeMemberId(
+//           row.get(
+//             "member_id",
+//           ),
+//         );
 
-          form_url: String(
-            row.get("form_url") ??
-              "#",
-          ),
+//       if (
+//         !eventId ||
+//         !memberId
+//       ) {
+//         continue;
+//       }
 
-          prefill_url_template:String(row.get("prefill_url_template",) ?? "",).trim(),
+//       const memberIds =
+//         answers.get(
+//           eventId,
+//         );
 
-          location: String(
-            row.get("location") ??
-              "",
-          ),
+//       /*
+//        * 現在表示対象になっているイベントだけ
+//        * 回答済み情報へ追加する。
+//        */
+//       if (
+//         memberIds instanceof Set
+//       ) {
+//         memberIds.add(
+//           memberId,
+//         );
+//       }
+//     }
+//   } catch (error) {
+//     console.error(
+//       "answerシートの読み込みに失敗しました:",
+//       error,
+//     );
 
-          position,
-          status,
-
-          _sheetName:
-            resolveSheetName(row),
-
-          _dateObj: startDate,
-        },
-      ];
-    })
-    .sort(
-      (a, b) =>
-        a._dateObj.getTime() -
-        b._dateObj.getTime(),
-    );
-
-  /*
- * 検証済みの有効回答だけが入る
- * answerシートを基準に、
- * イベントごとの回答済み会員IDを作る。
- */
-const answers = new Map<
-  string,
-  Set<string> | null
->();
-
-/*
- * answerシートが正常に読めた場合、
- * 回答が0件のイベントは空のSetになる。
- */
-for (const event of upcoming) {
-  answers.set(
-    event.event_id,
-    new Set<string>(),
-  );
-}
-
-const answerSheet =
-  doc.sheetsByTitle[
-    "answer"
-  ];
-
-if (!answerSheet) {
-  /*
-   * answerシート自体がない場合は、
-   * 回答状況を確認不能として扱う。
-   */
-  for (const event of upcoming) {
-    answers.set(
-      event.event_id,
-      null,
-    );
-  }
-} else {
-  try {
-    const answerRows =
-      await answerSheet.getRows();
-
-    for (const row of answerRows) {
-      const eventId =
-        String(
-          row.get(
-            "event_id",
-          ) ?? "",
-        ).trim();
-
-      const memberId =
-        normalizeMemberId(
-          row.get(
-            "member_id",
-          ),
-        );
-
-      if (
-        !eventId ||
-        !memberId
-      ) {
-        continue;
-      }
-
-      const memberIds =
-        answers.get(
-          eventId,
-        );
-
-      /*
-       * 現在表示対象になっているイベントだけ
-       * 回答済み情報へ追加する。
-       */
-      if (
-        memberIds instanceof Set
-      ) {
-        memberIds.add(
-          memberId,
-        );
-      }
-    }
-  } catch (error) {
-    console.error(
-      "answerシートの読み込みに失敗しました:",
-      error,
-    );
-
-    for (const event of upcoming) {
-      answers.set(
-        event.event_id,
-        null,
-      );
-    }
-  }
-}
+//     for (const event of upcoming) {
+//       answers.set(
+//         event.event_id,
+//         null,
+//       );
+//     }
+//   }
+// }
 
   return {
-    events: upcoming.map(
-      ({
-        _dateObj,
-        _sheetName,
-        ...event
-      }) => event,
-    ),
-
-    answers,
+    events: upcoming.map( ({ _dateObj,  ...event }) => event,  ), //answers,
   };
 }
 
@@ -367,10 +317,7 @@ async function getSnapshot(): Promise<Snapshot> {
 /**
  * イベントを見るユーザーの情報。
  */
-export type EventViewer = {
-  memberId?: string;
-  role?: string;
-};
+export type EventViewer = { memberId?: string; role?: string;};
 
 /**
  * roleによる最終的な閲覧権限判定。
@@ -378,44 +325,92 @@ export type EventViewer = {
  * ユーザー向け画面では、
  * draftはroleに関係なく表示しない。
  */
-function canSee(
-  event: EventItem,
-  role?: string,
-): boolean {
-  const normalizedRole =
-    role?.trim().toLowerCase() ||
-    "general";
+function canSee(event: EventItem, role?: string,): boolean {
+  const normalizedRole = role?.trim().toLowerCase() || "general";
 
   if (
-    event.status !== "published" &&
-    event.status !== "closed"
+    event.status !== "published" && event.status !== "closed"
   ) {
     return false;
   }
 
   if (
-    normalizedRole === "admin" ||
-    normalizedRole === "executive"
+    normalizedRole === "admin" || normalizedRole === "executive"
   ) {
     return (
-      event.position === "general" ||
-      event.position === "executive"
+      event.position === "general" || event.position === "executive"
     );
   }
-
   return event.position === "general";
 }
 
-function buildResult(
-  snap: Snapshot,
-  viewer: EventViewer | undefined,
-  position: EventPosition,
-): EventWithStatus[] {
-  const target =
-    normalizeMemberId(
-      viewer?.memberId,
-    );
+// function buildResult(
+//   snap: Snapshot,
+//   viewer: EventViewer | undefined,
+//   position: EventPosition,
+// ): EventWithStatus[] {
+//   const target =
+//     normalizeMemberId(
+//       viewer?.memberId,
+//     );
 
+//   return snap.events
+//     /*
+//      * roleによる最終権限判定。
+//      *
+//      * generalユーザーがAPIのURLを
+//      * executiveに変更しても、
+//      * ここで除外される。
+//      */
+//     .filter((event) =>
+//       canSee(
+//         event,
+//         viewer?.role,
+//       ),
+//     )
+
+//     /*
+//      * 画面で選択されている
+//      * 一般向け／執行部向けで絞る。
+//      */
+//     .filter(
+//       (event) =>
+//         event.position ===
+//         position,
+//     )
+
+//     .map((event) => {
+//       let is_answered:
+//         | boolean
+//         | null = false;
+
+//       if (target) {
+//         /*
+//          * undefined:
+//          * 回答シートが存在しない
+//          *
+//          * null:
+//          * 回答シートを読み込めない
+//          */
+//         const ids =
+//           snap.answers.get(
+//             event.event_id,
+//           );
+
+//         is_answered =
+//           ids == null
+//             ? null
+//             : ids.has( normalizeMemberId(target),);
+//       }
+
+//       return {
+//         ...event,
+//         is_answered,
+//       };
+//     });
+// }
+
+function buildResult( snap: Snapshot, viewer: EventViewer | undefined, position: EventPosition,): EventWithStatus[] {
   return snap.events
     /*
      * roleによる最終権限判定。
@@ -424,62 +419,26 @@ function buildResult(
      * executiveに変更しても、
      * ここで除外される。
      */
-    .filter((event) =>
-      canSee(
-        event,
-        viewer?.role,
-      ),
-    )
+    .filter((event) => canSee( event, viewer?.role, ),)
 
     /*
      * 画面で選択されている
      * 一般向け／執行部向けで絞る。
      */
-    .filter(
-      (event) =>
-        event.position ===
-        position,
-    )
+    .filter( (event) => event.position === position,)
 
-    .map((event) => {
-      let is_answered:
-        | boolean
-        | null = false;
-
-      if (target) {
-        /*
-         * undefined:
-         * 回答シートが存在しない
-         *
-         * null:
-         * 回答シートを読み込めない
-         */
-        const ids =
-          snap.answers.get(
-            event.event_id,
-          );
-
-        is_answered =
-          ids == null
-            ? null
-            : ids.has( normalizeMemberId(target),);
-      }
-
-      return {
-        ...event,
-        is_answered,
-      };
-    });
+    /*
+     * 回答状況はここでは判定しない。
+     * /api/events側で回答タブを
+     * 一括確認して上書きする。
+     */
+    .map((event) => ({ ...event, is_answered: false, }));
 }
 
-export async function getEventsData(
-  viewer?: EventViewer,
-  position: EventPosition =
-    "general",
-): Promise<EventWithStatus[]> {
+export async function getEventsData( viewer?: EventViewer, position: EventPosition = "general",)
+ : Promise<EventWithStatus[]> {
   try {
-    const snapshot =
-      await getSnapshot();
+    const snapshot = await getSnapshot();
 
     return buildResult(
       snapshot,
@@ -500,36 +459,36 @@ export async function getEventsData(
 }
 
 
-/** check every event that bind with answer sheet (admin know first) */
-export async function getEventSheetHealth(): Promise<EventSheetHealth[]> {
-  const doc = await getDoc();
-  const eventRows = await doc.sheetsByTitle["Events"].getRows();
+// /** check every event that bind with answer sheet (admin know first) */
+// export async function getEventSheetHealth(): Promise<EventSheetHealth[]> {
+//   const doc = await getDoc();
+//   const eventRows = await doc.sheetsByTitle["Events"].getRows();
 
-  return Promise.all(
-    eventRows
-      .filter((row) => String(row.get("event_id") ?? "").trim())
-      .map(async (row) => {
-        const sheetName = resolveSheetName(row);
-        const sheet = doc.sheetsByTitle[sheetName];
-        const base = {
-          event_id: String(row.get("event_id") ?? "").trim(),
-          title: String(row.get("title") ?? ""),
-          sheet_name: sheetName,
-        };
-        if (!sheet) {
-          return { ...base, sheet_found: false, member_id_column: null, response_count: null };
-        }
-        try {
-          const rows = await sheet.getRows();
-          return {
-            ...base,
-            sheet_found: true,
-            member_id_column: resolveMemberIdHeader(sheet.headerValues ?? []),
-            response_count: rows.length,
-          };
-        } catch {
-          return { ...base, sheet_found: true, member_id_column: null, response_count: null };
-        }
-      })
-  );
-}
+//   return Promise.all(
+//     eventRows
+//       .filter((row) => String(row.get("event_id") ?? "").trim())
+//       .map(async (row) => {
+//         const sheetName = resolveSheetName(row);
+//         const sheet = doc.sheetsByTitle[sheetName];
+//         const base = {
+//           event_id: String(row.get("event_id") ?? "").trim(),
+//           title: String(row.get("title") ?? ""),
+//           sheet_name: sheetName,
+//         };
+//         if (!sheet) {
+//           return { ...base, sheet_found: false, member_id_column: null, response_count: null };
+//         }
+//         try {
+//           const rows = await sheet.getRows();
+//           return {
+//             ...base,
+//             sheet_found: true,
+//             member_id_column: resolveMemberIdHeader(sheet.headerValues ?? []),
+//             response_count: rows.length,
+//           };
+//         } catch {
+//           return { ...base, sheet_found: true, member_id_column: null, response_count: null };
+//         }
+//       })
+//   );
+// }
