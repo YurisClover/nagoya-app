@@ -1,8 +1,7 @@
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { MENU, type MenuItem } from "@/lib/menu";
+import { requireUser } from "@/lib/guards";
 
 function MenuCard({ item }: { item: MenuItem }) {
   const { Icon } = item;
@@ -31,8 +30,7 @@ function MenuCard({ item }: { item: MenuItem }) {
 }
 
 export default async function HomePage() {
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+  const session = await requireUser();
 
   const isAdmin = session.user.role === "admin";
   const items = MENU.filter((m) => !m.adminOnly || isAdmin);

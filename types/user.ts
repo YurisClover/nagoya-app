@@ -6,7 +6,7 @@ export type UserStatus = (typeof USER_STATUSES)[number];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
     general: "一般会員",
-    executive: "役員",
+    executive: "執行部",
     admin: "管理者"
 }
 

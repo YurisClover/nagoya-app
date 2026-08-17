@@ -16,7 +16,7 @@ export default async function AdminHomePage() {
   ]);
 
   return (
-    <main className="p-6 max-w-7xl mx-auto space-y-6">
+    <main className="space-y-6">
       <div className="text-xl font-bold text-gray-800 mb-4">ダッシュボード</div>
 
       {/* 1. 指標 */}

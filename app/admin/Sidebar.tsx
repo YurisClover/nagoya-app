@@ -67,7 +67,7 @@ export default function Sidebar({ user }: SidebarProps) {
   ];
 
   return (
-    <aside className="w-64 bg-slate-900 text-white min-h-screen flex flex-col justify-between shrink-0 sticky top-0 h-screen">
+    <aside className="w-64 bg-brand text-white min-h-screen flex flex-col justify-between shrink-0 sticky top-0 h-screen">
       <div>
         <div className="p-6 border-b border-slate-800">
           <h1 className="text-lg font-bold tracking-wide">管理システム</h1>
@@ -86,8 +86,8 @@ export default function Sidebar({ user }: SidebarProps) {
                 href={item.href}
                 className={`flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-blue-600 text-white font-semibold"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                    ? "bg-chrome text-white font-semibold"
+                    : "text-white/70 hover:bg-chrome hover:text-white"
                 }`}
               >
                 <span>{item.label}</span>

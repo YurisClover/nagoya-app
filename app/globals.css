@@ -134,6 +134,10 @@ body {
   --color-tone-navy: #d6e8f7;   --color-tone-navy-ink: #1a3a5c;
   --color-tone-gray: #e8e8ea;   --color-tone-gray-ink: #44444a;
 
+  /* admin chrome */
+  --color-chrome: #0f1b2d;
+  --color-chrome-line: #22334a;
+
   /* radius */
   --radius-card: 12px;
   --radius-control: 8px;
@@ -168,6 +172,7 @@ body {
 
   /* page layout */
   .page-container { @apply mx-auto w-full max-w-md p-6; }
+  .page-container-admin { @apply mx-auto w-full max-w-6xl p-4 sm:p-6; }
 
   /* ── menu card square icon ── */
   .icon-tile { @apply mb-2 flex h-9 w-9 items-center justify-center rounded-lg sm:h-11 sm:w-11; }
@@ -186,6 +191,7 @@ body {
   .btn-secondary { @apply border border-line bg-surface-muted text-ink hover:bg-line; }
   .btn-ghost     { @apply text-white/90 hover:bg-white/15; }
   .btn-block     { @apply w-full; }
+  .btn-danger    { @apply border border-danger bg-surface text-danger hover:bg-danger hover:text-white; }
 
   /* ── badge ── */
   .badge       { @apply rounded-full bg-danger px-[6px] py-[1px] text-[9px] font-medium text-white; }

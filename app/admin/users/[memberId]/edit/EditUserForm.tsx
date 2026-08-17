@@ -23,7 +23,7 @@ export default function EditUserForm({
   const [state, formAction, isPending] = useActionState(action, null);
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex justify-between items-center pb-4 border-b">
         <h1 className="text-2xl font-bold">会員情報の編集</h1>
         <Link href="/admin/users" className="px-4 py-2 border rounded text-sm hover:bg-gray-100">
@@ -115,13 +115,13 @@ export default function EditUserForm({
           <button
             type="submit"
             disabled={isPending}
-            className="px-5 py-2 bg-blue-600 text-white text-sm rounded font-medium hover:bg-blue-700 disabled:opacity-50"
+            className="btn btn-primary"
           >
             {isPending ? "更新中..." : "更新する"}
           </button>
           <Link
             href="/admin/users"
-            className="px-5 py-2 border text-sm rounded font-medium hover:bg-gray-100 flex items-center"
+            className="btn btn-secondary"
           >
             キャンセル
           </Link>
