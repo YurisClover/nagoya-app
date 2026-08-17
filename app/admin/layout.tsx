@@ -13,11 +13,8 @@ export default async function AdminLayout({
 
   // ★ getDashboardMetrics の呼び出しおよび unreadCount の受け渡しを削除
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* user のみ渡す */}
-      <Sidebar user={session?.user} />
-
-      <main className="flex-1 p-8 overflow-y-auto">{children}</main>
-    </div>
+    <AdminShell sidebar={<Sidebar unreadCount={unreadCount} user={session?.user} />}>
+      {children}
+    </AdminShell>
   );
 }
