@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 
+// 1. リクエストボディの型を定義
+interface SubscribeRequestBody {
+  token?: string;
+}
+
 // Firebase Admin SDK 初期化
 if (!getApps().length) {
   initializeApp({
@@ -15,7 +20,9 @@ if (!getApps().length) {
 
 export async function POST(request: Request) {
   try {
-    const { token } = await request.json();
+    // 2. request.json() に型を適用
+    const body = (await request.json()) as SubscribeRequestBody;
+    const { token } = body;
 
     if (!token) {
       return NextResponse.json({ error: 'トークンが必要です' }, { status: 400 });
@@ -25,8 +32,10 @@ export async function POST(request: Request) {
     await getMessaging().subscribeToTopic(token, 'all');
 
     return NextResponse.json({ success: true, message: "'all' トピックに登録しました" });
-  } catch (error: any) {
-    console.error('トピック登録エラー:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) { // 3. catch句のエラーを unknown 型に変更し、安全に判定
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('トピック登録エラー:', errorMessage);
+    
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

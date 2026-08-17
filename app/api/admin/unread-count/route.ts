@@ -35,13 +35,14 @@ export async function GET() {
       range: "Messages!A1:Z",
     });
 
-    const messageRows = messagesRes.data.values || [];
+    const messageRows = (messagesRes.data.values || []) as unknown[][];
     if (messageRows.length <= 1) {
       return NextResponse.json({ success: true, count: 0 });
     }
 
     // 4. ヘッダー行から各列のインデックスを取得
-    const msgHeader = messageRows[0].map((h: any) =>
+    const headerRow = messageRows[0] || [];
+    const msgHeader = headerRow.map((h: unknown) =>
       String(h).toLowerCase().replace(/[_-\s]/g, "").trim()
     );
 
@@ -78,7 +79,7 @@ export async function GET() {
     });
 
     return NextResponse.json({ success: true, count: unreadCount });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("未読カウント取得エラー:", error);
     return NextResponse.json({ success: false, count: 0 }, { status: 500 });
   }

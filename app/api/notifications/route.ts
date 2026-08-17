@@ -2,9 +2,23 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { auth } from '@/auth'; 
 
+// 1. リクエストボディの型を定義
+interface NotificationRequestBody {
+  token?: string;
+  email?: string;
+}
+
+// 2. Googleサービスアカウント情報の型を定義
+interface GoogleCredentials {
+  client_email?: string;
+  private_key?: string;
+  [key: string]: string | undefined; // 他のプロパティが含まれる場合への安全な対応
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    // 3. request.json() に型を適用
+    const body = (await request.json()) as NotificationRequestBody;
     const { token, email: clientEmail } = body;
 
     if (!token) {
@@ -23,9 +37,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'GOOGLE_SERVICE_ACCOUNT_KEY is missing' }, { status: 500 });
     }
 
-    // Base64デコードしてJSONオブジェクトに変換
+    // Base64デコードしてJSONオブジェクトに変換し、型を適用
     const decodedJson = Buffer.from(base64Key.trim(), 'base64').toString('utf8');
-    const credentials = JSON.parse(decodedJson);
+    const credentials = JSON.parse(decodedJson) as GoogleCredentials;
 
     if (!credentials.client_email || !credentials.private_key) {
       return NextResponse.json({ success: false, error: 'Invalid service account JSON structure' }, { status: 500 });
@@ -48,8 +62,10 @@ export async function POST(request: Request) {
       range: 'Users!A:K',
     });
 
-    const rows = response.data.values;
-    if (!rows || rows.length === 0) {
+    // 4. APIの戻り値を string[][] 型として明示
+    const rows = (response.data.values as string[][]) || [];
+    
+    if (rows.length === 0) {
       return NextResponse.json({ success: false, error: 'Users sheet data is empty' }, { status: 404 });
     }
 
@@ -87,8 +103,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, message: 'FCM token saved successfully' });
 
-  } catch (error: any) {
-    console.error('=== SAVE TOKEN ERROR ===', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error: unknown) { // 5. catch句のエラーを unknown 型に変更し、安全に判定
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('=== SAVE TOKEN ERROR ===', errorMessage);
+    
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }

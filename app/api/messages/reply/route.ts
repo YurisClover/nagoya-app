@@ -3,10 +3,29 @@ import { google } from 'googleapis';
 import { auth } from '@/auth';
 import crypto from 'crypto';
 
+// 1. NextAuthセッション用の型を定義
+type SessionUser = {
+  member_id?: string;
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+};
+
+// 2. リクエストボディの型を定義
+interface ReplyRequestBody {
+  parentMessageId?: string;
+  recipientId?: string;
+  title?: string;
+  body?: string;
+  senderId?: string;
+}
+
 export async function POST(req: Request) {
   try {
     const session = await auth();
-    const currentMemberId = (session?.user as any)?.member_id || session?.user?.id;
+    // 3. (session?.user as any) をカスタム型に置き換え
+    const user = session?.user as SessionUser | undefined;
+    const currentMemberId = user?.member_id || user?.id;
 
     if (!session || !currentMemberId) {
       return NextResponse.json(
@@ -15,7 +34,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const { parentMessageId, recipientId, title, body, senderId: inputSenderId } = await req.json();
+    // 4. req.json() を型付け
+    const bodyData = (await req.json()) as ReplyRequestBody;
+    const { parentMessageId, recipientId, title, body, senderId: inputSenderId } = bodyData;
 
     if (!body) {
       return NextResponse.json(
@@ -52,14 +73,16 @@ export async function POST(req: Request) {
       spreadsheetId,
       range: 'Messages!A:I',
     });
-    const rows = messagesRes.data.values || [];
+    
+    // 5. APIの戻り値を string[][] 型として明示
+    const rows = (messagesRes.data.values as string[][]) || [];
 
     let resolvedRecipientId = recipientId;
     let finalTitle = title?.trim();
     let resolvedParentId = parentMessageId || '';
 
     if (rows.length > 1) {
-      const headers = rows[0].map((h: string) => h.toLowerCase().replace(/[_-\s]/g, "").trim());
+      const headers = (rows[0] || []).map((h) => h.toLowerCase().replace(/[_-\s]/g, "").trim());
       let mIdIdx = headers.findIndex((h) => h === 'messageid' || h === 'id');
       let sIdIdx = headers.findIndex((h) => h === 'senderid' || h === 'sender');
       let rIdIdx = headers.findIndex((h) => h === 'recipientid' || h === 'recipient');
@@ -141,7 +164,7 @@ export async function POST(req: Request) {
     // ⭕ スプレッドシートのA〜I列に完全に合わせた配列構造
     const newRow = [
       messageId,           // A列: message_id
-      senderId,            // B列: sender_id
+      String(senderId),    // B列: sender_id
       resolvedRecipientId, // C列: recipient_id
       finalTitle,          // D列: subject
       body,                // E列: body
@@ -161,10 +184,13 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ success: true, messageId });
-  } catch (error: any) {
-    console.error('返信送信APIエラー:', error);
+    
+  } catch (error: unknown) { // 6. catch句のエラーを unknown 型に変更し、安全に判定
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('返信送信APIエラー:', errorMessage);
+    
     return NextResponse.json(
-      { success: false, error: error.message || '返信の送信に失敗しました' },
+      { success: false, error: errorMessage || '返信の送信に失敗しました' },
       { status: 500 }
     );
   }

@@ -10,6 +10,24 @@ if (process.env.NODE_ENV === 'development') {
   dns.setDefaultResultOrder('ipv4first');
 }
 
+// 1. セッションユーザーの型定義
+interface SessionUser {
+  member_id?: string;
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+}
+
+// 2. リクエストボディの型定義
+interface SendNotificationBody {
+  recipient_id?: string;
+  recipientId?: string;
+  title?: string;
+  body?: string;
+  parent_id?: string;
+  parentId?: string;
+}
+
 export async function POST(request: Request) {
   try {
     // 1. サーバーセッションからログインユーザー情報を取得
@@ -22,7 +40,8 @@ export async function POST(request: Request) {
     }
 
     // 2. セッションから sender_id (member_id または id) を確定
-    const targetSenderId = (session.user as any).member_id || session.user.id;
+    const user = session.user as SessionUser;
+    const targetSenderId = user.member_id || user.id;
 
     if (!targetSenderId) {
       return NextResponse.json(
@@ -31,7 +50,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const bodyData = await request.json();
+    // 3. リクエストボディに型を適用
+    const bodyData = (await request.json()) as SendNotificationBody;
 
     const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
     const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
@@ -63,7 +83,8 @@ export async function POST(request: Request) {
       range: 'Users!A:Z',
     });
 
-    const uRows = usersRes.data.values || [];
+    // APIの戻り値を string[][] 型として明示
+    const uRows = (usersRes.data.values as string[][]) || [];
     if (uRows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Usersシートにデータが存在しません' },
@@ -71,7 +92,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const uHeaders = uRows[0].map((h: string) => h.toLowerCase().trim());
+    const uHeaders = uRows[0].map((h) => h.toLowerCase().trim());
     let memberIdIdx = uHeaders.findIndex((h) => h === 'member_id' || h === 'id' || h === 'memberid');
     let userNameIdx = uHeaders.findIndex((h) => h === 'user_name' || h === 'username' || h === 'name');
     let roleIdx = uHeaders.findIndex((h) => h === 'role');
@@ -111,10 +132,10 @@ export async function POST(request: Request) {
         spreadsheetId,
         range: 'Groups!A:Z',
       });
-      const groupRows = groupsRes.data.values || [];
+      const groupRows = (groupsRes.data.values as string[][]) || [];
 
       if (groupRows.length > 1) {
-        const gHeaders = groupRows[0].map((h: string) => h.toLowerCase().trim());
+        const gHeaders = (groupRows[0] || []).map((h) => h.toLowerCase().trim());
         let gIdIdx = gHeaders.findIndex((h) => h === 'group_id' || h === 'id');
         let gNameIdx = gHeaders.findIndex((h) => h === 'group_name' || h === 'name');
         let gMemberIdsIdx = gHeaders.findIndex((h) => h === 'member_ids' || h === 'member_id' || h === 'members');
@@ -138,16 +159,16 @@ export async function POST(request: Request) {
           // カンマ分割・整形し、送信者自身を除外 ＋ Usersのstatusがactiveのユーザーのみ抽出
           targetMemberIds = rawMemberIdsStr
             .split(/[,，、]/)
-            .map((id: string) => id.trim())
-            .filter((id: string) => {
+            .map((id) => id.trim())
+            .filter((id) => {
               if (!id || id === targetSenderId) return false;
               const user = userMapByMemberId.get(id);
               return user ? user.isActive : false;
             });
         }
       }
-    } catch (gErr) {
-      console.warn('Groupsシートの確認をスキップしました:', gErr);
+    } catch (gErr: unknown) {
+      console.warn('Groupsシートの確認をスキップしました:', gErr instanceof Error ? gErr.message : String(gErr));
     }
 
     // 5. グループ指定でなかった場合 (全体指定 'all' / 管理者指定 'admin' / 個別指定)
@@ -237,10 +258,12 @@ export async function POST(request: Request) {
       sender_id: targetSenderId,
       target_members: targetMemberIds,
     });
-  } catch (error: any) {
-    console.error('【送信時のエラー詳細】:', error);
+  } catch (error: unknown) { // 4. catchブロックを unknown に変更
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('【送信時のエラー詳細】:', errorMessage);
+    
     return NextResponse.json(
-      { success: false, error: error.message || '送信中にエラーが発生しました' },
+      { success: false, error: errorMessage || '送信中にエラーが発生しました' },
       { status: 500 }
     );
   }

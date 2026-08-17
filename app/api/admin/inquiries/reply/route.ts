@@ -5,16 +5,29 @@ import { google } from 'googleapis';
 import { auth } from '@/auth';
 import crypto from 'crypto';
 
+interface SessionUser {
+  id?: string;
+  member_id?: string;
+}
+
+interface RequestBody {
+  parentMessageId?: string;
+  recipientId?: string;
+  subject?: string;
+  body?: string;
+}
+
 export async function POST(req: Request) {
   try {
     const session = await auth();
-    const currentMemberId = (session?.user as any)?.member_id || session?.user?.id;
+    const user = session?.user as SessionUser | undefined;
+    const currentMemberId = user?.member_id || user?.id;
 
     if (!session || !currentMemberId) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
-    const bodyData = await req.json();
+    const bodyData = (await req.json()) as RequestBody;
     const { parentMessageId, recipientId, subject, body } = bodyData;
 
     if (!parentMessageId || !recipientId || !body) {
@@ -67,8 +80,9 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ success: true, messageId: newMessageId });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('返信送信エラー:', error);
-    return NextResponse.json({ success: false, error: error.message || '送信エラー' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : '送信エラー';
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }

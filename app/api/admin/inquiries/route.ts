@@ -5,10 +5,40 @@ import { auth } from '@/auth';
 // 405エラーや静的判定を防ぐため、必ず動的レンダリングを指定します
 export const dynamic = 'force-dynamic';
 
+// 1. 各種データ構造の型定義
+interface SessionUser {
+  member_id?: string;
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+}
+
+interface ParsedMessage {
+  id: string;
+  parentId: string;
+  senderId: string;
+  recipientId: string;
+  generalUserId: string;
+  userName: string;
+  memberId: string;
+  recipientName: string;
+  subject: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+interface MessageThread extends ParsedMessage {
+  replies: ParsedMessage[];
+  _latestTimestamp?: number;
+}
+
 export async function GET(req: Request) {
   try {
     const session = await auth();
-    const currentMemberId = (session?.user as any)?.member_id || session?.user?.id;
+    // 2. セッションユーザーに型を適用
+    const user = session?.user as SessionUser | undefined;
+    const currentMemberId = user?.member_id || user?.id;
 
     if (!session || !currentMemberId) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
@@ -36,11 +66,12 @@ export async function GET(req: Request) {
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Messages!A1:Z' }),
     ]);
 
-    const userRows = usersRes.data.values || [];
-    const messageRows = messagesRes.data.values || [];
+    // 3. APIの戻り値を string[][] 型として明示
+    const userRows = (usersRes.data.values as string[][]) || [];
+    const messageRows = (messagesRes.data.values as string[][]) || [];
 
     // ユーザー情報のマッピング
-    const userHeader = (userRows[0] || []).map((h: any) => String(h).toLowerCase().trim());
+    const userHeader = (userRows[0] || []).map((h) => String(h).toLowerCase().trim());
     let uMemberIdIdx = userHeader.findIndex((h) => h === 'member_id' || h === 'id' || h === 'memberid');
     let uNameIdx = userHeader.findIndex((h) => h === 'name' || h === 'username' || h === 'user_name');
     let uRoleIdx = userHeader.findIndex((h) => h === 'role');
@@ -63,7 +94,7 @@ export async function GET(req: Request) {
     });
 
     // メッセージヘッダーの取得
-    const msgHeader = (messageRows[0] || []).map((h: any) => String(h).toLowerCase().trim());
+    const msgHeader = (messageRows[0] || []).map((h) => String(h).toLowerCase().trim());
     let idIdx = msgHeader.findIndex((h) => h === 'message_id' || h === 'id' || h === 'messageid');
     let senderIdIdx = msgHeader.findIndex((h) => h === 'sender_id' || h === 'senderid' || h === 'sender');
     let recipientIdIdx = msgHeader.findIndex((h) => h === 'recipient_id' || h === 'recipientid' || h === 'recipient');
@@ -99,7 +130,8 @@ export async function GET(req: Request) {
       }
     };
 
-    const allParsedMessages: any[] = [];
+    // 4. 定義した型を配列やMapに適用
+    const allParsedMessages: ParsedMessage[] = [];
     const seenMsgIds = new Set<string>();
 
     messageRows.slice(1).forEach((row, index) => {
@@ -166,12 +198,13 @@ export async function GET(req: Request) {
       }
     });
 
-    const threadMap = new Map<string, any>();
-    const threadList: any[] = [];
+    // 5. スレッドリストとマップに型を適用
+    const threadMap = new Map<string, MessageThread>();
+    const threadList: MessageThread[] = [];
 
     allParsedMessages.forEach((msg) => {
       if (!msg.parentId) {
-        const newThread = {
+        const newThread: MessageThread = {
           ...msg,
           replies: [],
         };
@@ -185,21 +218,9 @@ export async function GET(req: Request) {
 
       const targetParent = threadMap.get(msg.parentId);
       if (targetParent) {
-        const isDuplicate = targetParent.replies.some((r: any) => r.id === msg.id);
+        const isDuplicate = targetParent.replies.some((r) => r.id === msg.id);
         if (!isDuplicate) {
-          targetParent.replies.push({
-            id: msg.id,
-            parentId: msg.parentId,
-            senderId: msg.senderId,
-            recipientId: msg.recipientId,
-            userName: msg.userName,
-            recipientName: msg.recipientName,
-            memberId: msg.memberId,
-            subject: msg.subject,
-            body: msg.body,
-            isRead: msg.isRead,
-            createdAt: msg.createdAt,
-          });
+          targetParent.replies.push(msg); // 構造が一致しているためそのままPush可能
         }
       } else {
         threadList.push({
@@ -209,22 +230,28 @@ export async function GET(req: Request) {
       }
     });
 
-    threadList.forEach((parent: any) => {
-      parent.replies.sort((a: any, b: any) => parseTime(a.createdAt) - parseTime(b.createdAt));
+    threadList.forEach((parent) => {
+      parent.replies.sort((a, b) => parseTime(a.createdAt) - parseTime(b.createdAt));
 
       let latestTime = parseTime(parent.createdAt);
-      parent.replies.forEach((r: any) => {
+      parent.replies.forEach((r) => {
         const rTime = parseTime(r.createdAt);
         if (rTime > latestTime) latestTime = rTime;
       });
       parent._latestTimestamp = latestTime;
     });
 
-    threadList.sort((a: any, b: any) => b._latestTimestamp - a._latestTimestamp);
+    threadList.sort((a, b) => (b._latestTimestamp || 0) - (a._latestTimestamp || 0));
 
     return NextResponse.json({ success: true, inquiries: threadList });
-  } catch (error: any) {
-    console.error('問い合わせ取得エラー:', error);
-    return NextResponse.json({ success: false, error: error.message || '取得エラー' }, { status: 500 });
+    
+  } catch (error: unknown) { // 6. catchブロックを unknown に変更
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('問い合わせ取得エラー:', errorMessage);
+    
+    return NextResponse.json(
+      { success: false, error: errorMessage || '取得エラー' }, 
+      { status: 500 }
+    );
   }
 }

@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { auth } from '@/auth';
 
+// 1. リクエストボディの型を定義
+interface DeleteRequestBody {
+  messageId?: string;
+  replyIds?: string[];
+}
+
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -9,7 +15,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
-    const { messageId, replyIds } = await request.json();
+    // 2. request.json() に型を適用
+    const bodyData = (await request.json()) as DeleteRequestBody;
+    const { messageId, replyIds } = bodyData;
+    
     if (!messageId) {
       return NextResponse.json({ success: false, error: 'messageId が指定されていません' }, { status: 400 });
     }
@@ -35,12 +44,14 @@ export async function POST(request: Request) {
       range: 'Messages!A:I',
     });
 
-    const rows = response.data.values || [];
+    // 3. APIの戻り値を string[][] 型として明示
+    const rows = (response.data.values as string[][]) || [];
+    
     if (rows.length === 0) {
       return NextResponse.json({ success: false, error: 'Messagesシートにデータがありません' }, { status: 404 });
     }
 
-    const headers = rows[0].map((h: string) => h.toLowerCase().trim());
+    const headers = (rows[0] || []).map((h) => h.toLowerCase().trim());
     let idIdx = headers.findIndex((h) => h === 'message_id' || h === 'id' || h === 'messageid');
     let deleteFlagIdx = headers.findIndex((h) => h === 'delete_flag' || h === 'deleteflag');
     let parentIdIdx = headers.findIndex((h) => h === 'parent_id' || h === 'parentid' || h === 'parent');
@@ -72,7 +83,8 @@ export async function POST(request: Request) {
       }
     }
 
-    const updatePromises: Promise<any>[] = [];
+    // 4. Promise<any>[] を Promise<unknown>[] に変更
+    const updatePromises: Promise<unknown>[] = [];
 
     for (let i = 1; i < rows.length; i++) {
       const currentId = rows[i][idIdx]?.toString().trim();
@@ -104,8 +116,11 @@ export async function POST(request: Request) {
       message: 'メッセージおよびスレッド内の返信をすべて削除しました',
       deletedCount: updatePromises.length 
     });
-  } catch (error: any) {
-    console.error('Delete Message Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    
+  } catch (error: unknown) { // 5. catch句のエラーを unknown 型に変更し、安全に判定
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Delete Message Error:', errorMessage);
+    
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }

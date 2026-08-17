@@ -2,6 +2,16 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { auth } from '@/auth';
 
+interface RequestBody {
+  messageId?: string;
+  replyIds?: string[];
+}
+
+interface SheetUpdateItem {
+  range: string;
+  values: string[][];
+}
+
 export async function POST(req: Request) {
   try {
     const session = await auth();
@@ -9,8 +19,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
-    const { messageId, replyIds = [] } = await req.json();
-    const targetIds = new Set([messageId, ...replyIds].filter(Boolean));
+    const bodyData = (await req.json()) as RequestBody;
+    const { messageId, replyIds = [] } = bodyData;
+    const targetIds = new Set([messageId, ...replyIds].filter((id): id is string => Boolean(id)));
 
     if (targetIds.size === 0) {
       return NextResponse.json({ success: true });
@@ -36,21 +47,21 @@ export async function POST(req: Request) {
       range: 'Messages!A1:Z',
     });
 
-    const rows = res.data.values || [];
+    const rows = (res.data.values || []) as unknown[][];
     if (rows.length <= 1) return NextResponse.json({ success: true });
 
-    const header = rows[0].map((h: any) => String(h).toLowerCase().trim());
+    const header = (rows[0] || []).map((h: unknown) => String(h).toLowerCase().trim());
     let idIdx = header.findIndex((h) => h === 'message_id' || h === 'id' || h === 'messageid');
     let isReadIdx = header.findIndex((h) => h === 'is_read' || h === 'isread' || h === 'read');
 
     if (idIdx === -1) idIdx = 0;
     if (isReadIdx === -1) isReadIdx = 5; // F列
 
-    const updateData: any[] = [];
+    const updateData: SheetUpdateItem[] = [];
     rows.forEach((row, index) => {
       if (index === 0) return;
       const mId = row[idIdx]?.toString().trim();
-      if (targetIds.has(mId)) {
+      if (mId && targetIds.has(mId)) {
         const rowIndex = index + 1;
         const colLetter = String.fromCharCode(65 + isReadIdx); // F列
         // F列（is_read）を小文字 'true' に更新
@@ -72,8 +83,9 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('既読更新エラー:', error);
-    return NextResponse.json({ success: false, error: error.message || '既読更新エラー' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : '既読更新エラー';
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }
