@@ -53,9 +53,9 @@ export async function POST(request: Request) {
     // 3. リクエストボディに型を適用
     const bodyData = (await request.json()) as SendNotificationBody;
 
-    const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-    const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
 
     if (!clientEmail || !privateKey || !spreadsheetId) {
       return NextResponse.json(
