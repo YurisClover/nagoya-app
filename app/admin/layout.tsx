@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import Sidebar from "./Sidebar";
+import AdminShell from "@/components/AdminShell";
+import { getDashboardMetrics } from "@/lib/sheets";
 
 export default async function AdminLayout({
   children,
