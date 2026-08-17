@@ -19,6 +19,8 @@ export type ReplyMessage = {
   createdAt: string;
 };
 
+export type MessageStatus = 'unsupported' | 'pending' | 'closed';
+
 export type ReceivedMessage = {
   id: string;
   senderId: string;
@@ -30,18 +32,21 @@ export type ReceivedMessage = {
   body: string;
   isRead: boolean;
   createdAt: string;
+  status: MessageStatus;
+  deleteFlag?: boolean | string;
   replies?: ReplyMessage[];
 };
 
 interface InquiryItemProps {
   inquiry: ReceivedMessage;
   isExpanded: boolean;
-  currentUserId: string; // ログイン中のユーザーID
+  currentUserId: string;
   onToggle: () => void;
-  // ★ parentMessageId を第1引数に追加
   onSendReply: (parentMessageId: string, recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
   onDelete?: (messageId: string, replyIds?: string[]) => Promise<void>;
   onMarkAsRead?: (messageId: string) => Promise<void>;
+  // ★ ステータス変更用関数をPropsに追加
+  onStatusChange: (messageId: string, newStatus: MessageStatus) => Promise<void>;
 }
 
 export default function InquiryItem({
@@ -52,19 +57,40 @@ export default function InquiryItem({
   onSendReply,
   onDelete,
   onMarkAsRead,
+  onStatusChange,
 }: InquiryItemProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
-  // ★ 自分以外（相手）からの未読メッセージ、または自分以外（相手）からの未読返信があるか判定
+  // ステータスの設定
+  const statusConfig: Record<MessageStatus, { label: string; className: string }> = {
+    unsupported: { label: '未対応', className: 'bg-red-100 text-red-700' },
+    pending: { label: '対応中', className: 'bg-yellow-100 text-yellow-700' },
+    closed: { label: '対応完了', className: 'bg-green-100 text-green-700' },
+  };
+
+  const currentStatus = inquiry.status || 'unsupported';
+  const config = statusConfig[currentStatus];
+
+  // ステータス変更ハンドラ
+  const handleStatusChange = async (newStatus: MessageStatus) => {
+    setIsUpdatingStatus(true);
+    try {
+      await onStatusChange(inquiry.id, newStatus);
+    } catch (err) {
+      console.error('ステータス変更エラー:', err);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  // 未読判定
   const isParentUnread = !inquiry.isRead && String(inquiry.senderId).trim() !== String(currentUserId).trim();
   const hasUnreadReplies = inquiry.replies
     ? inquiry.replies.some((r) => !r.isRead && String(r.senderId).trim() !== String(currentUserId).trim())
     : false;
   const hasThreadUnread = isParentUnread || hasUnreadReplies;
 
-  // ==========================================
-  // 開いたまま新着メッセージが来た時の自動既読処理
-  // ==========================================
   useEffect(() => {
     if (!isExpanded) return;
 
@@ -86,19 +112,13 @@ export default function InquiryItem({
               replyIds: unreadReplyIds
             }),
           });
-
-          if (res.ok) {
-            if (onMarkAsRead) {
-              await onMarkAsRead(inquiry.id);
-            }
-          } else {
-            console.error('既読化APIエラー:', await res.text());
+          if (res.ok && onMarkAsRead) {
+            await onMarkAsRead(inquiry.id);
           }
         } catch (error) {
           console.error('自動既読処理に失敗しました:', error);
         }
       };
-
       handleRead();
     }
   }, [isExpanded, inquiry, currentUserId, onMarkAsRead]);
@@ -106,7 +126,6 @@ export default function InquiryItem({
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm('このメッセージとスレッド内の返信をすべて削除してもよろしいですか？')) return;
-
     try {
       setIsDeleting(true);
       if (onDelete) {
@@ -127,6 +146,7 @@ export default function InquiryItem({
         hasThreadUnread ? 'bg-[#eaf2fd] border-blue-200 shadow-sm' : 'bg-white border-slate-200'
       }`}
     >
+      {/* ヘッダー */}
       <div
         onClick={onToggle}
         className="p-4 cursor-pointer hover:opacity-90 transition flex items-center justify-between"
@@ -142,12 +162,9 @@ export default function InquiryItem({
                 {inquiry.userName}
               </span>
               {inquiry.memberId && (
-                <span className="text-xs text-slate-500 font-medium shrink-0">
-                  ({inquiry.memberId})
-                </span>
+                <span className="text-xs text-slate-500 font-medium shrink-0">({inquiry.memberId})</span>
               )}
             </div>
-
             <p className={`text-sm mt-0.5 truncate ${hasThreadUnread ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
               {inquiry.subject}
             </p>
@@ -155,6 +172,10 @@ export default function InquiryItem({
         </div>
 
         <div className="flex items-center space-x-3 flex-shrink-0">
+          {/* ★ ステータスバッジ */}
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${config.className}`}>
+            {config.label}
+          </span>
           <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
             {formatRelativeDateTime(inquiry.createdAt)}
           </span>
@@ -173,8 +194,29 @@ export default function InquiryItem({
         </div>
       </div>
 
+      {/* 展開時 */}
       {isExpanded && (
         <div className="px-4 pb-5 pt-2 border-t border-slate-200/60 bg-white/50 space-y-4">
+          
+          {/* ★ ステータス変更ボタン群 */}
+          <div className="flex items-center space-x-2 pt-2">
+            <span className="text-xs font-bold text-slate-500">ステータス変更:</span>
+            {(['unsupported', 'pending', 'closed'] as MessageStatus[]).map((s) => (
+              <button
+                key={s}
+                disabled={isUpdatingStatus || currentStatus === s}
+                onClick={() => handleStatusChange(s)}
+                className={`px-3 py-1 text-[11px] font-bold rounded-lg border transition ${
+                  currentStatus === s 
+                    ? 'bg-slate-800 text-white border-slate-800' 
+                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {statusConfig[s].label}
+              </button>
+            ))}
+          </div>
+
           <div className="bg-white p-4 rounded-lg border border-slate-200 text-sm text-slate-800 whitespace-pre-wrap">
             <p className="text-xs text-slate-400 mb-1 font-semibold">【問い合わせ本文】</p>
             {inquiry.body}
@@ -183,16 +225,13 @@ export default function InquiryItem({
           {inquiry.replies && inquiry.replies.length > 0 && (
             <div className="pl-4 space-y-3 border-l-2 border-[#1b365d]">
               <p className="text-xs font-bold text-slate-600">返信履歴</p>
-              {/* ★ .reverse() を外し、古い返信が上で新しい返信が下（時系列順）になるように修正 */}
               {inquiry.replies.map((reply) => (
                 <div key={reply.id} className="bg-white border border-slate-200 p-3 rounded-lg text-sm">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs text-slate-900">
                       {reply.userName || reply.senderId} {reply.memberId ? `(${reply.memberId})` : ''}
                     </span>
-                    <span className="text-[11px] text-slate-400">
-                      {formatRelativeDateTime(reply.createdAt)}
-                    </span>
+                    <span className="text-[11px] text-slate-400">{formatRelativeDateTime(reply.createdAt)}</span>
                   </div>
                   <p className="text-slate-800 whitespace-pre-wrap mt-1">{reply.body}</p>
                 </div>
@@ -200,28 +239,29 @@ export default function InquiryItem({
             </div>
           )}
 
-          {/* インライン返信フォーム */}
-          {(() => {
-            const isMyMessage = String(inquiry.senderId).trim() === String(currentUserId).trim();
-            const opponentId = isMyMessage ? inquiry.recipientId : inquiry.senderId;
-
-            // 自分が送信者の場合は宛先（recipientName）、受信した場合は差出人（userName）を表示
-            const targetUserName = isMyMessage
-              ? (inquiry.recipientName || '宛先')
-              : (inquiry.userName || '差出人');
-
-            return (
-              <InlineReplyForm
-                parentMessageId={inquiry.id} // ★ 親メッセージの message_id を渡す
-                userName={targetUserName}
-                recipientId={opponentId}
-                subject={inquiry.subject}
-                onSendReply={async (pId, rId, replyTitle, replyText) =>
-                  await onSendReply(pId, rId, replyTitle, replyText)
-                }
-              />
-            );
-          })()}
+          {/* ★ 返信フォームの制御 */}
+          {currentStatus === 'closed' ? (
+            <div className="p-4 bg-slate-100 rounded-lg text-center text-sm text-slate-500">
+              この問い合わせは「対応完了」に設定されているため、返信できません。
+            </div>
+          ) : (
+            (() => {
+              const isMyMessage = String(inquiry.senderId).trim() === String(currentUserId).trim();
+              const opponentId = isMyMessage ? inquiry.recipientId : inquiry.senderId;
+              const targetUserName = isMyMessage ? (inquiry.recipientName || '宛先') : (inquiry.userName || '差出人');
+              return (
+                <InlineReplyForm
+                  parentMessageId={inquiry.id}
+                  userName={targetUserName}
+                  recipientId={opponentId}
+                  subject={inquiry.subject}
+                  onSendReply={async (pId, rId, replyTitle, replyText) =>
+                    await onSendReply(pId, rId, replyTitle, replyText)
+                  }
+                />
+              );
+            })()
+          )}
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import InquiryItem, { ReceivedMessage } from './InquiryItem';
+import InquiryItem, { ReceivedMessage, MessageStatus } from './InquiryItem';
 
 interface InquiryListProps {
   inquiries: ReceivedMessage[];
@@ -19,6 +19,8 @@ interface InquiryListProps {
     replyText: string
   ) => Promise<boolean>;
   onDeleteMessage?: (messageId: string, replyIds?: string[]) => Promise<void>;
+  // ★ 型を更新: unsupported を追加
+  onStatusChange: (messageId: string, newStatus: MessageStatus) => Promise<void>;
 }
 
 export default function InquiryList({
@@ -30,29 +32,32 @@ export default function InquiryList({
   onMarkAsRead,
   onSendReply,
   onDeleteMessage,
+  onStatusChange,
 }: InquiryListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // ★ [...inquiries] で配列のコピーを作ってから処理する
+  // メッセージのフィルタリングとソート
   const activeInquiries = [...inquiries]
-    .filter((item: any) => {
+    .filter((item) => {
+      // API側の仕様に合わせて、複数のフラグ形式を許容する
       const isDeleted =
-        item.delete_flag === true ||
-        item.delete_flag === 'true' ||
+        (item as any).delete_flag === true ||
+        (item as any).delete_flag === 'true' ||
         item.deleteFlag === true ||
         item.deleteFlag === 'true' ||
-        item.isDeleted === true;
+        (item as any).isDeleted === true;
 
       return !isDeleted;
     })
-    .sort((a: any, b: any) => {
+    .sort((a, b) => {
       // 親メッセージと全返信の中から最も新しい日時を取得
-      const getLatestTime = (item: any) => {
-        let latest = item.created_at || '';
+      const getLatestTime = (item: ReceivedMessage) => {
+        let latest = item.createdAt || (item as any).created_at || '';
         if (item.replies && Array.isArray(item.replies)) {
-          item.replies.forEach((reply: any) => {
-            if (reply.created_at && reply.created_at > latest) {
-              latest = reply.created_at;
+          item.replies.forEach((reply) => {
+            const replyTime = reply.createdAt || (reply as any).created_at;
+            if (replyTime && replyTime > latest) {
+              latest = replyTime;
             }
           });
         }
@@ -110,6 +115,8 @@ export default function InquiryList({
               onMarkAsRead={async (messageId) => {
                 onMarkAsRead(messageId);
               }}
+              // ★ ステータス変更関数をバケツリレー
+              onStatusChange={onStatusChange}
             />
           ))}
         </div>

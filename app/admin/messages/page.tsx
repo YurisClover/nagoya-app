@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import MessageForm from '@/app/admin/messages/admin/messages/MessageForm';
 import InquiryList from '@/app/admin/messages/admin/messages/InquiryList';
-import { ReceivedMessage } from '@/app/admin/messages/admin/messages/InquiryItem';
+// ★ MessageStatus をインポートに追加
+import { ReceivedMessage, MessageStatus } from '@/app/admin/messages/admin/messages/InquiryItem';
 import { SessionProvider, useSession } from 'next-auth/react';
 
 type Group = {
@@ -16,7 +17,7 @@ type Group = {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function AdminMessageContent() {
   const { data: session } = useSession();
-  const currentUserId = (session?.user as any)?.member_id || session?.user?.id || '';
+  const currentUserId = (session?.user as { member_id?: string; id?: string })?.member_id || session?.user?.id || '';
 
   const [groups, setGroups] = useState<Group[]>([]);
   const [inquiries, setInquiries] = useState<ReceivedMessage[]>([]);
@@ -35,16 +36,16 @@ function AdminMessageContent() {
     async function fetchGroups() {
       try {
         const res = await fetch('/api/groups');
-        const data = await res.json();
+        const data = (await res.json()) as { success: boolean; groups?: Array<{ group_id?: string; id?: string; group_name?: string; name?: string }> };
         if (data.success && Array.isArray(data.groups)) {
           setGroups(
-            data.groups.map((g: any) => ({
+            data.groups.map((g) => ({
               group_id: g.group_id || g.id || '',
               group_name: g.group_name || g.name || '名称未設定グループ',
             }))
           );
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error('グループ一覧の取得に失敗しました:', err);
       }
     }
@@ -56,25 +57,24 @@ function AdminMessageContent() {
       if (!isSilent) setIsLoadingInquiries(true);
       try {
         const res = await fetch('/api/admin/inquiries');
-        const data = await res.json();
+        const data = (await res.json()) as { success: boolean; inquiries?: ReceivedMessage[] };
         if (data.success && Array.isArray(data.inquiries)) {
-          const filteredInquiries = data.inquiries.filter((item: any) => {
+          const filteredInquiries = data.inquiries.filter((item) => {
             const isDeleted =
-              item.delete_flag === true ||
-              item.delete_flag === 'true' ||
               item.deleteFlag === true ||
               item.deleteFlag === 'true' ||
-              item.isDeleted === true;
+              (item as unknown as { deleteFlag?: boolean | string }).deleteFlag === true ||
+              (item as unknown as { deleteFlag?: boolean | string }).deleteFlag === 'true' ||
+              (item as unknown as { isDeleted?: boolean }).isDeleted === true;
             return !isDeleted;
           });
 
-          // ★ タイムスタンプ（数値）に変換して新しい順（降順）にソート
-          filteredInquiries.sort((a: any, b: any) => {
-            const getLatestTime = (item: any) => {
-              let latest = item.createdAt || item.created_at || '';
+          filteredInquiries.sort((a, b) => {
+            const getLatestTime = (item: ReceivedMessage) => {
+              let latest = item.createdAt || '';
               if (item.replies && Array.isArray(item.replies)) {
-                item.replies.forEach((reply: any) => {
-                  const replyTime = reply.createdAt || reply.created_at || '';
+                item.replies.forEach((reply) => {
+                  const replyTime = reply.createdAt || '';
                   if (replyTime > latest) {
                     latest = replyTime;
                   }
@@ -99,7 +99,7 @@ function AdminMessageContent() {
           );
 
           let unreadTotal = 0;
-          filteredInquiries.forEach((item: ReceivedMessage) => {
+          filteredInquiries.forEach((item) => {
             if (!item.isRead) unreadTotal++;
             if (item.replies) {
               item.replies.forEach((r) => {
@@ -109,7 +109,7 @@ function AdminMessageContent() {
           });
           notifyUnreadCountChange(unreadTotal);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error('受信メッセージの取得に失敗しました:', err);
       } finally {
         if (!isSilent) setIsLoadingInquiries(false);
@@ -125,6 +125,27 @@ function AdminMessageContent() {
     }, 60000);
     return () => clearInterval(intervalId);
   }, [fetchInquiries]);
+
+  // ★ ステータス変更処理 (引数の型を MessageStatus に統一)
+  const handleStatusChange = async (messageId: string, newStatus: MessageStatus): Promise<void> => {
+    try {
+      const res = await fetch('/api/admin/inquiries/status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId, status: newStatus }),
+      });
+      const data = (await res.json()) as { success: boolean; error?: string };
+      if (data.success) {
+        await fetchInquiries(true);
+      } else {
+        alert('ステータスの更新に失敗しました: ' + (data.error ?? '不明なエラー'));
+      }
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(errorMsg);
+      alert('通信エラーが発生しました');
+    }
+  };
 
   // 既読更新処理
   const handleMarkAsRead = async (target: ReceivedMessage | string) => {
@@ -170,7 +191,7 @@ function AdminMessageContent() {
           replyIds: replyIds,
         }),
       });
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('既読更新エラー:', err);
     }
   };
@@ -181,7 +202,7 @@ function AdminMessageContent() {
     recipientId: string,
     replyTitle: string,
     replyText: string
-  ) => {
+  ): Promise<boolean> => {
     try {
       const res = await fetch('/api/admin/inquiries/reply', {
         method: 'POST',
@@ -194,7 +215,7 @@ function AdminMessageContent() {
         }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as { success: boolean; error?: string };
 
       if (res.ok && data.success) {
         alert('送信が完了しました');
@@ -204,8 +225,9 @@ function AdminMessageContent() {
         alert(`送信エラー: ${data.error || '返信の送信に失敗しました'}`);
         return false;
       }
-    } catch (err: any) {
-      alert(`通信エラー: ${err.message}`);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      alert(`通信エラー: ${errorMsg}`);
       return false;
     }
   };
@@ -219,16 +241,17 @@ function AdminMessageContent() {
         body: JSON.stringify({ messageId, replyIds }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as { success: boolean; error?: string };
       if (res.ok && data.success) {
         alert('メッセージを削除しました');
         await fetchInquiries(true);
       } else {
         alert(`削除失敗: ${data.error || 'メッセージの削除に失敗しました'}`);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
       console.error('削除エラー:', err);
-      alert(`通信エラー: ${err.message}`);
+      alert(`通信エラー: ${errorMsg}`);
     }
   };
 
@@ -259,6 +282,7 @@ function AdminMessageContent() {
         onMarkAsRead={handleMarkAsRead}
         onSendReply={handleSendReply}
         onDeleteMessage={handleDeleteMessage}
+        onStatusChange={handleStatusChange}
       />
     </div>
   );

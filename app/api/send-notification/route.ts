@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
     if (!clientEmail || !privateKey || !spreadsheetId) {
       return NextResponse.json(
@@ -77,13 +77,12 @@ export async function POST(request: Request) {
 
     const sheets = google.sheets({ version: 'v4', auth: authClient });
 
-    // 3. Users シートを取得してアクティブなユーザーを把握
+    // 4. Users シートを取得してアクティブなユーザーを把握
     const usersRes = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: 'Users!A:Z',
     });
 
-    // APIの戻り値を string[][] 型として明示
     const uRows = (usersRes.data.values as string[][]) || [];
     if (uRows.length === 0) {
       return NextResponse.json(
@@ -124,97 +123,41 @@ export async function POST(request: Request) {
     });
 
     let targetMemberIds: string[] = [];
-    let isGroupMatch = false;
 
-    // 4. グループ指定の判定 (Groupsシートを確認)
-    try {
-      const groupsRes = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: 'Groups!A:Z',
-      });
-      const groupRows = (groupsRes.data.values as string[][]) || [];
+    // 5. 宛先の判定 (全体指定 'all' / 管理者指定 'admin' / 個別指定)
+    if (rawRecipient === 'all') {
+      targetMemberIds = Array.from(userMapByMemberId.values())
+        .filter((user) => user.memberId !== targetSenderId && user.isActive)
+        .map((user) => user.memberId);
 
-      if (groupRows.length > 1) {
-        const gHeaders = (groupRows[0] || []).map((h) => h.toLowerCase().trim());
-        let gIdIdx = gHeaders.findIndex((h) => h === 'group_id' || h === 'id');
-        let gNameIdx = gHeaders.findIndex((h) => h === 'group_name' || h === 'name');
-        let gMemberIdsIdx = gHeaders.findIndex((h) => h === 'member_ids' || h === 'member_id' || h === 'members');
+    } else if (rawRecipient === 'admin') {
+      // 管理者宛ては複数人にバラさず、'admin' 宛ての1通として送信する
+      targetMemberIds = ['admin'];
 
-        if (gIdIdx === -1) gIdIdx = 0;
-        if (gNameIdx === -1) gNameIdx = 1;
-        if (gMemberIdsIdx === -1) gMemberIdsIdx = 2;
+    } else {
+      const targetUser = userMapByMemberId.get(rawRecipient) || userMapByName.get(rawRecipient);
 
-        // 指定された group_id または group_name に一致する行を検索
-        const matchedGroup = groupRows.slice(1).find((row) => {
-          const gId = row[gIdIdx]?.toString().trim();
-          const gName = row[gNameIdx]?.toString().trim();
-          return gId === rawRecipient || gName === rawRecipient;
-        });
-
-        // グループが存在し、member_ids が設定されている場合
-        if (matchedGroup && matchedGroup[gMemberIdsIdx]) {
-          isGroupMatch = true;
-          const rawMemberIdsStr = matchedGroup[gMemberIdsIdx].toString();
-
-          // カンマ分割・整形し、送信者自身を除外 ＋ Usersのstatusがactiveのユーザーのみ抽出
-          targetMemberIds = rawMemberIdsStr
-            .split(/[,，、]/)
-            .map((id) => id.trim())
-            .filter((id) => {
-              if (!id || id === targetSenderId) return false;
-              const user = userMapByMemberId.get(id);
-              return user ? user.isActive : false;
-            });
-        }
+      if (!targetUser) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `宛先「${rawRecipient}」に該当するユーザーが見つかりません。`,
+          },
+          { status: 400 }
+        );
       }
-    } catch (gErr: unknown) {
-      console.warn('Groupsシートの確認をスキップしました:', gErr instanceof Error ? gErr.message : String(gErr));
-    }
 
-    // 5. グループ指定でなかった場合 (全体指定 'all' / 管理者指定 'admin' / 個別指定)
-    if (!isGroupMatch) {
-      if (rawRecipient === 'all') {
-        targetMemberIds = Array.from(userMapByMemberId.values())
-          .filter((user) => user.memberId !== targetSenderId && user.isActive)
-          .map((user) => user.memberId);
-
-      } else if (rawRecipient === 'admin') {
-        targetMemberIds = Array.from(userMapByMemberId.values())
-          .filter((user) => user.memberId !== targetSenderId && user.role === 'admin' && user.isActive)
-          .map((user) => user.memberId);
-
-        if (targetMemberIds.length === 0) {
-          return NextResponse.json(
-            { success: false, error: 'アクティブな管理者ユーザー（member_id）が見つかりませんでした。' },
-            { status: 400 }
-          );
-        }
-
-      } else {
-        const targetUser = userMapByMemberId.get(rawRecipient) || userMapByName.get(rawRecipient);
-
-        if (!targetUser) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: `宛先「${rawRecipient}」に該当するユーザーが見つかりません。`,
-            },
-            { status: 400 }
-          );
-        }
-
-        if (!targetUser.isActive) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: `宛先「${targetUser.name || rawRecipient}」は非アクティブ（inactive）のためメッセージを送信できません。`,
-            },
-            { status: 400 }
-          );
-        }
-
-        targetMemberIds = [targetUser.memberId];
+      if (!targetUser.isActive) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `宛先「${targetUser.name || rawRecipient}」は非アクティブ（inactive）のためメッセージを送信できません。`,
+          },
+          { status: 400 }
+        );
       }
+
+      targetMemberIds = [targetUser.memberId];
     }
 
     // 重複IDの除去
@@ -229,19 +172,19 @@ export async function POST(request: Request) {
       const isRead = String(targetSenderId).trim() === String(recipientMemberId).trim() ? 'true' : 'false';
 
       return [
-        crypto.randomUUID(),           // A: message_id (UUID)
-        targetSenderId,                // B: sender_id (送信者の member_id)
-        recipientMemberId,             // C: recipient_id (受信者の member_id)
-        bodyData.title || '',          // D: subject (title)
-        bodyData.body || '',           // E: body
-        isRead,                        // F: is_read
-        createdAt,                     // G: created_at (nowJST())
-        'false',                       // H: delete_flag
-        parentId,                      // I: parent_id （※ここを追加してI列と一致させました）
+        crypto.randomUUID(),          // A: message_id (UUID)
+        targetSenderId,               // B: sender_id (送信者の member_id)
+        recipientMemberId,            // C: recipient_id (受信者の member_id または 'admin')
+        bodyData.title || '',         // D: subject (title)
+        bodyData.body || '',          // E: body
+        isRead,                       // F: is_read
+        createdAt,                    // G: created_at (nowJST())
+        'false',                      // H: delete_flag
+        parentId,                     // I: parent_id
       ];
     });
 
-    // 7. Messagesシートに一括保存（A:I列に変更）
+    // 7. Messagesシートに一括保存
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: 'Messages!A:I',
@@ -258,7 +201,7 @@ export async function POST(request: Request) {
       sender_id: targetSenderId,
       target_members: targetMemberIds,
     });
-  } catch (error: unknown) { // 4. catchブロックを unknown に変更
+  } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('【送信時のエラー詳細】:', errorMessage);
     

@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { auth } from "@/auth";
 
-// 1. データの型定義を追加
+// 405エラーや静的判定を防ぐため、必ず動的レンダリングを指定します
+export const dynamic = "force-dynamic";
+
+// 1. データの型定義
 type ParsedMessage = {
   id: string;
   parentId: string;
@@ -22,7 +25,6 @@ type Thread = ParsedMessage & {
   _latestTimestamp?: number;
 };
 
-// authのuserセッション用
 type SessionUser = {
   member_id?: string;
   id?: string;
@@ -32,7 +34,6 @@ type SessionUser = {
 
 export async function GET() {
   try {
-    // 2. セッションの取得（anyを排除しカスタム型でアサーション）
     const session = await auth();
     const user = session?.user as SessionUser | undefined;
     const currentMemberId = user?.member_id || user?.id;
@@ -44,10 +45,9 @@ export async function GET() {
       );
     }
 
-    // 3. Google API 認証情報
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = (process.env.FIREBASE_PRIVATE_KEY)?.replace(/\\n/g, "\n");
-    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
     if (!clientEmail || !privateKey || !spreadsheetId) {
       return NextResponse.json(
@@ -66,7 +66,7 @@ export async function GET() {
 
     const sheets = google.sheets({ version: "v4", auth: authClient });
 
-    // 4. Messages シート(A:I列) と Users シートを並行取得
+    // Messages シート と Users シートを並行取得
     const [messagesRes, usersRes] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId,
@@ -78,7 +78,6 @@ export async function GET() {
       }),
     ]);
 
-    // Google APIの戻り値を string[][] 型として扱う
     const messageRows = (messagesRes.data.values as string[][]) || [];
     const userRows = (usersRes.data.values as string[][]) || [];
 
@@ -86,20 +85,33 @@ export async function GET() {
       return NextResponse.json({ success: true, messages: [] });
     }
 
-    // Users のマップ作成 (member_id -> user_name)
+    // Users のマップ作成 (member_id -> user_name, および管理者判定用)
     const uHeaders = (userRows[0] || []).map((h) => h.toLowerCase().trim());
     let uMemberIdIdx = uHeaders.findIndex((h) => h === "member_id" || h === "id" || h === "memberid");
     let uNameIdx = uHeaders.findIndex((h) => h === "user_name" || h === "username" || h === "name");
+    let uRoleIdx = uHeaders.findIndex((h) => h === "role");
 
     if (uMemberIdIdx === -1) uMemberIdIdx = 0;
     if (uNameIdx === -1) uNameIdx = 1;
 
     const userNameMap = new Map<string, string>();
+    const adminMemberIds = new Set<string>(["admin", "10001234"]);
+
     userRows.slice(1).forEach((row) => {
       const mId = row[uMemberIdIdx]?.toString().trim();
       const uName = row[uNameIdx]?.toString().trim();
-      if (mId) userNameMap.set(mId, uName || mId);
+      const role = uRoleIdx !== -1 ? row[uRoleIdx]?.toString().trim().toLowerCase() : "";
+
+      if (mId) {
+        userNameMap.set(mId, uName || mId);
+        if (role === "admin") {
+          adminMemberIds.add(mId.toLowerCase());
+        }
+      }
     });
+
+    const myUserId = String(currentMemberId).trim();
+    const isMySelfAdmin = adminMemberIds.has(myUserId.toLowerCase());
 
     // Messages ヘッダーの列位置を取得
     const msgHeaders = messageRows[0].map((h) => h.toLowerCase().replace(/[_-\s]/g, "").trim());
@@ -123,9 +135,7 @@ export async function GET() {
     if (deleteFlagIdx === -1) deleteFlagIdx = 7;
     if (parentIdIdx === -1) parentIdIdx = 8;
 
-    const myUserId = String(currentMemberId).trim();
-
-    // 5. すべての有効なメッセージをオブジェクト化
+    // メッセージのオブジェクト化
     const allMessages: ParsedMessage[] = messageRows
       .slice(1)
       .map((row, index) => {
@@ -140,10 +150,16 @@ export async function GET() {
         const parentId = row[parentIdIdx]?.toString().trim() || "";
 
         const senderName = userNameMap.get(senderId) || senderId;
-        const recipientName =
-          recipientId === "all" || recipientId === "全体"
-            ? "全会員"
-            : userNameMap.get(recipientId) || recipientId;
+        
+        let recipientName = "不明";
+        const rIdLower = recipientId.toLowerCase();
+        if (rIdLower === "all" || recipientId === "全体") {
+          recipientName = "全会員";
+        } else if (rIdLower === "admin") {
+          recipientName = "事務局";
+        } else {
+          recipientName = userNameMap.get(recipientId) || recipientId;
+        }
 
         return {
           id: row[idIdx]?.toString().trim() || `msg-${index}`,
@@ -161,11 +177,10 @@ export async function GET() {
       })
       .filter((m) => !m.is_deleted);
 
-    // 6. parent_id をもとに正確にスレッド構築
+    // スレッド構築
     const threadMap = new Map<string, Thread>();
     const threadList: Thread[] = [];
 
-    // ① parentId が空のメッセージを親スレッドとして作成
     allMessages.forEach((msg) => {
       if (!msg.parentId) {
         const parentObj: Thread = {
@@ -177,7 +192,6 @@ export async function GET() {
       }
     });
 
-    // ② parentId があるメッセージを対応する親スレッドの replies に追加
     allMessages.forEach((msg) => {
       if (!msg.parentId) return;
 
@@ -188,7 +202,6 @@ export async function GET() {
           parentThread.replies.push(msg);
         }
       } else {
-        // フォールバック対応
         const fallbackParent = threadList.find(
           (t) =>
             t.title.replace(/^Re:\s*/i, "").trim().toLowerCase() ===
@@ -205,7 +218,7 @@ export async function GET() {
       }
     });
 
-    // 7. 自分に関係するスレッドに絞り込み
+    // 自分に関係するスレッドに絞り込み（管理者の場合は 'admin' 宛ても対象）
     const myRelatedThreads = threadList.filter((parent) => {
       const allMsgsInThread: ParsedMessage[] = [parent, ...parent.replies];
       return allMsgsInThread.some((m) => {
@@ -217,12 +230,13 @@ export async function GET() {
           recId === myId ||
           recId === "all" ||
           recId === "全体" ||
-          senderId === myId
+          senderId === myId ||
+          (isMySelfAdmin && recId === "admin")
         );
       });
     });
 
-    // 8. 日時ソートと最終レスポンス整形
+    // 日時ソートとレスポンスの整形
     const parseTime = (dateStr: string) => {
       if (!dateStr) return 0;
       const t = new Date(dateStr.replace(/-/g, "/")).getTime();
@@ -269,7 +283,6 @@ export async function GET() {
       };
     });
 
-    // 最終タイムスタンプで降順（新しい順）ソート
     formattedThreads.sort((a, b) => (b._latestTimestamp || 0) - (a._latestTimestamp || 0));
 
     return NextResponse.json({
@@ -277,9 +290,8 @@ export async function GET() {
       messages: formattedThreads,
     });
   } catch (error: unknown) {
-    // unknown型としてcatchし、適切に型を絞り込んでエラーハンドリング
     console.error(
-      "一般用受信メッセージ取得エラー:",
+      "メッセージ取得エラー:",
       error instanceof Error ? error.message : String(error)
     );
     return NextResponse.json(
