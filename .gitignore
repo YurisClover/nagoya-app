@@ -58,6 +58,3 @@ config.json
 
 #googledrive
 manegiment-app-2026-310acb72089f.json
-
-#なんかわかんないけど、tsconfig.jsonをignoreするようにしておく
-tsconfig.json

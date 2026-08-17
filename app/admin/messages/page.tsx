@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import MessageForm from '@/components/admin/messages/MessageForm';
-import InquiryList from '@/components/admin/messages/InquiryList';
-import { ReceivedMessage } from '@/components/admin/messages/InquiryItem';
+import MessageForm from '@/app/admin/messages/admin/messages/MessageForm';
+import InquiryList from '@/app/admin/messages/admin/messages/InquiryList';
+import { ReceivedMessage } from '@/app/admin/messages/admin/messages/InquiryItem';
 import { SessionProvider, useSession } from 'next-auth/react';
 
 type Group = {

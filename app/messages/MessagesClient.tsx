@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import ContactAdminModal from '@/components/ContactAdminModal';
-import InquiryItem, { ReceivedMessage } from '@/components/admin/messages/InquiryItem';
+import ContactAdminModal from '@/app/admin/messages/ContactAdminModel';
+import InquiryItem, { ReceivedMessage } from '@/app/admin/messages/admin/messages/InquiryItem';
 
 interface MessagesClientProps {
   currentUserId: string;
