@@ -93,7 +93,7 @@ export default function Sidebar({ user }: SidebarProps) {
                 <span>{item.label}</span>
 
                 {item.badge !== null && item.badge !== undefined && (
-                  <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                  <span className="badge">
                     {item.badge}
                   </span>
                 )}
@@ -103,7 +103,8 @@ export default function Sidebar({ user }: SidebarProps) {
         </nav>
       </div>
 
-      <div className="p-4 border-t border-slate-800 bg-slate-950/50">
+      {/* フッター：ログイン中のユーザー情報 */}
+      <div className="p-4 border-t border-chrome-line bg-black/20">
         <div className="px-2 py-1">
           <p className="text-xs text-slate-400">ログイン中</p>
           <p className="text-sm font-semibold text-slate-200 truncate mt-0.5">

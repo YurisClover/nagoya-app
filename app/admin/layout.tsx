@@ -8,8 +8,11 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
-  if(!session) redirect("/login");
-  if(session.user?.role !== "admin") redirect("/dashboard");
+  if (!session) redirect("/login");
+  if (session.user?.role !== "admin") redirect("/dashboard");
+  // validate before SHEET API
+  const metrics = await getDashboardMetrics();
+  const unreadCount = metrics.unreadMessagesCount;
 
   // ★ getDashboardMetrics の呼び出しおよび unreadCount の受け渡しを削除
   return (
