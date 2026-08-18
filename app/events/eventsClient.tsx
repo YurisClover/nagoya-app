@@ -14,14 +14,17 @@ const fetcher = async (url: string): Promise<EventWithStatus[]> => {
 export default function EventsClient({ role }: { role?: string }) {
   // executive/admin สลับมุมมองได้ว่ากำลังดู event ของฝั่งไหน
   const canSwitchPosition = role === "executive" || role === "admin";
-  const [selectedPosition, setSelectedPosition] = useState<EventPosition>("general");
+  const [selectedPosition, setSelectedPosition] =
+    useState<EventPosition>("general");
   const position = canSwitchPosition ? selectedPosition : "general";
 
-  const { data: events, error, isLoading } = useSWR<EventWithStatus[]>(
-    `/api/events?position=${position}`,
-    fetcher,
-    { revalidateOnFocus: true }
-  );
+  const {
+    data: events,
+    error,
+    isLoading,
+  } = useSWR<EventWithStatus[]>(`/api/events?position=${position}`, fetcher, {
+    revalidateOnFocus: true,
+  });
 
   return (
     <div className="page-container">
@@ -54,13 +57,17 @@ export default function EventsClient({ role }: { role?: string }) {
 
       {error ? (
         <div className="card text-center">
-          <p className="text-sm text-danger">イベント情報を取得できませんでした。</p>
+          <p className="text-sm text-danger">
+            イベント情報を取得できませんでした。
+          </p>
           <p className="text-meta mt-1">時間をおいて再度お試しください。</p>
         </div>
       ) : isLoading ? (
         <p className="text-meta py-6 text-center">読み込み中...</p>
       ) : !events?.length ? (
-        <p className="text-meta py-6 text-center">予定されているイベントはありません。</p>
+        <p className="text-meta py-6 text-center">
+          予定されているイベントはありません。
+        </p>
       ) : (
         <div className="space-y-3">
           {events.map((event) => (

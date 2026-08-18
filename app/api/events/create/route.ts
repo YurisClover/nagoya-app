@@ -1,20 +1,15 @@
 import { auth } from "@/auth";
-
 import { type NextRequest, NextResponse } from "next/server";
-
 import { createEventGoogleForm } from "@/lib/google-forms";
-
 import {
   configureGoogleFormResponseSheet,
   createGoogleFormPrefillTemplate,
 } from "@/lib/google-form-prefill";
-
 import {
   addEventToSheet,
   updateEventResponseSheetInfo,
   type EventPosition,
 } from "@/lib/sheets/events";
-
 import { formatEventSchedule, nowJST } from "@/lib/datetime";
 
 export const runtime = "nodejs";
@@ -53,7 +48,6 @@ export async function POST(request: NextRequest) {
     }
 
     const createdBy = session.user.id;
-
     const role = session.user.role;
 
     if (!createdBy) {
@@ -84,20 +78,14 @@ export async function POST(request: NextRequest) {
      * ② 管理画面から送られた内容を取得
      */
     const body = (await request.json()) as CreateEventRequest;
-
     const title = typeof body.title === "string" ? body.title.trim() : "";
-
     const eventDate =
       typeof body.eventDate === "string" ? body.eventDate.trim() : "";
-
     const eventEndDate =
       typeof body.eventEndDate === "string" ? body.eventEndDate.trim() : "";
-
     const location =
       typeof body.location === "string" ? body.location.trim() : "";
-
     const position = body.position === undefined ? "general" : body.position;
-
     /*
      * ③ 入力チェック
      */
@@ -194,27 +182,20 @@ export async function POST(request: NextRequest) {
      */
     const googleForm = await createEventGoogleForm({
       title: `${title} 申込フォーム`,
-
       description: [
         `開催日時：${formatEventSchedule(eventDate, eventEndDate)}`,
-
         location ? `開催場所：${location}` : null,
-
         "",
         "※「会員ID」の質問はシステムで使用するため、削除・変更しないでください。",
       ]
         .filter((value): value is string => value !== null)
         .join("\n"),
-
       questions: [
         {
           title: "会員ID",
-
           description:
             "システムによって自動入力されます。この質問は削除・変更しないでください。",
-
           required: true,
-
           type: "SHORT_TEXT",
         },
       ],
@@ -238,48 +219,31 @@ export async function POST(request: NextRequest) {
      */
     const createdEvent = await addEventToSheet({
       title,
-
-      event_date: eventDate,
-
-      event_end_date: eventEndDate,
-
+      event_date: nowJST(parsedEventDate),
+      event_end_date: nowJST(parsedEventEndDate),
       location,
       position,
-
       form_id: googleForm.formId,
-
       form_url: googleForm.responderUrl,
-
       status: "draft",
-
       created_by: createdBy,
-
       created_at: nowJST(),
-
       registration_count: 0,
-
       is_deleted: false,
-
       prefill_url_template: prefillUrlTemplate,
-
       response_sheet_name: "",
-
       response_sheet_id: "",
     });
 
     const responseSheet = await configureGoogleFormResponseSheet({
       formId: googleForm.formId,
-
       eventId: String(createdEvent.event_id),
-
       eventTitle: title,
     });
 
     await updateEventResponseSheetInfo({
       eventId: String(createdEvent.event_id),
-
       responseSheetName: responseSheet.sheetName,
-
       responseSheetId: responseSheet.sheetId,
     });
 
@@ -289,28 +253,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-
         message: "イベントを準備中の状態で作成しました。",
-
         event: {
           eventId: createdEvent.event_id,
-
           title: createdEvent.title,
-
           eventDate: createdEvent.event_date,
-
           eventEndDate: createdEvent.event_end_date,
-
           location: createdEvent.location,
-
           position: createdEvent.position,
-
           status: createdEvent.status,
-
           formId: createdEvent.form_id,
-
           formUrl: createdEvent.form_url,
-
           formEditUrl: googleForm.editUrl,
         },
       },
@@ -330,9 +283,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-
         error: "イベントの作成に失敗しました。",
-
         detail,
       },
       {

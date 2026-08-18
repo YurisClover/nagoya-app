@@ -5,12 +5,13 @@ import {
 } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
+import { nowJST } from "./datetime";
 
 const MAIN_SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID?.trim() ?? "";
 const RESPONSE_SPREADSHEET_ID =
   process.env.GOOGLE_FORM_RESPONSE_SPREADSHEET_ID?.trim() ?? "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
-const ANSWER_SHEET_NAME = "answer";
+const ANSWER_SHEET_NAME = "Answers";
 const RESULT_HEADER = "判定結果";
 const MEMBER_ID_HEADER = "会員ID";
 const MEMBER_ID_RESULT_HEADER = "判定会員ID";
@@ -88,25 +89,10 @@ function getEventIdFromSheetName(sheetName: string): string | null {
   return match?.[1]?.trim() || null;
 }
 
-function formatDateTime(date: Date): string {
-  const parts = new Intl.DateTimeFormat("ja-JP", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).formatToParts(date);
-
-  const values = Object.fromEntries(
-    parts.map((part) => [part.type, part.value]),
-  );
-  return [
-    `${values.year}-${values.month}-${values.day}`,
-    `${values.hour}:${values.minute}:${values.second}`,
-  ].join(" ");
+// iso + 9:00
+function toJstIsoOrRaw(value: unknown): string {
+  const d = new Date(String(value));
+  return Number.isNaN(d.getTime()) ? String(value ?? "") : nowJST(d);
 }
 
 async function createSpreadsheetDoc(
@@ -272,19 +258,14 @@ async function syncResponseSheet({
       currentError !== error ||
       !currentValidatedAt;
     let validatedAt = currentValidatedAt;
+
     if (hasChanged) {
-      validatedAt = formatDateTime(new Date());
-
+      validatedAt = nowJST();
       row.set(RESULT_HEADER, result);
-
       row.set(MEMBER_ID_RESULT_HEADER, memberId);
-
       row.set(ERROR_HEADER, error);
-
       row.set(VALIDATED_AT_HEADER, validatedAt);
-
       await row.save();
-
       processed += 1;
     } else {
       skipped += 1;
@@ -345,18 +326,18 @@ async function upsertValidAnswers({
       : `ans_${answer.eventId}_${answer.memberId}`;
     const sourceValues = {
       answer_id: answerId,
-      event_id: answer.eventId,
-      member_id: answer.memberId,
-      submitted_at: answer.submittedAt,
+      event_id: String(answer.eventId),
+      member_id: String(answer.memberId),
+      submitted_at: toJstIsoOrRaw(answer.submittedAt),
       answers_json: answer.answersJson,
-      validated_at: answer.validatedAt,
+      validated_at: toJstIsoOrRaw(answer.validatedAt),
     };
 
     if (!existingRow) {
       const newRow = await answerSheet.addRow(
         {
           ...sourceValues,
-          synced_at: formatDateTime(new Date()),
+          synced_at: nowJST(),
         },
         {
           raw: true,
@@ -379,17 +360,12 @@ async function upsertValidAnswers({
       existingRow.set(header, value);
     }
 
-    existingRow.set("synced_at", formatDateTime(new Date()));
-
-    await existingRow.save();
-
+    existingRow.set("synced_at", nowJST());
+    await existingRow.save({ raw: true });
     updated += 1;
   }
 
-  return {
-    inserted,
-    updated,
-  };
+  return { inserted, updated };
 }
 
 async function updateEventRegistrationCounts({
@@ -406,11 +382,8 @@ async function updateEventRegistrationCounts({
   }
 
   await eventsSheet.loadHeaderRow();
-
   const headers = eventsSheet.headerValues ?? [];
-
   const requiredHeaders = ["event_id", "registration_count"];
-
   const missingHeaders = requiredHeaders.filter(
     (header) => !headers.includes(header),
   );
@@ -427,16 +400,13 @@ async function updateEventRegistrationCounts({
   ]);
 
   const countByEventId = new Map<string, number>();
-
   for (const row of answerRows) {
     const eventId = String(row.get("event_id") ?? "").trim();
-
     const memberId = normalizeMemberId(row.get("member_id"));
 
     if (!eventId || !memberId) {
       continue;
     }
-
     countByEventId.set(eventId, (countByEventId.get(eventId) ?? 0) + 1);
   }
 
@@ -450,9 +420,7 @@ async function updateEventRegistrationCounts({
     }
 
     const nextCount = countByEventId.get(eventId) ?? 0;
-
     const currentRaw = String(row.get("registration_count") ?? "").trim();
-
     const currentCount = Number(currentRaw);
 
     if (
@@ -462,14 +430,10 @@ async function updateEventRegistrationCounts({
     ) {
       continue;
     }
-
     row.set("registration_count", nextCount);
-
     await row.save();
-
     updated += 1;
   }
-
   return updated;
 }
 
@@ -483,13 +447,11 @@ export async function syncEventResponseSheets(): Promise<EventResponseSyncResult
       RESPONSE_SPREADSHEET_ID,
       "GOOGLE_FORM_RESPONSE_SPREADSHEET_ID",
     ),
-
     createSpreadsheetDoc(MAIN_SPREADSHEET_ID, "GOOGLE_SHEET_ID"),
   ]);
 
   const [activeMemberIds, answerSheet] = await Promise.all([
     loadActiveMemberIds(mainDoc),
-
     getAnswerSheet(mainDoc),
   ]);
 
@@ -520,15 +482,10 @@ export async function syncEventResponseSheets(): Promise<EventResponseSyncResult
     });
 
     result.processed += sheetResult.processed;
-
     result.valid += sheetResult.valid;
-
     result.invalid += sheetResult.invalid;
-
     result.skipped += sheetResult.skipped;
-
     allValidAnswers.push(...sheetResult.validAnswers);
-
     result.sheets.push({
       sheetName: sheet.title,
       eventId,
@@ -545,13 +502,10 @@ export async function syncEventResponseSheets(): Promise<EventResponseSyncResult
   });
 
   result.answerInserted = answerResult.inserted;
-
   result.answerUpdated = answerResult.updated;
-
   result.registrationCountsUpdated = await updateEventRegistrationCounts({
     mainDoc,
     answerSheet,
   });
-
   return result;
 }

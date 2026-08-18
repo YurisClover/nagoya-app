@@ -1,10 +1,6 @@
-export type EventPosition =
-  | "general"
-  | "executive";
+export type EventPosition = "general" | "executive";
 
-export type VisibleEventStatus =
-  | "published"
-  | "closed";
+export type VisibleEventStatus = "published" | "closed";
 
 export type EventWithStatus = {
   id: number;
@@ -14,7 +10,7 @@ export type EventWithStatus = {
   event_end_date: string;
   location: string;
   position: EventPosition;
-  status: VisibleEventStatus;
+  status: EventStatus;
   form_url: string;
   prefill_url_template: string;
   is_answered: boolean | null;
@@ -35,3 +31,17 @@ export type EventSheetHealth = {
   member_id_column: string | null;
   response_count: number | null;
 };
+
+// admin still can see draft even in user's event page
+export type EventStatus = VisibleEventStatus | "draft";
+
+// parse raw from sheet -> union (weido/blank -> fallback)
+export function toEventPosition(v: string): EventPosition {
+  return v.trim().toLowerCase() === "executive" ? "executive" : "general";
+}
+export function toEventStatus(v: string): EventStatus {
+  const s = v.trim().toLowerCase();
+  if (s === "draft") return "draft";
+  if (s === "closed") return "closed";
+  return "published";
+}

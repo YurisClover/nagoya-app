@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { formatEventPeriod } from "@/lib/datetime";
 import type {
   EventPosition,
@@ -126,11 +126,8 @@ function EventDeleteControl({
 type EventPositionControlProps = {
   event: SheetEvent;
   updatingEventId: string | null;
-
   tryStartUpdate: (eventId: string) => boolean;
-
   finishUpdate: () => void;
-
   onUpdated: (event: SheetEvent) => void;
 };
 
@@ -146,23 +143,19 @@ function EventPositionControl({
   );
 
   const [message, setMessage] = useState("");
-
   const [errorMessage, setErrorMessage] = useState("");
-
   const isUpdating = updatingEventId === event.event_id;
-
   const isAnyUpdating = updatingEventId !== null;
-
-  useEffect(() => {
+  const [prevPosition, setPrevPosition] = useState(event.position);
+  if (prevPosition !== event.position) {
+    setPrevPosition(event.position);
     setSelectedPosition(event.position);
-  }, [event.position]);
+  }
 
   async function handleUpdate() {
     if (selectedPosition === event.position) {
       setMessage("対象者は変更されていません。");
-
       setErrorMessage("");
-
       return;
     }
 
@@ -178,14 +171,9 @@ function EventPositionControl({
     try {
       const response = await fetch("/api/events/position", {
         method: "PATCH",
-
-        headers: {
-          "Content-Type": "application/json",
-        },
-
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: event.event_id,
-
           position: selectedPosition,
         }),
       });
@@ -195,7 +183,6 @@ function EventPositionControl({
       if (!response.ok || !result.success) {
         const errorText = [
           result.error ?? "対象者の変更に失敗しました。",
-
           result.detail ? `詳細: ${result.detail}` : "",
         ]
           .filter(Boolean)
@@ -212,14 +199,11 @@ function EventPositionControl({
       };
 
       onUpdated(updatedEvent);
-
       setSelectedPosition(updatedEvent.position);
-
       setMessage("イベント対象者を変更しました。");
     } catch (error) {
       const detail =
         error instanceof Error ? error.message : "不明な通信エラー";
-
       setErrorMessage(
         `対象者の変更中に通信エラーが発生しました。\n詳細: ${detail}`,
       );
@@ -237,14 +221,12 @@ function EventPositionControl({
         disabled={isAnyUpdating}
         onChange={(changeEvent) => {
           setSelectedPosition(changeEvent.target.value as EventPosition);
-
           setMessage("");
           setErrorMessage("");
         }}
         aria-label={`${event.title}の対象者`}
       >
         <option value="general">一般会員向け</option>
-
         <option value="executive">執行部向け</option>
       </select>
 
@@ -253,7 +235,6 @@ function EventPositionControl({
       </button>
 
       {message && <p role="status">{message}</p>}
-
       {errorMessage && (
         <p
           role="alert"
@@ -271,11 +252,8 @@ function EventPositionControl({
 type EventStatusControlProps = {
   event: SheetEvent;
   updatingEventId: string | null;
-
   tryStartUpdate: (eventId: string) => boolean;
-
   finishUpdate: () => void;
-
   onUpdated: (event: SheetEvent) => void;
 };
 
@@ -291,11 +269,8 @@ function EventStatusControl({
   );
 
   const [message, setMessage] = useState("");
-
   const [errorMessage, setErrorMessage] = useState("");
-
   const isUpdating = updatingEventId === event.event_id;
-
   const isAnyUpdating = updatingEventId !== null;
 
   async function handleUpdate() {
@@ -311,14 +286,9 @@ function EventStatusControl({
     try {
       const response = await fetch("/api/events/status", {
         method: "PATCH",
-
-        headers: {
-          "Content-Type": "application/json",
-        },
-
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: event.event_id,
-
           status: selectedStatus,
         }),
       });
@@ -327,10 +297,8 @@ function EventStatusControl({
 
       if (!response.ok || !result.success) {
         console.error("状態変更APIエラー:", result);
-
         const errorText = [
           result.error ?? "公開状態の変更に失敗しました。",
-
           result.detail ? `詳細: ${result.detail}` : "",
         ]
           .filter(Boolean)
@@ -343,21 +311,17 @@ function EventStatusControl({
 
       const updatedEvent: SheetEvent = result.event ?? {
         ...event,
-
         status: selectedStatus,
       };
 
       onUpdated(updatedEvent);
-
       setSelectedStatus(updatedEvent.status);
-
       setMessage("GoogleフォームとEventsシートへ反映しました。");
     } catch (error) {
       console.error("Event status update error:", error);
 
       const detail =
         error instanceof Error ? error.message : "不明な通信エラー";
-
       setErrorMessage(
         `公開状態の変更中に通信エラーが発生しました。\n詳細: ${detail}`,
       );
@@ -373,25 +337,20 @@ function EventStatusControl({
         disabled={isAnyUpdating}
         onChange={(changeEvent) => {
           setSelectedStatus(changeEvent.target.value as EventStatus);
-
           setMessage("");
           setErrorMessage("");
         }}
         aria-label={`${event.title}の公開状態`}
       >
         <option value="draft">準備中</option>
-
         <option value="published">公開</option>
-
         <option value="closed">受付終了</option>
       </select>
 
       <button type="button" disabled={isAnyUpdating} onClick={handleUpdate}>
         {isUpdating ? "反映しています..." : "状態を反映"}
       </button>
-
       {message && <p role="status">{message}</p>}
-
       {errorMessage && (
         <p
           role="alert"
@@ -408,31 +367,28 @@ function EventStatusControl({
 
 export function EventList({ events }: EventListProps) {
   const [displayedEvents, setDisplayedEvents] = useState<SheetEvent[]>(events);
-
   const [updatingEventId, setUpdatingEventId] = useState<string | null>(null);
-
   /*
    * stateの反映前に別のボタンを
    * 素早く押された場合にも、
    * 二重実行を防ぐための即時ロック。
    */
   const updateLockRef = useRef(false);
-
   /*
    * イベント作成後などに、
    * page.tsxから新しい一覧が届いたら同期する。
    */
-  useEffect(() => {
+  const [prevEvents, setPrevEvents] = useState(events);
+  if (prevEvents !== events) {
+    setPrevEvents(events);
     setDisplayedEvents(events);
-  }, [events]);
+  }
 
   function tryStartUpdate(eventId: string): boolean {
     if (updateLockRef.current) {
       return false;
     }
-
     updateLockRef.current = true;
-
     setUpdatingEventId(eventId);
 
     return true;
@@ -440,7 +396,6 @@ export function EventList({ events }: EventListProps) {
 
   function finishUpdate() {
     updateLockRef.current = false;
-
     setUpdatingEventId(null);
   }
 
