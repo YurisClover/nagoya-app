@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import Sidebar from "./Sidebar";
 import AdminShell from "@/components/AdminShell";
-import { getDashboardMetrics } from "@/lib/sheets";
 
 export default async function AdminLayout({
   children,
@@ -12,13 +11,9 @@ export default async function AdminLayout({
   const session = await auth();
   if (!session) redirect("/login");
   if (session.user?.role !== "admin") redirect("/dashboard");
-  // validate before SHEET API
-  const metrics = await getDashboardMetrics();
-  const unreadCount = metrics.unreadMessagesCount;
 
-  // ★ getDashboardMetrics の呼び出しおよび unreadCount の受け渡しを削除
   return (
-    <AdminShell sidebar={<Sidebar unreadCount={unreadCount} user={session?.user} />}>
+    <AdminShell sidebar={<Sidebar user={session?.user} />}>
       {children}
     </AdminShell>
   );
