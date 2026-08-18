@@ -442,12 +442,12 @@ export function EventList({ events }: EventListProps) {
           return (
             <article
               key={event.event_id}
-              className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+              className="card transition hover:shadow-md"
             >
               {/* イベント名・状態 */}
-              <div className="border-b border-slate-100 pb-4">
+              <div className="border-b border-line pb-4">
                 <div className="flex items-start justify-between gap-4">
-                  <h2 className="text-lg font-bold text-slate-900">
+                  <h2 className="text-lg font-bold">
                     {event.title}
                   </h2>
 
@@ -456,7 +456,7 @@ export function EventList({ events }: EventListProps) {
                       event.status === "published"
                         ? "bg-blue-100 text-blue-800"
                         : event.status === "closed"
-                          ? "bg-slate-200 text-slate-700"
+                          ? "bg-slate-200"
                           : "bg-amber-100 text-amber-800"
                     }`}
                   >
@@ -464,13 +464,13 @@ export function EventList({ events }: EventListProps) {
                   </span>
                 </div>
 
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm text-ink-muted">
                   {formatEventPeriod(event.event_date, event.event_end_date)}
                 </p>
 
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-ink-muted">
                   開催場所：
-                  <span className="font-medium text-slate-800">
+                  <span className="font-medium">
                     {event.location || "未設定"}
                   </span>
                 </p>
@@ -478,8 +478,8 @@ export function EventList({ events }: EventListProps) {
 
               {/* 対象者・申込数 */}
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <p className="mb-2 text-xs font-medium text-slate-500">
+                <div className="rounded-lg bg-surface-muted p-3">
+                  <p className="mb-2 text-xs font-medium text-ink-muted">
                     対象者
                   </p>
 
@@ -492,12 +492,12 @@ export function EventList({ events }: EventListProps) {
                   />
                 </div>
 
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <p className="text-xs font-medium text-slate-500">申込数</p>
+                <div className="rounded-lg bg-surface-muted p-3">
+                  <p className="text-xs font-medium text-ink-muted">申込数</p>
 
-                  <p className="mt-1 text-xl font-bold text-slate-900">
+                  <p className="mt-1 text-xl font-bold">
                     {event.registration_count}
-                    <span className="ml-1 text-sm font-normal text-slate-500">
+                    <span className="ml-1 text-sm font-normal text-ink-muted">
                       名
                     </span>
                   </p>
@@ -505,8 +505,8 @@ export function EventList({ events }: EventListProps) {
               </div>
 
               {/* Googleフォーム・回答一覧 */}
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <p className="mb-2 text-xs font-medium text-slate-500">
+              <div className="mt-4 border-t border-line pt-4">
+                <p className="mb-2 text-xs font-medium text-ink-muted">
                   フォーム・回答
                 </p>
 
@@ -515,7 +515,7 @@ export function EventList({ events }: EventListProps) {
                     href={formEditUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-blue-700 hover:underline"
+                    className="font-medium text-brand hover:underline"
                   >
                     フォーム編集
                   </a>
@@ -524,7 +524,7 @@ export function EventList({ events }: EventListProps) {
                     href={event.form_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-blue-700 hover:underline"
+                    className="font-medium text-brand hover:underline"
                   >
                     回答画面
                   </a>
@@ -534,20 +534,20 @@ export function EventList({ events }: EventListProps) {
                       href={responseSheetUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-medium text-blue-700 hover:underline"
+                      className="font-medium text-brand hover:underline"
                     >
                       回答一覧を開く
                     </a>
                   ) : (
-                    <span className="text-slate-400">回答一覧なし</span>
+                    <span className="text-ink-muted">回答一覧なし</span>
                   )}
                 </div>
               </div>
 
               {/* 状態変更・削除 */}
-              <div className="mt-4 flex flex-wrap items-end justify-between gap-4 border-t border-slate-100 pt-4">
+              <div className="mt-4 flex flex-wrap items-end justify-between gap-4 border-t border-line pt-4">
                 <div>
-                  <p className="mb-2 text-xs font-medium text-slate-500">
+                  <p className="mb-2 text-xs font-medium text-ink-muted">
                     公開状態
                   </p>
 

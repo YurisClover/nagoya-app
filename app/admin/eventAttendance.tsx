@@ -64,7 +64,7 @@ export default function EventAttendance({ items }: EventAttendanceProps) {
                         href={item.formUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline break-all font-mono"
+                        className="text-xs text-blue-600 hover:underline break-all font-mono inline-block max-w-[120px] truncate align-bottom text-brand"
                       >
                         {item.formUrl}
                       </a>

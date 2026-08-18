@@ -28,21 +28,21 @@ export default async function EventsPage() {
   return (
     <main className="mx-auto max-w-7xl space-y-7 p-6">
       {/* ヘッダー */}
-      <div className="border-b border-slate-200 pb-5">
+      <div className="border-b border-line pb-5">
         <div className="flex items-start justify-between gap-6">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-2xl font-bold tracking-tight">
               イベント管理
             </h1>
 
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-ink-muted">
               イベントの公開状態や申込状況を管理します。
             </p>
           </div>
 
           <Link
             href="/admin/events/new"
-            className="shrink-0 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            className="btn btn-primary shrink-0"
           >
             ＋ イベント作成
           </Link>
@@ -57,24 +57,24 @@ export default async function EventsPage() {
       {/* 作成済みイベント */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">作成済みイベント</h2>
+          <h2 className="text-lg font-bold">作成済みイベント</h2>
 
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-ink-muted">
             作成したイベントの内容や申込状況を確認できます。
           </p>
         </div>
 
         {/* 注意事項 */}
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+        <div className="card transition hover:shadow-md">
           <div className="flex gap-3">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-700">
               !
             </div>
 
             <div>
-              <p className="font-semibold text-slate-900">公開状態について</p>
+              <p className="font-semibold">公開状態について</p>
 
-              <p className="mt-1 text-sm leading-6 text-slate-700">
+              <p className="mt-1 text-sm leading-6">
                 公開状態を変更すると、Googleフォームの公開・受付状態にも自動で反映されます。
               </p>
 

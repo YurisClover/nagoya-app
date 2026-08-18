@@ -20,7 +20,7 @@ export default function Metrics({ data }: MetricsProps) {
   return (
     <div className="flex gap-4 flex-wrap">
       {/* 1. 総会員数 */}
-      <div className="p-4 bg-white rounded-lg min-w-[160px] flex-1">
+      <div className="card min-w-[150px] flex-1">
         <p className="text-sm text-gray-500 font-medium">総会員数</p>
         <p className="text-2xl font-bold text-gray-900 mt-1">
           {totalMembers.toLocaleString("ja-JP")}{" "}
@@ -32,7 +32,7 @@ export default function Metrics({ data }: MetricsProps) {
       </div>
 
       {/* 2. 有効会員 */}
-      <div className="p-4 bg-white rounded-lg min-w-[160px] flex-1">
+      <div className="card min-w-[150px] flex-1">
         <p className="text-sm text-gray-500 font-medium">有効会員</p>
         <p className="text-2xl font-bold text-green-600 mt-1">
           {activeMembers.toLocaleString("ja-JP")}{" "}
@@ -44,7 +44,7 @@ export default function Metrics({ data }: MetricsProps) {
       </div>
 
       {/* 3. 今月のイベント */}
-      <div className="p-4 bg-white rounded-lg min-w-[160px] flex-1">
+      <div className="card min-w-[150px] flex-1">
         <p className="text-sm text-gray-500 font-medium">今月のイベント</p>
         <p className="text-2xl font-bold text-blue-600 mt-1">
           {monthlyEventsCount.toLocaleString("ja-JP")}{" "}
@@ -56,7 +56,7 @@ export default function Metrics({ data }: MetricsProps) {
       </div>
 
       {/* 4. 未読のメッセージ */}
-      <div className="p-4 bg-white rounded-lg min-w-[160px] flex-1">
+      <div className="card min-w-[150px] flex-1">
         <p className="text-sm text-gray-500 font-medium">未読のメッセージ</p>
         <p className="text-2xl font-bold text-red-500 mt-1">
           {unreadMessagesCount.toLocaleString("ja-JP")}{" "}
