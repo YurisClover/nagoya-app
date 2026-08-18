@@ -18,6 +18,8 @@ type ParsedMessage = {
   is_read: boolean;
   created_at: string;
   is_deleted: boolean;
+  status: string; // ★追加
+  last_status_updated_by: string; // ★追加
 };
 
 type Thread = ParsedMessage & {
@@ -124,6 +126,9 @@ export async function GET() {
     let createdAtIdx = msgHeaders.findIndex((h) => h === "createdat" || h === "date");
     let deleteFlagIdx = msgHeaders.findIndex((h) => h === "deleteflag" || h === "deleted");
     let parentIdIdx = msgHeaders.findIndex((h) => h === "parentid" || h === "parent");
+    // ★追加: ステータスと更新者の列インデックス検出
+    let statusIdx = msgHeaders.findIndex((h) => h === "status");
+    let lastStatusUpdatedByIdx = msgHeaders.findIndex((h) => h === "laststatusupdatedby" || h === "statusupdatedby");
 
     if (idIdx === -1) idIdx = 0;
     if (senderIdIdx === -1) senderIdIdx = 1;
@@ -161,6 +166,10 @@ export async function GET() {
           recipientName = userNameMap.get(recipientId) || recipientId;
         }
 
+        // ★追加: ステータスと更新者の取得（デフォルトは unsupported / 未対応）
+        const status = statusIdx !== -1 && row[statusIdx] ? row[statusIdx].toString().trim() : "unsupported";
+        const lastStatusUpdatedBy = lastStatusUpdatedByIdx !== -1 && row[lastStatusUpdatedByIdx] ? row[lastStatusUpdatedByIdx].toString().trim() : "";
+
         return {
           id: row[idIdx]?.toString().trim() || `msg-${index}`,
           parentId,
@@ -173,6 +182,8 @@ export async function GET() {
           is_read: isRead,
           created_at: row[createdAtIdx]?.toString().trim() || "",
           is_deleted: isDeleted,
+          status,
+          last_status_updated_by: lastStatusUpdatedBy,
         };
       })
       .filter((m) => !m.is_deleted);
@@ -265,6 +276,8 @@ export async function GET() {
         body: parent.body,
         is_read: parentIsRead,
         created_at: parent.created_at,
+        status: parent.status, // ★追加: 親メッセージのステータスを返す
+        last_status_updated_by: parent.last_status_updated_by, // ★追加
         _latestTimestamp: parent._latestTimestamp,
         replies: parent.replies.map((r) => {
           const replyIsRead = r.sender_id === myUserId ? true : r.is_read;

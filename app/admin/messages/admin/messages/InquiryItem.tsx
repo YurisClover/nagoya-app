@@ -1,5 +1,3 @@
-// 各メッセージカード（折りたたみ・スレッド表示・削除管理）
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -33,6 +31,7 @@ export type ReceivedMessage = {
   isRead: boolean;
   createdAt: string;
   status: MessageStatus;
+  lastStatusUpdatedBy?: string | null;
   deleteFlag?: boolean | string;
   replies?: ReplyMessage[];
 };
@@ -45,8 +44,10 @@ interface InquiryItemProps {
   onSendReply: (parentMessageId: string, recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
   onDelete?: (messageId: string, replyIds?: string[]) => Promise<void>;
   onMarkAsRead?: (messageId: string) => Promise<void>;
-  // ★ ステータス変更用関数をPropsに追加
-  onStatusChange: (messageId: string, newStatus: MessageStatus) => Promise<void>;
+  // ★変更: 一般側では渡さなくて済むようにオプショナル(?)に変更
+  onStatusChange?: (messageId: string, newStatus: MessageStatus) => Promise<void>;
+  // ★追加: 管理者かどうかを判定するフラグ（デフォルトは false）
+  isAdmin?: boolean; 
 }
 
 export default function InquiryItem({
@@ -58,22 +59,22 @@ export default function InquiryItem({
   onDelete,
   onMarkAsRead,
   onStatusChange,
+  isAdmin = false, // ★追加: デフォルトは一般ユーザー（false）とする
 }: InquiryItemProps) {
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
 
-  // ステータスの設定
   const statusConfig: Record<MessageStatus, { label: string; className: string }> = {
     unsupported: { label: '未対応', className: 'bg-red-100 text-red-700' },
     pending: { label: '対応中', className: 'bg-yellow-100 text-yellow-700' },
     closed: { label: '対応完了', className: 'bg-green-100 text-green-700' },
   };
 
-  const currentStatus = inquiry.status || 'unsupported';
+  const currentStatus: MessageStatus = inquiry.status || 'unsupported';
   const config = statusConfig[currentStatus];
 
-  // ステータス変更ハンドラ
-  const handleStatusChange = async (newStatus: MessageStatus) => {
+  const handleStatusChange = async (newStatus: MessageStatus): Promise<void> => {
+    if (!onStatusChange) return;
     setIsUpdatingStatus(true);
     try {
       await onStatusChange(inquiry.id, newStatus);
@@ -84,25 +85,21 @@ export default function InquiryItem({
     }
   };
 
-  // 未読判定
-  const isParentUnread = !inquiry.isRead && String(inquiry.senderId).trim() !== String(currentUserId).trim();
-  const hasUnreadReplies = inquiry.replies
-    ? inquiry.replies.some((r) => !r.isRead && String(r.senderId).trim() !== String(currentUserId).trim())
+  const isParentUnread: boolean = !inquiry.isRead && String(inquiry.senderId).trim() !== String(currentUserId).trim();
+  const hasUnreadReplies: boolean = inquiry.replies
+    ? inquiry.replies.some((r: ReplyMessage) => !r.isRead && String(r.senderId).trim() !== String(currentUserId).trim())
     : false;
-  const hasThreadUnread = isParentUnread || hasUnreadReplies;
+  const hasThreadUnread: boolean = isParentUnread || hasUnreadReplies;
 
   useEffect(() => {
     if (!isExpanded) return;
 
-    const isParentUnread = !inquiry.isRead && inquiry.senderId !== currentUserId;
-    const unreadReplyIds = inquiry.replies
-      ?.filter((r) => !r.isRead && r.senderId !== currentUserId)
-      .map((r) => r.id) || [];
+    const unreadReplyIds: string[] = inquiry.replies
+      ?.filter((r: ReplyMessage) => !r.isRead && String(r.senderId).trim() !== String(currentUserId).trim())
+      .map((r: ReplyMessage) => r.id) || [];
 
-    const hasUnreadReplies = unreadReplyIds.length > 0;
-
-    if (isParentUnread || hasUnreadReplies) {
-      const handleRead = async () => {
+    if (isParentUnread || unreadReplyIds.length > 0) {
+      const handleRead = async (): Promise<void> => {
         try {
           const res = await fetch('/api/admin/inquiries/read', {
             method: 'POST',
@@ -121,15 +118,15 @@ export default function InquiryItem({
       };
       handleRead();
     }
-  }, [isExpanded, inquiry, currentUserId, onMarkAsRead]);
+  }, [isExpanded, inquiry, currentUserId, onMarkAsRead, isParentUnread]);
 
-  const handleDelete = async (e: React.MouseEvent) => {
+  const handleDelete = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
     if (!confirm('このメッセージとスレッド内の返信をすべて削除してもよろしいですか？')) return;
     try {
       setIsDeleting(true);
       if (onDelete) {
-        const replyIds = inquiry.replies?.map((r) => r.id) || [];
+        const replyIds: string[] = inquiry.replies?.map((r: ReplyMessage) => r.id) || [];
         await onDelete(inquiry.id, replyIds);
       }
     } catch (err) {
@@ -146,7 +143,6 @@ export default function InquiryItem({
         hasThreadUnread ? 'bg-[#eaf2fd] border-blue-200 shadow-sm' : 'bg-white border-slate-200'
       }`}
     >
-      {/* ヘッダー */}
       <div
         onClick={onToggle}
         className="p-4 cursor-pointer hover:opacity-90 transition flex items-center justify-between"
@@ -161,6 +157,7 @@ export default function InquiryItem({
               <span className="font-bold text-base text-slate-900 leading-tight truncate">
                 {inquiry.userName}
               </span>
+              {/* 一般ユーザー側には相手のIDを見せないようにする場合、ここも isAdmin で囲むことができます */}
               {inquiry.memberId && (
                 <span className="text-xs text-slate-500 font-medium shrink-0">({inquiry.memberId})</span>
               )}
@@ -172,10 +169,19 @@ export default function InquiryItem({
         </div>
 
         <div className="flex items-center space-x-3 flex-shrink-0">
-          {/* ★ ステータスバッジ */}
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${config.className}`}>
-            {config.label}
-          </span>
+          <div className="flex items-center space-x-1.5">
+            {/* バッジは常に表示 */}
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${config.className}`}>
+              {config.label}
+            </span>
+            {/* ★変更: 管理者名(ID)は管理者にのみ表示する */}
+            {isAdmin && inquiry.lastStatusUpdatedBy && (
+              <span className="text-[11px] text-slate-400">
+                ({inquiry.lastStatusUpdatedBy})
+              </span>
+            )}
+          </div>
+
           <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
             {formatRelativeDateTime(inquiry.createdAt)}
           </span>
@@ -194,28 +200,29 @@ export default function InquiryItem({
         </div>
       </div>
 
-      {/* 展開時 */}
       {isExpanded && (
         <div className="px-4 pb-5 pt-2 border-t border-slate-200/60 bg-white/50 space-y-4">
           
-          {/* ★ ステータス変更ボタン群 */}
-          <div className="flex items-center space-x-2 pt-2">
-            <span className="text-xs font-bold text-slate-500">ステータス変更:</span>
-            {(['unsupported', 'pending', 'closed'] as MessageStatus[]).map((s) => (
-              <button
-                key={s}
-                disabled={isUpdatingStatus || currentStatus === s}
-                onClick={() => handleStatusChange(s)}
-                className={`px-3 py-1 text-[11px] font-bold rounded-lg border transition ${
-                  currentStatus === s 
-                    ? 'bg-slate-800 text-white border-slate-800' 
-                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                {statusConfig[s].label}
-              </button>
-            ))}
-          </div>
+          {/* ★変更: isAdminがtrueの時のみステータス変更ボタンを表示 */}
+          {isAdmin && (
+            <div className="flex items-center space-x-2 pt-2">
+              <span className="text-xs font-bold text-slate-500">ステータス変更:</span>
+              {(['unsupported', 'pending', 'closed'] as MessageStatus[]).map((s) => (
+                <button
+                  key={s}
+                  disabled={isUpdatingStatus || currentStatus === s}
+                  onClick={() => handleStatusChange(s)}
+                  className={`px-3 py-1 text-[11px] font-bold rounded-lg border transition ${
+                    currentStatus === s 
+                      ? 'bg-slate-800 text-white border-slate-800' 
+                      : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {statusConfig[s].label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="bg-white p-4 rounded-lg border border-slate-200 text-sm text-slate-800 whitespace-pre-wrap">
             <p className="text-xs text-slate-400 mb-1 font-semibold">【問い合わせ本文】</p>
@@ -225,11 +232,11 @@ export default function InquiryItem({
           {inquiry.replies && inquiry.replies.length > 0 && (
             <div className="pl-4 space-y-3 border-l-2 border-[#1b365d]">
               <p className="text-xs font-bold text-slate-600">返信履歴</p>
-              {inquiry.replies.map((reply) => (
+              {inquiry.replies.map((reply: ReplyMessage) => (
                 <div key={reply.id} className="bg-white border border-slate-200 p-3 rounded-lg text-sm">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs text-slate-900">
-                      {reply.userName || reply.senderId} {reply.memberId ? `(${reply.memberId})` : ''}
+                      {reply.userName || reply.senderId} {isAdmin && reply.memberId ? `(${reply.memberId})` : ''}
                     </span>
                     <span className="text-[11px] text-slate-400">{formatRelativeDateTime(reply.createdAt)}</span>
                   </div>
@@ -239,7 +246,6 @@ export default function InquiryItem({
             </div>
           )}
 
-          {/* ★ 返信フォームの制御 */}
           {currentStatus === 'closed' ? (
             <div className="p-4 bg-slate-100 rounded-lg text-center text-sm text-slate-500">
               この問い合わせは「対応完了」に設定されているため、返信できません。

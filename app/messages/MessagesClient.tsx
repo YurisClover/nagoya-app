@@ -22,30 +22,47 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
       const data = await res.json();
 
       if (data.success && Array.isArray(data.messages)) {
-        const formattedMessages: ReceivedMessage[] = data.messages.map((item: any, idx: number) => ({
-          id: String(item.id || item.message_id || `msg-${idx}`),
-          senderId: item.senderId || item.sender_id || '',
-          recipientId: item.recipientId || item.recipient_id || '',
-          userName: item.userName || item.sender_name || 'ユーザー',
-          recipientName: item.recipientName || item.recipient_name || '宛先',
-          memberId: item.memberId || item.member_id || '',
-          subject: item.subject || item.title || '(件名なし)',
-          body: item.body || '',
-          isRead: Boolean(item.isRead ?? item.is_read),
-          createdAt: item.createdAt || item.created_at || new Date().toISOString(),
-          replies: (item.replies || []).map((r: any, rIdx: number) => ({
-            id: String(r.id || r.reply_id || `reply-${idx}-${rIdx}`),
-            senderId: r.senderId || r.sender_id || '',
-            recipientId: r.recipientId || r.recipient_id || '',
-            userName: r.userName || r.sender_name || '',
-            recipientName: r.recipientName || r.recipient_name || '',
-            memberId: r.memberId || r.member_id || '',
-            subject: r.subject || r.title || '',
-            body: r.body || '',
-            isRead: Boolean(r.isRead ?? r.is_read),
-            createdAt: r.createdAt || r.created_at || '',
-          })),
-        }));
+        const formattedMessages: ReceivedMessage[] = data.messages.map((item: any, idx: number) => {
+          const senderId = item.senderId || item.sender_id || '';
+          const recipientName = item.recipientName || item.recipient_name || '事務局';
+
+          // 自分が送信者の場合は宛先（事務局）、それ以外（管理者からの受信など）は「事務局」にする
+          const isMyMessage = String(senderId).trim() === String(currentUserId).trim();
+          const displayUserName = isMyMessage ? recipientName : '事務局';
+
+          return {
+            id: String(item.id || item.message_id || `msg-${idx}`),
+            senderId: senderId,
+            recipientId: item.recipientId || item.recipient_id || '',
+            userName: displayUserName, // 宛先または「事務局」を表示
+            recipientName: recipientName,
+            memberId: item.memberId || item.member_id || '',
+            subject: item.subject || item.title || '(件名なし)',
+            body: item.body || '',
+            isRead: Boolean(item.isRead ?? item.is_read),
+            createdAt: item.createdAt || item.created_at || new Date().toISOString(),
+            status: item.status || 'unsupported',
+            lastStatusUpdatedBy: item.lastStatusUpdatedBy || item.last_status_updated_by || '',
+            replies: (item.replies || []).map((r: any, rIdx: number) => {
+              const rSenderId = String(r.senderId || r.sender_id || '').trim();
+              const isMyReply = rSenderId === String(currentUserId).trim();
+
+              return {
+                id: String(r.id || r.reply_id || `reply-${idx}-${rIdx}`),
+                senderId: rSenderId,
+                recipientId: r.recipientId || r.recipient_id || '',
+                // 自分が送った返信でなければ「事務局」にする
+                userName: isMyReply ? (r.userName || r.sender_name || '自分') : '事務局',
+                recipientName: r.recipientName || r.recipient_name || '',
+                memberId: r.memberId || r.member_id || '',
+                subject: r.subject || r.title || '',
+                body: r.body || '',
+                isRead: Boolean(r.isRead ?? r.is_read),
+                createdAt: r.createdAt || r.created_at || '',
+              };
+            }),
+          };
+        });
 
         setMessages(formattedMessages);
       }
@@ -191,14 +208,12 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
                     }
                   });
                 }
-                // 日付文字列をタイムスタンプ（数値）に変換。無効な場合は 0
                 return latest ? new Date(latest).getTime() : 0;
               };
 
               const timeA = getLatestTime(a);
               const timeB = getLatestTime(b);
 
-              // 数値の大きい方（新しい方）を上にする
               return timeB - timeA;
             })
               .map((inquiry, index) => (

@@ -19,8 +19,8 @@ interface InquiryListProps {
     replyText: string
   ) => Promise<boolean>;
   onDeleteMessage?: (messageId: string, replyIds?: string[]) => Promise<void>;
-  // ★ 型を更新: unsupported を追加
   onStatusChange: (messageId: string, newStatus: MessageStatus) => Promise<void>;
+  isAdmin?: boolean; // ★ 追加: 管理者フラグをオプショナルで受け取る
 }
 
 export default function InquiryList({
@@ -33,6 +33,7 @@ export default function InquiryList({
   onSendReply,
   onDeleteMessage,
   onStatusChange,
+  isAdmin = false, // ★ 追加: デフォルトは false
 }: InquiryListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -115,8 +116,8 @@ export default function InquiryList({
               onMarkAsRead={async (messageId) => {
                 onMarkAsRead(messageId);
               }}
-              // ★ ステータス変更関数をバケツリレー
               onStatusChange={onStatusChange}
+              isAdmin={isAdmin} // ★ 追加: InquiryItem へバケツリレー
             />
           ))}
         </div>

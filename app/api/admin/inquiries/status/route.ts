@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { auth } from '@/auth';
+import { Session } from 'next-auth';
 
 type MessageStatus = 'unsupported' | 'pending' | 'closed';
+
+interface SessionUser {
+  member_id?: string;
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+}
 
 interface RequestBody {
   messageId: string;
@@ -11,15 +19,20 @@ interface RequestBody {
 
 export async function PATCH(req: Request) {
   try {
-    const session = await auth();
+    const session: Session | null = await auth();
     if (!session) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
+    // ★変更: ログイン中のユーザーの member_id を取得
+    const user = session.user as SessionUser | undefined;
+    const updaterId: string = user?.member_id || user?.id || '管理者';
+
     const body = (await req.json()) as RequestBody;
     const { messageId, status } = body;
 
-    if (!messageId || !['unsupported', 'pending', 'closed'].includes(status)) {
+    const validStatuses: MessageStatus[] = ['unsupported', 'pending', 'closed'];
+    if (!messageId || !validStatuses.includes(status)) {
       return NextResponse.json({ success: false, error: '無効なパラメータです' }, { status: 400 });
     }
 
@@ -42,21 +55,25 @@ export async function PATCH(req: Request) {
       range: 'Messages!A1:Z',
     });
 
-    const rows = (res.data.values as string[][]) || [];
+    const rows: string[][] = (res.data.values as string[][]) || [];
     if (rows.length === 0) {
       return NextResponse.json({ success: false, error: 'メッセージが見つかりません' }, { status: 404 });
     }
 
     const header = (rows[0] || []).map((h: string) => h.toLowerCase().trim());
-    let idIdx = header.findIndex((h: string) => h === 'message_id' || h === 'id' || h === 'messageid');
-    let statusIdx = header.findIndex((h: string) => h === 'status');
+    
+    // ID列の探索
+    let idIdx = header.findIndex((h) => h === 'message_id' || h === 'id' || h === 'messageid');
+    if (idIdx === -1) idIdx = 0; // デフォルトA列
 
-    if (idIdx === -1) idIdx = 0;
-    if (statusIdx === -1) statusIdx = 9; // J列 (0-indexedで9)
+    // ステータス列（J列=9）
+    const statusIdx = 9;
+    // 更新者列（K列=10）
+    const updaterIdx = 10;
 
     let rowIndex = -1;
     for (let i = 1; i < rows.length; i++) {
-      const rowId = rows[i]?.[idIdx]?.toString().trim() ?? '';
+      const rowId = rows[i]?.[idIdx]?.trim() ?? '';
       if (rowId === messageId) {
         rowIndex = i + 1; // 1-indexed for sheets
         break;
@@ -67,16 +84,22 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: false, error: '対象のメッセージが見つかりません' }, { status: 404 });
     }
 
-    const columnLetter = String.fromCharCode(65 + statusIdx);
-    const range = `Messages!${columnLetter}${rowIndex}`;
-
+    // 更新処理: ステータス
+    const statusColumnLetter = String.fromCharCode(65 + statusIdx);
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range,
+      range: `Messages!${statusColumnLetter}${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [[status]],
-      },
+      requestBody: { values: [[status]] },
+    });
+
+    // 更新処理: 更新者の member_id を保存
+    const updaterColumnLetter = String.fromCharCode(65 + updaterIdx);
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `Messages!${updaterColumnLetter}${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[updaterId]] },
     });
 
     return NextResponse.json({ success: true });

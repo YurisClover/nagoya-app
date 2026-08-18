@@ -27,6 +27,7 @@ interface ParsedMessage {
   isRead: boolean;
   createdAt: string;
   status: MessageStatus;
+  lastStatusUpdatedBy?: string | null;
 }
 
 interface MessageThread extends ParsedMessage {
@@ -34,7 +35,7 @@ interface MessageThread extends ParsedMessage {
   _latestTimestamp?: number;
 }
 
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   try {
     const session = await auth();
     const user = session?.user as SessionUser | undefined;
@@ -65,13 +66,14 @@ export async function GET() {
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Messages!A1:Z' }),
     ]);
 
-    const userRows = (usersRes.data.values as string[][]) || [];
-    const messageRows = (messagesRes.data.values as string[][]) || [];
+    const userRows = (usersRes.data.values || []) as unknown[][];
+    const messageRows = (messagesRes.data.values || []) as unknown[][];
 
-    const userHeader = (userRows[0] || []).map((h: string) => h.toLowerCase().trim());
-    let uMemberIdIdx = userHeader.findIndex((h: string) => h === 'member_id' || h === 'id' || h === 'memberid');
-    let uNameIdx = userHeader.findIndex((h: string) => h === 'name' || h === 'username' || h === 'user_name');
-    let uRoleIdx = userHeader.findIndex((h: string) => h === 'role');
+    const userHeaderRow = userRows[0] || [];
+    const userHeader = userHeaderRow.map((h: unknown) => String(h).toLowerCase().trim());
+    let uMemberIdIdx = userHeader.findIndex((h) => h === 'member_id' || h === 'id' || h === 'memberid');
+    let uNameIdx = userHeader.findIndex((h) => h === 'name' || h === 'username' || h === 'user_name');
+    let uRoleIdx = userHeader.findIndex((h) => h === 'role');
 
     if (uMemberIdIdx === -1) uMemberIdIdx = 0;
     if (uNameIdx === -1) uNameIdx = 1;
@@ -79,10 +81,10 @@ export async function GET() {
     const userMap: Record<string, { name: string; memberId: string }> = {};
     const adminMemberIds = new Set<string>(['admin', '10001234', myAdminId.toLowerCase()]);
 
-    userRows.slice(1).forEach((row: string[]) => {
-      const mId = row[uMemberIdIdx]?.toString().trim() || '';
-      const name = row[uNameIdx]?.toString().trim() || '';
-      const role = uRoleIdx !== -1 ? row[uRoleIdx]?.toString().trim().toLowerCase() : '';
+    userRows.slice(1).forEach((row: unknown[]) => {
+      const mId = row[uMemberIdIdx] != null ? String(row[uMemberIdIdx]).trim() : '';
+      const name = row[uNameIdx] != null ? String(row[uNameIdx]).trim() : '';
+      const role = uRoleIdx !== -1 && row[uRoleIdx] != null ? String(row[uRoleIdx]).trim().toLowerCase() : '';
 
       if (mId) {
         userMap[mId] = { name: name || mId, memberId: mId };
@@ -90,17 +92,19 @@ export async function GET() {
       }
     });
 
-    const msgHeader = (messageRows[0] || []).map((h: string) => h.toLowerCase().trim());
-    let idIdx = msgHeader.findIndex((h: string) => h === 'message_id' || h === 'id' || h === 'messageid');
-    let senderIdIdx = msgHeader.findIndex((h: string) => h === 'sender_id' || h === 'senderid' || h === 'sender');
-    let recipientIdIdx = msgHeader.findIndex((h: string) => h === 'recipient_id' || h === 'recipientid' || h === 'recipient');
-    let titleIdx = msgHeader.findIndex((h: string) => h === 'title' || h === 'subject');
-    let bodyIdx = msgHeader.findIndex((h: string) => h === 'body' || h === 'content');
-    let isReadIdx = msgHeader.findIndex((h: string) => h === 'is_read' || h === 'isread' || h === 'read');
-    let createdAtIdx = msgHeader.findIndex((h: string) => h === 'created_at' || h === 'createdat' || h === 'timestamp' || h === 'date');
-    let deleteFlagIdx = msgHeader.findIndex((h: string) => h === 'delete_flag' || h === 'deleteflag' || h === 'is_deleted' || h === 'deleted');
-    let parentIdIdx = msgHeader.findIndex((h: string) => h === 'parent_id' || h === 'parentid' || h === 'reply_to_id');
-    let statusIdx = msgHeader.findIndex((h: string) => h === 'status');
+    const msgHeaderRow = messageRows[0] || [];
+    const msgHeader = msgHeaderRow.map((h: unknown) => String(h).toLowerCase().trim());
+    let idIdx = msgHeader.findIndex((h) => h === 'message_id' || h === 'id' || h === 'messageid');
+    let senderIdIdx = msgHeader.findIndex((h) => h === 'sender_id' || h === 'senderid' || h === 'sender');
+    let recipientIdIdx = msgHeader.findIndex((h) => h === 'recipient_id' || h === 'recipientid' || h === 'recipient');
+    let titleIdx = msgHeader.findIndex((h) => h === 'title' || h === 'subject');
+    let bodyIdx = msgHeader.findIndex((h) => h === 'body' || h === 'content');
+    let isReadIdx = msgHeader.findIndex((h) => h === 'is_read' || h === 'isread' || h === 'read');
+    let createdAtIdx = msgHeader.findIndex((h) => h === 'created_at' || h === 'createdat' || h === 'timestamp' || h === 'date');
+    let deleteFlagIdx = msgHeader.findIndex((h) => h === 'delete_flag' || h === 'deleteflag' || h === 'is_deleted' || h === 'deleted');
+    let parentIdIdx = msgHeader.findIndex((h) => h === 'parent_id' || h === 'parentid' || h === 'reply_to_id');
+    let statusIdx = msgHeader.findIndex((h) => h === 'status');
+    let lastStatusUpdatedByIdx = msgHeader.findIndex((h) => h === 'last_status_updated_by' || h === 'status_updated_by');
 
     if (idIdx === -1) idIdx = 0;
     if (senderIdIdx === -1) senderIdIdx = 1;
@@ -111,10 +115,21 @@ export async function GET() {
     if (createdAtIdx === -1) createdAtIdx = 6;
     if (parentIdIdx === -1) parentIdIdx = 8;
     if (statusIdx === -1) statusIdx = 9;
+    if (lastStatusUpdatedByIdx === -1) lastStatusUpdatedByIdx = 10;
 
     const parseTime = (dateStr: string): number => {
       if (!dateStr) return 0;
-      const t = new Date(dateStr.replace(/-/g, '/')).getTime();
+      let targetStr = dateStr.trim().replace(/-/g, '/');
+      
+      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(targetStr)) {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        targetStr = `${year}/${month}/${day} ${targetStr}`;
+      }
+
+      const t = new Date(targetStr).getTime();
       return isNaN(t) ? 0 : t;
     };
 
@@ -124,15 +139,15 @@ export async function GET() {
     const allParsedMessages: ParsedMessage[] = [];
     const seenMsgIds = new Set<string>();
 
-    messageRows.slice(1).forEach((row: string[], index: number) => {
+    messageRows.slice(1).forEach((row: unknown[], index: number) => {
       if (deleteFlagIdx !== -1) {
-        const deleteFlagVal = row[deleteFlagIdx]?.toString().trim().toLowerCase();
+        const deleteFlagVal = row[deleteFlagIdx] != null ? String(row[deleteFlagIdx]).trim().toLowerCase() : '';
         if (deleteFlagVal === 'true' || deleteFlagVal === '1') return;
       }
 
-      const rawId = row[idIdx]?.toString().trim() || '';
-      const senderId = row[senderIdIdx]?.toString().trim() || '';
-      const recipientId = row[recipientIdIdx]?.toString().trim() || '';
+      const rawId = row[idIdx] != null ? String(row[idIdx]).trim() : '';
+      const senderId = row[senderIdIdx] != null ? String(row[senderIdIdx]).trim() : '';
+      const recipientId = row[recipientIdIdx] != null ? String(row[recipientIdIdx]).trim() : '';
       
       if (senderId && recipientId && senderId.toLowerCase() === recipientId.toLowerCase()) return;
 
@@ -148,30 +163,42 @@ export async function GET() {
       else if (userMap[recipientId]) recipientName = userMap[recipientId].name;
       else recipientName = recipientId;
 
-      const isReadVal = row[isReadIdx]?.toString().trim().toLowerCase();
+      const isReadVal = row[isReadIdx] != null ? String(row[isReadIdx]).trim().toLowerCase() : '';
       let isRead = isReadVal === 'true' || isReadVal === '1' || isReadVal === '既読';
       if (senderId.toLowerCase() === myAdminId.toLowerCase()) isRead = true;
 
-      const rawStatus = row[statusIdx]?.toString().trim().toLowerCase();
+      const rawStatus = row[statusIdx] != null ? String(row[statusIdx]).trim().toLowerCase() : '';
       const status: MessageStatus = 
         rawStatus === 'pending' || rawStatus === 'closed' || rawStatus === 'unsupported' 
-          ? rawStatus 
+          ? (rawStatus as MessageStatus)
           : 'unsupported';
+
+      const rawUpdaterId = row[lastStatusUpdatedByIdx] != null ? String(row[lastStatusUpdatedByIdx]).trim() : null;
+      let lastStatusUpdatedBy = rawUpdaterId;
+      if (rawUpdaterId && userMap[rawUpdaterId]) {
+        lastStatusUpdatedBy = userMap[rawUpdaterId].name;
+      }
+
+      const parentIdVal = row[parentIdIdx] != null ? String(row[parentIdIdx]).trim() : '';
+      const subjectVal = row[titleIdx] != null ? String(row[titleIdx]).trim() : '';
+      const bodyVal = row[bodyIdx] != null ? String(row[bodyIdx]).trim() : '';
+      const createdAtVal = row[createdAtIdx] != null ? String(row[createdAtIdx]).trim() : '';
 
       allParsedMessages.push({
         id: messageId,
-        parentId: row[parentIdIdx]?.toString().trim() || '',
+        parentId: parentIdVal,
         senderId,
         recipientId,
         generalUserId: getGeneralUserId(senderId, recipientId),
         userName: userInfo.name,
         memberId: userInfo.memberId,
         recipientName,
-        subject: row[titleIdx]?.toString().trim() || '',
-        body: row[bodyIdx]?.toString().trim() || '',
+        subject: subjectVal,
+        body: bodyVal,
         isRead,
-        createdAt: row[createdAtIdx]?.toString().trim() || '',
+        createdAt: createdAtVal,
         status,
+        lastStatusUpdatedBy,
       });
     });
 

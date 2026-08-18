@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import MessageForm from '@/app/admin/messages/admin/messages/MessageForm';
 import InquiryList from '@/app/admin/messages/admin/messages/InquiryList';
-// ★ MessageStatus をインポートに追加
 import { ReceivedMessage, MessageStatus } from '@/app/admin/messages/admin/messages/InquiryItem';
 import { SessionProvider, useSession } from 'next-auth/react';
 
@@ -69,26 +68,6 @@ function AdminMessageContent() {
             return !isDeleted;
           });
 
-          filteredInquiries.sort((a, b) => {
-            const getLatestTime = (item: ReceivedMessage) => {
-              let latest = item.createdAt || '';
-              if (item.replies && Array.isArray(item.replies)) {
-                item.replies.forEach((reply) => {
-                  const replyTime = reply.createdAt || '';
-                  if (replyTime > latest) {
-                    latest = replyTime;
-                  }
-                });
-              }
-              return latest ? new Date(latest).getTime() : 0;
-            };
-
-            const timeA = getLatestTime(a);
-            const timeB = getLatestTime(b);
-
-            return timeB - timeA;
-          });
-
           setInquiries(filteredInquiries);
           setLastUpdated(
             new Date().toLocaleTimeString('ja-JP', {
@@ -126,7 +105,6 @@ function AdminMessageContent() {
     return () => clearInterval(intervalId);
   }, [fetchInquiries]);
 
-  // ★ ステータス変更処理 (引数の型を MessageStatus に統一)
   const handleStatusChange = async (messageId: string, newStatus: MessageStatus): Promise<void> => {
     try {
       const res = await fetch('/api/admin/inquiries/status', {
@@ -147,7 +125,6 @@ function AdminMessageContent() {
     }
   };
 
-  // 既読更新処理
   const handleMarkAsRead = async (target: ReceivedMessage | string) => {
     const inquiry = typeof target === 'string'
       ? inquiries.find((item) => item.id === target)
@@ -196,7 +173,6 @@ function AdminMessageContent() {
     }
   };
 
-  // 返信送信処理
   const handleSendReply = async (
     parentMessageId: string,
     recipientId: string,
@@ -232,7 +208,6 @@ function AdminMessageContent() {
     }
   };
 
-  // メッセージ削除処理
   const handleDeleteMessage = async (messageId: string, replyIds: string[] = []) => {
     try {
       const res = await fetch('/api/messages/delete', {
@@ -283,6 +258,7 @@ function AdminMessageContent() {
         onSendReply={handleSendReply}
         onDeleteMessage={handleDeleteMessage}
         onStatusChange={handleStatusChange}
+        isAdmin={true}
       />
     </div>
   );
