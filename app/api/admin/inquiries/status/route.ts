@@ -24,7 +24,6 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
-    // ★変更: ログイン中のユーザーの member_id を取得
     const user = session.user as SessionUser | undefined;
     const updaterId: string = user?.member_id || user?.id || '管理者';
 
@@ -93,13 +92,15 @@ export async function PATCH(req: Request) {
       requestBody: { values: [[status]] },
     });
 
-    // 更新処理: 更新者の member_id を保存
+    // 更新処理: 更新者の member_id を確実に文字列型として保存（先頭に ' を付与）
     const updaterColumnLetter = String.fromCharCode(65 + updaterIdx);
+    const stringUpdaterId = updaterId.startsWith("'") ? updaterId : `'${updaterId}`;
+
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: `Messages!${updaterColumnLetter}${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [[updaterId]] },
+      requestBody: { values: [[stringUpdaterId]] },
     });
 
     return NextResponse.json({ success: true });

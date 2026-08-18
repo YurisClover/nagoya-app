@@ -1,9 +1,8 @@
-// 返信送信 API
-
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { auth } from '@/auth';
 import crypto from 'crypto';
+import { nowJST } from '@/lib/datetime'; // lib/datetime.ts をインポート
 
 interface SessionUser {
   id?: string;
@@ -51,8 +50,9 @@ export async function POST(req: Request) {
     const sheets = google.sheets({ version: 'v4', auth: authClient });
 
     const newMessageId = crypto.randomUUID();
-    const now = new Date();
-    const createdAt = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    
+    // ★ lib/datetime.ts の nowJST() を使用して生成
+    const createdAt = nowJST();
 
     const cleanSubject = (subject || '').replace(/^Re:\s*/i, '').trim();
     const replyTitle = `Re: ${cleanSubject}`;
