@@ -14,8 +14,8 @@ type SidebarProps = {
 export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   
-  // 初期値を 0 にして取得完了までバッジを出さない
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // ★ 追加: データの取得中フラグ
 
   // 未読バッジ件数をAPIから自動取得
   useEffect(() => {
@@ -28,6 +28,8 @@ export default function Sidebar({ user }: SidebarProps) {
         }
       } catch (err) {
         console.error("未読バッジ件数の取得に失敗しました:", err);
+      } finally {
+        setIsLoading(false); // ★ 取得が完了したら（成功・失敗問わず）ローディングを解除
       }
     }
 
@@ -62,7 +64,8 @@ export default function Sidebar({ user }: SidebarProps) {
     {
       label: "メッセージ送信",
       href: "/admin/messages",
-      badge: unreadCount > 0 ? unreadCount : null,
+      // ★ 読み込みが完了するまではバッジを出さず、完了後に 0より大きければ表示する
+      badge: !isLoading && unreadCount > 0 ? unreadCount : null,
     },
   ];
 
