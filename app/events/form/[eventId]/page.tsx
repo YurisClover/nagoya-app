@@ -1,0 +1,95 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { ChevronLeft, ExternalLink } from "lucide-react";
+import AppShell from "@/components/AppShell";
+import { getEventsData } from "@/lib/events";
+import { requireUser } from "@/lib/guards";
+
+// only Google Forms
+function toEmbedUrl(formUrl: string): string | null {
+  try {
+    const u = new URL(formUrl);
+    const allowed = u.hostname === "docs.google.com" || u.hostname === "forms.gle";
+    if (!allowed) return null;
+    u.searchParams.set("embedded", "true"); // secure same query → have prefill
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+/** use prefill url if have template + member_id or fallback to form_url */
+function resolveFormUrl(
+  event: { form_url: string; prefill_url_template: string },
+  memberId: string
+): string {
+  const t = event.prefill_url_template;
+  if (t && memberId && t.includes("__MEMBER_ID__")) {
+    return t.replaceAll("__MEMBER_ID__", encodeURIComponent(memberId));
+  }
+  return event.form_url;
+}
+
+export default async function EventFormPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>; // key must be same name as [eventId] folder
+}) {
+  const session = await requireUser();
+  const { eventId } = await params;
+
+  // event that user no permission to see (draft/役員向け) → 404
+  const events = await getEventsData({
+    memberId: session.user?.id || undefined,
+    role: session.user?.role || undefined,
+  });
+  const event = events.find((e) => e.event_id === eventId);
+  if (!event) notFound();
+
+  const closed = event.status.trim().toLowerCase() === "closed";
+  const memberId = session.user?.id ?? "";
+  const formUrl = resolveFormUrl(event, memberId); // member_id from session(server only)
+  const embedUrl = toEmbedUrl(formUrl);
+
+  return (
+    <AppShell>
+      <div className="page-container">
+        <div className="mb-3 flex items-center justify-between">
+          <Link
+            href="/events"
+            className="btn btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"
+          >
+            <ChevronLeft size={16} className="shrink-0" />
+            イベント一覧へ
+          </Link>
+          <a
+            href={formUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-meta inline-flex items-center gap-1.5 underline-offset-2 hover:underline"
+          >
+            <ExternalLink size={14} className="shrink-0" />
+            別タブで開く
+          </a>
+        </div>
+
+        <h1 className="mb-3 truncate text-lg font-bold">{event.title}</h1>
+
+        {closed ? (
+          <p className="card p-8 text-center text-sm text-ink-muted">
+            このイベントの受付は終了しました。
+          </p>
+        ) : embedUrl ? (
+          <iframe
+            src={embedUrl}
+            title={`${event.title} 出席登録フォーム`}
+            className="min-h-[75vh] w-full rounded-card border border-line bg-surface"
+          />
+        ) : (
+          <p className="card p-8 text-center text-sm text-red-600">
+            フォームのURLが正しく設定されていません。管理者にお問い合わせください。
+          </p>
+        )}
+      </div>
+    </AppShell>
+  );
+}

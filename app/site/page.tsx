@@ -1,42 +1,61 @@
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import { listNewsletterPdfs } from "@/lib/drive";
+import AppShell from "@/components/AppShell";
 import Pagination from "./pagination";
+import { Building2, ExternalLink } from "lucide-react";
+import { requireUser } from "@/lib/guards";
 
-function SiteLink() {
+function OfficialSiteCard() {
   return (
-    <div className="mb-6">
-      <a href="https://www.taxnaka.com/" className="text-blue-500 hover:underline text-sm font-medium">サイトへ</a>
-    </div>
+    <a href="https://www.taxnaka.com/" target="_blank" rel="noopener noreferrer"
+       className="card-tap flex items-center gap-3">
+      <span className="icon-tile tone-navy mb-0 shrink-0">
+        <Building2 size={20} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">支部公式ホームページ</span>
+        <span className="text-meta">taxnaka.com を開く</span>
+      </span>
+      <ExternalLink size={16} className="shrink-0 text-ink-muted" />
+    </a>
   );
 }
 
 export default async function PdfListPage() {
-  const session = await auth();          // defense in depth (dynamic)
-  if (!session) redirect("/login");
+  await requireUser();
 
   let pdfList;
   try {
-    pdfList = await listNewsletterPdfs(); // call drive from server
+    pdfList = await listNewsletterPdfs();
   } catch (error) {
     console.error(error);
     return (
-      <main className="max-w-4xl mx-auto p-8">
-        <SiteLink />
-        <div className="p-8 text-center text-red-500 border border-red-200 rounded-lg bg-red-50">
-          ⚠️ PDF一覧の取得に失敗しました。時間をおいて再度お試しください。
+      <AppShell>
+        <div className="page-container">
+          <h1 className="mb-6 text-lg font-bold">中支部サイト・支部報</h1>
+          <OfficialSiteCard />
+          <div className="card mt-6 text-center">
+            <p className="text-sm text-danger">支部報の一覧を取得できませんでした。</p>
+            <p className="text-meta mt-1">時間をおいて再度お試しください。</p>
+          </div>
         </div>
-      </main>
+      </AppShell>
     );
   }
 
   return (
-    <main className="max-w-4xl mx-auto p-8">
-      <SiteLink />
-      <h1 className="text-2xl font-bold mb-6 border-b pb-2">📄 配布されたPDF（支部報）一覧</h1>
-      {pdfList.length === 0
-        ? <p className="text-gray-500">公開されているPDFはありません。</p>
-        : <Pagination pdfList={pdfList} />}
-    </main>
+    <AppShell>
+      <div className="page-container">
+        <h1 className="mb-6 text-lg font-bold">中支部サイト・支部報</h1>
+
+        <OfficialSiteCard />
+
+        <h2 className="section-title mt-8">支部報（PDF）</h2>
+        {pdfList.length === 0 ? (
+          <p className="text-meta py-6 text-center">公開されている支部報はまだありません。</p>
+        ) : (
+          <Pagination pdfList={pdfList} />
+        )}
+      </div>
+    </AppShell>
   );
 }

@@ -1,31 +1,51 @@
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
-import { getUserByEmail } from "@/lib/sheets";
-import BarcodeUploader from "./BarcodeUploader";
+import { requireUser } from "@/lib/guards";
+import AppShell from "@/components/AppShell";
+import MemberBarcode from "./MemberBarcode";
+
+const BRANCH_NAME = "名古屋中支部";
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between">
+      <dt className="text-ink-muted">{label}</dt>
+      <dd className="font-bold">{value}</dd>
+    </div>
+  );
+}
 
 export default async function BarcodePage() {
-    const session = await auth();
-    if (!session?.user?.email) redirect("/login");
+  const session = await requireUser();
 
-    const user = await getUserByEmail(session.user.email);
-    const raw = user?.barcode_data ?? "";
-    const src = raw ? (raw.startsWith("data:") ? raw: `data:image/png;base64,${raw}`) : "";
-    
-    return (
-        <main style={{ maxWidth: 360, margin: "40px auto", padding: 24, textAlign: "center"}}>
-            <p style= {{ fontSize: 13 }}>{user?.user_name} 会員番号: {user?.member_id}</p>
+  // member_id + name from session (JWT) directly not from sheet
+  // can show even sheet down
+  const memberId = session.user.id ?? "";
+  const userName = session.user.name ?? "—";
 
-            {src ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={src} alt="会員証バーコード"
-                style={{ width: "100%", marginTop: 16, border: "1px solid #eee", padding: 8 }} />
+  return (
+    <AppShell>
+      <div className="page-container">
+        <h1 className="mb-4 text-lg font-bold">会員証</h1>
+
+        <div className="card space-y-4">
+          <dl className="space-y-3 text-sm">
+            <InfoRow label="氏名" value={userName} />
+            <InfoRow label="会員番号" value={memberId || "—"} />
+            <InfoRow label="所属支部" value={BRANCH_NAME} />
+          </dl>
+
+          <div className="border-t border-line pt-4">
+            {memberId ? (
+              <MemberBarcode memberId={memberId} />
             ) : (
-                <p style={{ marginTop: 32, color: "#666" }}>バーコードが登録されていません</p>
+              <p className="text-center text-sm text-ink-muted">会員番号が登録されていません</p>
             )}
-            <BarcodeUploader />
-            <p style={{ fontSize: 11, color: "#c0392b", marginTop: 24}}>
-                ※ バーコードは会員本人のみご使用ください。他者への貸与は禁止です。
-            </p>
-        </main>
-    );
+          </div>
+
+          <p className="text-center text-[11px] text-danger">
+            ※ バーコードは会員本人のみご使用ください。他者への貸与は禁止です。
+          </p>
+        </div>
+      </div>
+    </AppShell>
+  );
 }

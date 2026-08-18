@@ -1,12 +1,12 @@
 "use client";
 
 import useSWR from "swr";
-import EventCard from "../../components/EventCard";
+import EventCard from "./EventCard";
 import type { EventWithStatus } from "@/types/event";
 
 const fetcher = async (url: string): Promise<EventWithStatus[]> => {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`API error: ${res.status}`); // 401/500 → error
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 };
 
@@ -18,18 +18,26 @@ export default function EventsPage() {
     focusThrottleInterval: 30000,
   });
 
-  if (error) return <div>エラーが発生しました</div>;
-  if (isLoading) return <div>読み込み中...</div>;
-  if (!events?.length) return <div>予定されているイベントはありません。</div>;
-
   return (
-    <main className="container">
-      <h2>イベント案内一覧</h2>
-      <div className="event-grid">
-        {events.map((event) => (
-          <EventCard key={event.id} event={event} />
-        ))}
-      </div>
-    </main>
+    <div className="page-container">
+      <h1 className="mb-6 text-lg font-bold">イベント案内一覧</h1>
+
+      {error ? (
+        <div className="card text-center">
+          <p className="text-sm text-danger">イベント情報を取得できませんでした。</p>
+          <p className="text-meta mt-1">時間をおいて再度お試しください。</p>
+        </div>
+      ) : isLoading ? (
+        <p className="text-meta py-6 text-center">読み込み中...</p>
+      ) : !events?.length ? (
+        <p className="text-meta py-6 text-center">予定されているイベントはありません。</p>
+      ) : (
+        <div className="space-y-3">
+          {events.map((event) => (
+            <EventCard key={event.id} event={event} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
