@@ -1,4 +1,5 @@
 import "server-only";
+import {OAuth2Client,} from "google-auth-library";
 
 export type ServiceAccountCredentials = {
     client_email: string;
@@ -15,4 +16,82 @@ export function getServiceAccountCredentials(): ServiceAccountCredentials {
         client_email: c.client_email,
         private_key: String(c.private_key).replace(/\\n/g, "\n"),
     };
+}
+
+// /**
+//  * 認可URLの生成や、認可コードの交換に使用するOAuthクライアント
+//  */
+// export function createGoogleFormsOAuthClient() {
+//   const clientId = process.env.GOOGLE_FORMS_CLIENT_ID;
+//   const clientSecret = process.env.GOOGLE_FORMS_CLIENT_SECRET;
+//   const redirectUri = process.env.GOOGLE_FORMS_REDIRECT_URI;
+
+//   if (!clientId || !clientSecret || !redirectUri) {
+//     throw new Error(
+//       "Google Forms OAuthの環境変数が設定されていません。",
+//     );
+//   }
+
+//   return new OAuth2Client(
+//     clientId,
+//     clientSecret,
+//     redirectUri,
+//   );
+// }
+
+export function createGoogleFormsOAuthClient() {
+  const clientId =
+    process.env
+      .GOOGLE_FORMS_CLIENT_ID
+      ?.trim();
+
+  const clientSecret =
+    process.env
+      .GOOGLE_FORMS_CLIENT_SECRET
+      ?.trim();
+
+  const redirectUri =
+    process.env
+      .GOOGLE_FORMS_REDIRECT_URI
+      ?.trim();
+
+  if (
+    !clientId ||
+    !clientSecret ||
+    !redirectUri
+  ) {
+    throw new Error(
+      "Google Forms OAuthの環境変数が設定されていません。",
+    );
+  }
+
+  return new OAuth2Client(
+    clientId,
+    clientSecret,
+    redirectUri,
+  );
+}
+
+/**
+ * Google Forms APIの実行に使用する認証済みOAuthクライアント
+ */
+export function createAuthenticatedGoogleFormsOAuthClient() {
+  const refreshToken =
+    process.env.GOOGLE_FORMS_REFRESH_TOKEN
+    ?.trim();
+
+  if (!refreshToken) {
+    throw new Error(
+      "GOOGLE_FORMS_REFRESH_TOKENが設定されていません。",
+    );
+  }
+
+  const oauth2Client =
+    createGoogleFormsOAuthClient();
+
+  oauth2Client.setCredentials({
+    refresh_token: refreshToken,
+  });
+
+  return oauth2Client;
 }
