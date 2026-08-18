@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function QuickAction() {
   return (
-    <div className="w-full lg:w-80 bg-white rounded-lg shadow-sm p-5 h-fit">
+    <div className="card flex-1 w-full lg:w-80 h-fit">
       <h2 className="text-base font-bold text-gray-900 pb-4 mb-4 border-b border-gray-100">
         クイックアクション
       </h2>

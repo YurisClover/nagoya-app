@@ -8,7 +8,7 @@ type ActivityProps = {
 // 親から { items } を受け取る
 export default function Activity({ items }: ActivityProps) {
   return (
-    <div className="flex-1 bg-white rounded-lg shadow-sm p-5">
+    <div className="card flex-1">
       <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
         <h2 className="text-base font-bold text-gray-900">
           最近のアクティビティ
