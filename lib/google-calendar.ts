@@ -98,6 +98,36 @@ export async function deleteGoogleCalendarEvent({ calendarId, calendarEventId,}:
 }
 
 /**
+ * Googleカレンダーの予定を、
+ * 別のカレンダーへ移動する。
+ */
+export async function moveGoogleCalendarEvent({
+  sourceCalendarId,
+  calendarEventId,
+  destinationCalendarId,
+}: {
+  sourceCalendarId: string;
+  calendarEventId: string;
+  destinationCalendarId: string;
+}): Promise<CreatedGoogleCalendarEvent> {
+  const calendar = createCalendarClient();
+  const response = await calendar.events.move({
+      calendarId: sourceCalendarId,
+      eventId: calendarEventId,
+      destination: destinationCalendarId,
+    });
+  const movedEventId = response.data.id?.trim();
+
+  if (!movedEventId) {
+    throw new Error( "移動後のGoogleカレンダー予定IDを取得できませんでした。", );
+  }
+  return {
+    calendarId: destinationCalendarId,
+    calendarEventId: movedEventId,
+  };
+}
+
+/**
  * 指定期間のGoogleカレンダー予定を取得する。
  * timeMin・timeMaxには、タイムゾーン付きの
  * RFC3339文字列を渡す。

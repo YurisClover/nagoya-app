@@ -17,6 +17,8 @@ import {
   updateEventStatus,
 } from "@/lib/sheets/events";
 
+import { removeEventCalendar, syncPublishedEventCalendar,} from "@/lib/event-calendar-sync";
+
 export const runtime =
   "nodejs";
 
@@ -147,19 +149,44 @@ export async function PATCH(
         },
       );
 
+      /*
+ * GoogleフォームとEventsシートの更新後に、
+ * Googleカレンダーを同期する。
+ *
+ * カレンダー同期に失敗しても、
+ * イベントの状態変更自体は取り消さない。
+ */
+const calendarSyncResult = status === "published" ? await syncPublishedEventCalendar( updatedEvent,)
+    : status === "draft" ? await removeEventCalendar( updatedEvent.event_id, ): null;
+    // return NextResponse.json({ success: true,
+    //   message: "イベントの公開状態を変更しました。",
+    //   event: updatedEvent,
+    // });
     return NextResponse.json({
-      success: true,
+  success: true,
 
-      message:
-        "イベントの公開状態を変更しました。",
+  message:
+    calendarSyncResult &&
+    !calendarSyncResult.success
+      ? "イベントの公開状態を変更しましたが、Googleカレンダーとの同期に失敗しました。"
+      : "イベントの公開状態を変更しました。",
 
-      event: updatedEvent,
-    });
+  event:
+    updatedEvent,
+
+  calendarSync:
+    calendarSyncResult
+      ? {
+          success:
+            calendarSyncResult.success,
+
+          error:
+            calendarSyncResult.error,
+        }
+      : null,
+});
   } catch (error) {
-    console.error(
-      "Event status update error:",
-      error,
-    );
+    console.error( "Event status update error:", error, );
 
     const detail =
       error instanceof Error
