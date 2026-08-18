@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   description: "スマホ向けイベント出席案内アプリ",
 };
 
-export default function EventsLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function EventsLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return <AppShell>{children}</AppShell>;
 }

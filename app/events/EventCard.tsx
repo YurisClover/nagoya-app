@@ -11,7 +11,7 @@ export default function EventCard({ event }: { event: EventWithStatus }) {
   const closed = event.status.trim().toLowerCase() === "closed";
   const inAppHref = event.event_id ? `/events/form/${event.event_id}` : null;
 
-return (
+  return (
     <div className="card flex flex-col gap-4">
       <div>
         <p className="flex items-center gap-2 text-base font-bold">
@@ -19,7 +19,9 @@ return (
           {event.status.trim().toLowerCase() === "draft" && (
             <span className="badge badge-muted shrink-0">下書き</span>
           )}
-          {closed && <span className="badge badge-muted shrink-0">受付終了</span>}
+          {closed && (
+            <span className="badge badge-muted shrink-0">受付終了</span>
+          )}
           {event.position.trim().toLowerCase() === "executive" && (
             <span className="badge shrink-0">役員向け</span>
           )}
@@ -45,13 +47,19 @@ return (
             <CheckCircle2 size={16} className="shrink-0" />
             出席登録済み
           </p>
-          {hasLink && !closed &&
+          {hasLink &&
+            !closed &&
             (inAppHref ? (
               <Link href={inAppHref} className="text-meta underline">
                 回答を変更する
               </Link>
             ) : (
-              <a href={event.form_url} target="_blank" rel="noopener noreferrer" className="text-meta underline">
+              <a
+                href={event.form_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-meta underline"
+              >
                 回答を変更する
               </a>
             ))}
@@ -67,7 +75,12 @@ return (
             出席登録フォームへ
           </Link>
         ) : (
-          <a href={event.form_url} target="_blank" rel="noopener noreferrer" className="btn btn-primary w-full">
+          <a
+            href={event.form_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary w-full"
+          >
             出席登録フォームへ
           </a>
         )
