@@ -9,15 +9,16 @@ type SidebarProps = {
     name?: string | null;
     email?: string | null;
   };
+  initialUnreadCount?: number; // ★ 追加: 親から初期値を受け取る
 };
 
-export default function Sidebar({ user }: SidebarProps) {
+export default function Sidebar({ user, initialUnreadCount = 0 }: SidebarProps) {
   const pathname = usePathname();
   
-  const [unreadCount, setUnreadCount] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // ★ 追加: データの取得中フラグ
+  // ★ 初期値にサーバーから受け取った件数をセット（これで初回からバッジが表示されます）
+  const [unreadCount, setUnreadCount] = useState<number>(initialUnreadCount);
 
-  // 未読バッジ件数をAPIから自動取得
+  // 未読バッジ件数をAPIから自動取得して最新に保つ
   useEffect(() => {
     async function fetchUnreadCount() {
       try {
@@ -28,18 +29,13 @@ export default function Sidebar({ user }: SidebarProps) {
         }
       } catch (err) {
         console.error("未読バッジ件数の取得に失敗しました:", err);
-      } finally {
-        setIsLoading(false); // ★ 取得が完了したら（成功・失敗問わず）ローディングを解除
       }
     }
 
-    // 初回表示時に即時取得
+    // 裏側で最新データを取得
     fetchUnreadCount();
-
-    // 60秒周期でバックグラウンド更新
     const interval = setInterval(fetchUnreadCount, 60000);
 
-    // 即時更新イベントリスナー
     const handleUnreadUpdate = (event: Event) => {
       const customEvent = event as CustomEvent<{ unreadCount: number }>;
       if (customEvent.detail && typeof customEvent.detail.unreadCount === "number") {
@@ -64,8 +60,8 @@ export default function Sidebar({ user }: SidebarProps) {
     {
       label: "メッセージ送信",
       href: "/admin/messages",
-      // ★ 読み込みが完了するまではバッジを出さず、完了後に 0より大きければ表示する
-      badge: !isLoading && unreadCount > 0 ? unreadCount : null,
+      // ★ isLoadingの判定を削除し、シンプルに 0 より大きければ表示
+      badge: unreadCount > 0 ? unreadCount : null,
     },
   ];
 
@@ -106,7 +102,6 @@ export default function Sidebar({ user }: SidebarProps) {
         </nav>
       </div>
 
-      {/* フッター：ログイン中のユーザー情報 */}
       <div className="p-4 border-t border-chrome-line bg-black/20">
         <div className="px-2 py-1">
           <p className="text-xs text-slate-400">ログイン中</p>

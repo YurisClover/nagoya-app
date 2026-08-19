@@ -129,20 +129,29 @@ export const getDashboardMetrics = unstable_cache(
         })
       : Promise.resolve({ total: 0, active: 0, inactive: 0, newThisMonth: 0 });
 
-    // 2. 未読メッセージ数の集計 
+    // 2. 未読メッセージ数の集計
     const messagesSheet = doc.sheetsByTitle["Messages"];
     const messagesPromise = messagesSheet
-      ? messagesSheet.getRows().then((rows) => {
-          let unreadCount = 0;
-          for (const row of rows) {
+     ? messagesSheet.getRows().then((rows) => {
+         let unreadCount = 0;
+         for (const row of rows) {
+            // is_read と delete_flag の値を取得し、小文字にして前後の空白を削除
             const isReadRaw = String(row.get("is_read") ?? "").trim().toLowerCase();
-            if (isReadRaw === "false" || isReadRaw === "0") {
+            const deleteFlagRaw = String(row.get("delete_flag") ?? "").trim().toLowerCase();
+
+            // 未読 (is_read が false または 0)
+            const isUnread = isReadRaw === "false" || isReadRaw === "0";
+            // 未削除 (delete_flag が false, 0, または空)
+            const isNotDeleted = deleteFlagRaw === "false" || deleteFlagRaw === "0" || deleteFlagRaw === "";
+
+            // 未読かつ未削除の場合のみカウントアップ
+            if (isUnread && isNotDeleted) {
               unreadCount++;
-            }
-          }
-          return unreadCount;
-        })
-      : Promise.resolve(0);
+           }
+         }
+         return unreadCount;
+       })
+     : Promise.resolve(0);
 
     // 3. 今月のイベント数・参加者数の集計 
     const eventsSheet = doc.sheetsByTitle["Events"];
