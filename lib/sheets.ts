@@ -5,6 +5,7 @@ import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST, parseSheetDate, jstYearMonth } from "./datetime";
 import { unstable_cache } from "next/cache";
 import { updateTag } from "next/cache";
+import { sameId } from "@/lib/ids";
 import { field } from "firebase/firestore/pipelines";
 
 export type SheetUser = {
@@ -455,7 +456,7 @@ export async function updateMemberInSheet(
         const rows = await sheet.getRows();
         const target = memberId.trim();
         const row = rows.find(
-            (r) => String(r.get("member_id") ?? "").trim().replace(/\.0$/,"") === target
+            (r) => sameId(r.get("member_id"), target)
         );
         if(!row) {
             return {success: false, error: "対象の会員が見つかりませんでした。"};
@@ -614,11 +615,6 @@ export async function addGroupToSheet(data: {
     console.error("Failed to add group:", error);
     return { success: false, error: "グループの作成に失敗しました。" };
   }
-}
-
-// normalize check id
-function sameId(cell: unknown, id: string): boolean {
-    return String(cell ?? "").trim().replace(/\.0$/,"") === id.trim();
 }
 
 // delete row bottom up ↑

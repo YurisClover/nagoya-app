@@ -58,11 +58,7 @@ export async function GET(request: NextRequest) {
     const memberId = session.user.id?.trim();
 
     const data = await getEventsData(
-      {
-        memberId: memberId || undefined,
-
-        role: session.user.role || undefined,
-      },
+      { role: session.user.role || undefined },
       position,
     );
 
@@ -70,16 +66,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(data);
     }
 
-    const responseStatusMap = await getEventResponseStatusMap({
-      eventIds: data.map((event) => event.event_id),
-
-      memberId,
-    });
-
+    let responseStatusMap: Map<string, boolean> | null = null;
+    try {
+        responseStatusMap = await getEventResponseStatusMap({
+            eventIds: data.map((event) => event.event_id),
+            memberId,
+        });
+    } catch (statusError) {
+        console.error("Failed to fetch response status:", statusError);
+    }
+    
     const dataWithResponseStatus = data.map((event) => ({
       ...event,
 
-      is_answered: responseStatusMap.get(event.event_id) ?? false,
+      is_answered: responseStatusMap ? (responseStatusMap.get(event.event_id) ?? false) : null,
     }));
 
     return NextResponse.json(dataWithResponseStatus);

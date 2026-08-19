@@ -1,9 +1,9 @@
+import { normalizeId } from "./ids";
+
 import "server-only";
 
 import { GoogleSpreadsheet } from "google-spreadsheet";
-
 import { JWT } from "google-auth-library";
-
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 
 const MAIN_SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID?.trim() ?? "";
@@ -12,12 +12,6 @@ const RESPONSE_SPREADSHEET_ID =
   process.env.GOOGLE_FORM_RESPONSE_SPREADSHEET_ID?.trim() ?? "";
 
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
-
-function normalizeMemberId(value: unknown): string {
-  return String(value ?? "")
-    .trim()
-    .replace(/\.0+$/, "");
-}
 
 async function createSpreadsheetDoc(
   spreadsheetId: string,
@@ -119,7 +113,7 @@ export async function getEventResponseStatusMap({
   eventIds: string[];
   memberId: string;
 }): Promise<Map<string, boolean>> {
-  const targetMemberId = normalizeMemberId(memberId);
+  const targetMemberId = normalizeId(memberId);
 
   const result = new Map<string, boolean>();
 
@@ -236,7 +230,7 @@ export async function getEventResponseStatusMap({
     const values = memberResponse.valueRanges?.[index]?.values ?? [];
 
     const answered = values.some(
-      (row) => normalizeMemberId(row[0]) === targetMemberId,
+      (row) => normalizeId(row[0]) === targetMemberId,
     );
 
     result.set(eventId, answered);

@@ -44,7 +44,7 @@ export default async function EventFormPage({
     role === "executive" || role === "admin"
       ? ["general", "executive"]
       : ["general"];
-  const viewer = { memberId, role: session.user.role || undefined };
+  const viewer = { role: session.user.role || undefined };
   const eventLists = await Promise.all(
     positions.map((position) => getEventsData(viewer, position)),
   );
