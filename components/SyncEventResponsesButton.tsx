@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-
 import { useRouter } from "next/navigation";
 
 type SyncResult = {
@@ -17,9 +16,7 @@ type SyncResult = {
 export default function SyncEventResponsesButton() {
   const router = useRouter();
   const [isSyncing, setIsSyncing] = useState(false);
-
   const [message, setMessage] = useState("");
-
   const [isError, setIsError] = useState(false);
 
   async function handleSync() {
@@ -81,13 +78,7 @@ export default function SyncEventResponsesButton() {
         type="button"
         onClick={handleSync}
         disabled={isSyncing}
-        className={[
-          "rounded-md px-4 py-2",
-          "font-medium text-white",
-          isSyncing
-            ? "cursor-not-allowed bg-gray-400"
-            : "bg-blue-600 hover:bg-blue-700",
-        ].join(" ")}
+        className="btn btn-primary px-3 py-1.5 text-xs disabled:opacity-50"
       >
         {isSyncing ? "同期中..." : "回答を同期"}
       </button>

@@ -36,8 +36,8 @@ const STATUS_LABELS: Record<EventStatus, string> = {
 };
 
 const POSITION_LABELS: Record<EventPosition, string> = {
-  general: "一般会員向け",
-  executive: "執行部向け",
+  general: "一般会員",
+  executive: "執行部",
 };
 
 type EventDeleteControlProps = {
@@ -105,7 +105,7 @@ function EventDeleteControl({
 
   return (
     <div>
-      <button type="button" disabled={isAnyUpdating} onClick={handleDelete}>
+      <button className="btn btn-danger px-3 py-1.5 text-xs disabled:opacity-50" type="button" disabled={isAnyUpdating} onClick={handleDelete}>
         {isDeleting ? "削除しています..." : "削除"}
       </button>
 
@@ -138,22 +138,13 @@ function EventPositionControl({
   finishUpdate,
   onUpdated,
 }: EventPositionControlProps) {
-  const [selectedPosition, setSelectedPosition] = useState<EventPosition>(
-    event.position,
-  );
-
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const isUpdating = updatingEventId === event.event_id;
   const isAnyUpdating = updatingEventId !== null;
-  const [prevPosition, setPrevPosition] = useState(event.position);
-  if (prevPosition !== event.position) {
-    setPrevPosition(event.position);
-    setSelectedPosition(event.position);
-  }
 
-  async function handleUpdate() {
-    if (selectedPosition === event.position) {
+  async function handleUpdate(nextPosition: EventPosition) {
+    if (nextPosition === event.position) {
       setMessage("対象者は変更されていません。");
       setErrorMessage("");
       return;
@@ -174,7 +165,7 @@ function EventPositionControl({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: event.event_id,
-          position: selectedPosition,
+          position: nextPosition,
         }),
       });
 
@@ -195,11 +186,10 @@ function EventPositionControl({
 
       const updatedEvent = result.event ?? {
         ...event,
-        position: selectedPosition,
+        position: nextPosition,
       };
 
       onUpdated(updatedEvent);
-      setSelectedPosition(updatedEvent.position);
       setMessage("イベント対象者を変更しました。");
     } catch (error) {
       const detail =
@@ -214,34 +204,31 @@ function EventPositionControl({
 
   return (
     <div>
-      <p>{POSITION_LABELS[event.position]}</p>
+      <div className="flex items-center gap-2">
+        <div className="flex gap-1.5" role="group" aria-label={`${event.title}の対象者`}>
+          {(["general", "executive"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              disabled={isAnyUpdating || value === event.position}
+              onClick={() => handleUpdate(value)}
+              aria-pressed={value === event.position}
+              className={`rounded-control px-3 py-1.5 text-xs font-bold transition ${
+                value === event.position
+                  ? "bg-brand text-white"
+                  : "bg-surface-muted text-ink-muted hover:bg-line disabled:opacity-50"
+              }`}
+            >
+              {POSITION_LABELS[value]}
+            </button>
+          ))}
+        </div>
+        {isUpdating && <span className="text-meta">反映中...</span>}
+      </div>
 
-      <select
-        value={selectedPosition}
-        disabled={isAnyUpdating}
-        onChange={(changeEvent) => {
-          setSelectedPosition(changeEvent.target.value as EventPosition);
-          setMessage("");
-          setErrorMessage("");
-        }}
-        aria-label={`${event.title}の対象者`}
-      >
-        <option value="general">一般会員向け</option>
-        <option value="executive">執行部向け</option>
-      </select>
-
-      <button type="button" disabled={isAnyUpdating} onClick={handleUpdate}>
-        {isUpdating ? "反映しています..." : "対象者を反映"}
-      </button>
-
-      {message && <p role="status">{message}</p>}
+      {message && <p role="status" className="mt-2 text-xs text-ink-muted">{message}</p>}
       {errorMessage && (
-        <p
-          role="alert"
-          style={{
-            whiteSpace: "pre-wrap",
-          }}
-        >
+        <p role="alert" className="mt-2 whitespace-pre-wrap text-xs text-danger" >
           {errorMessage}
         </p>
       )}
@@ -264,16 +251,12 @@ function EventStatusControl({
   finishUpdate,
   onUpdated,
 }: EventStatusControlProps) {
-  const [selectedStatus, setSelectedStatus] = useState<EventStatus>(
-    event.status,
-  );
-
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const isUpdating = updatingEventId === event.event_id;
   const isAnyUpdating = updatingEventId !== null;
 
-  async function handleUpdate() {
+  async function handleUpdate(nextStatus: EventStatus) {
     const started = tryStartUpdate(event.event_id);
 
     if (!started) {
@@ -289,7 +272,7 @@ function EventStatusControl({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: event.event_id,
-          status: selectedStatus,
+          status: nextStatus,
         }),
       });
 
@@ -311,11 +294,10 @@ function EventStatusControl({
 
       const updatedEvent: SheetEvent = result.event ?? {
         ...event,
-        status: selectedStatus,
+        status: nextStatus,
       };
 
       onUpdated(updatedEvent);
-      setSelectedStatus(updatedEvent.status);
       setMessage("GoogleフォームとEventsシートへ反映しました。");
     } catch (error) {
       console.error("Event status update error:", error);
@@ -332,32 +314,30 @@ function EventStatusControl({
 
   return (
     <div>
-      <select
-        value={selectedStatus}
-        disabled={isAnyUpdating}
-        onChange={(changeEvent) => {
-          setSelectedStatus(changeEvent.target.value as EventStatus);
-          setMessage("");
-          setErrorMessage("");
-        }}
-        aria-label={`${event.title}の公開状態`}
-      >
-        <option value="draft">準備中</option>
-        <option value="published">公開</option>
-        <option value="closed">受付終了</option>
-      </select>
-
-      <button type="button" disabled={isAnyUpdating} onClick={handleUpdate}>
-        {isUpdating ? "反映しています..." : "状態を反映"}
-      </button>
-      {message && <p role="status">{message}</p>}
+      <div className="flex items-center gap-2">
+        <div className="flex gap-1.5" role="group" aria-label={`${event.title}のステータス`}>
+          {(["published", "closed", "draft"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              disabled={isAnyUpdating || value === event.status}
+              onClick={() => handleUpdate(value)}
+              aria-pressed={value === event.status}
+              className={`rounded-control px-3 py-1.5 text-xs font-bold transition ${
+                value === event.status
+                  ? "bg-brand text-white"
+                  : "bg-surface-muted text-ink-muted hover:bg-line disabled:opacity-50"
+              }`}
+            >
+              {STATUS_LABELS[value]}
+            </button>
+          ))}
+        </div>
+        {isUpdating && <span className="text-meta">反映中...</span>}
+      </div>
+      {message && <p role="status" className="mt-2 text-xs text-ink-muted">{message}</p>}
       {errorMessage && (
-        <p
-          role="alert"
-          style={{
-            whiteSpace: "pre-wrap",
-          }}
-        >
+        <p role="alert" className="mt-2 whitespace-pre-wrap text-xs text-danger">
           {errorMessage}
         </p>
       )}
