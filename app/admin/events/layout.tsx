@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-
 import { requireAdmin } from "@/lib/guards";
 
 type EventsLayoutProps = {

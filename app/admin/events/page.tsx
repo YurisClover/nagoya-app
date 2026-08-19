@@ -1,13 +1,8 @@
 import { redirect } from "next/navigation";
-
 import { auth } from "@/auth";
-
 import { getEventsFromSheet } from "@/lib/sheets/events";
-
 import Link from "next/link";
-
 import { EventList } from "./eventsList";
-
 import SyncEventResponsesButton from "@/components/SyncEventResponsesButton";
 
 export default async function EventsPage() {

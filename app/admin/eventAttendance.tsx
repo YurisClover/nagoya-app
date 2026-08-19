@@ -41,17 +41,17 @@ export default function EventAttendance({ items }: EventAttendanceProps) {
               {items.map((item) => (
                 <tr key={item.eventId} className="hover:bg-gray-50/50">
                   {/* 1. イベント名 */}
-                  <td className="py-3.5 px-4 font-medium text-gray-900">
+                  <td className="py-3.5 px-4 font-medium text-gray-900 inline-block max-w-[200px] truncate align-bottom">
                     {item.title}
                   </td>
 
                   {/* 2. 開催日 */}
-                  <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap">
+                  <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap max-w-[130px] truncate align-bottom">
                     {formatEventSchedule(item.eventDate, undefined, { yearHint: "current" })}
                   </td>
 
                   {/* 3. 登録数 */}
-                  <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                  <td className="py-3.5 px-4 text-center whitespace-nowrap max-w-[80px] truncate align-bottom">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
                       {item.registrationCount} 名
                     </span>

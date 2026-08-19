@@ -1,7 +1,6 @@
 "use client";
 
 import { type SubmitEvent, useState } from "react";
-
 import { useRouter } from "next/navigation";
 
 type EventPosition = "general" | "executive";

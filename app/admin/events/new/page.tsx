@@ -1,5 +1,4 @@
 import Link from "next/link";
-
 import { EventCreateForm } from "../eventCreateForm";
 
 export default function NewEventPage() {
