@@ -47,33 +47,37 @@ export async function GET() {
     );
 
     let recipientIdIdx = msgHeader.findIndex((h) => h === "recipientid" || h === "recipient");
+    let senderIdIdx = msgHeader.findIndex((h) => h === "senderid" || h === "sender");
     let isReadIdx = msgHeader.findIndex((h) => h === "isread" || h === "read");
     let deleteFlagIdx = msgHeader.findIndex((h) => h === "deleteflag" || h === "deleted");
 
-    // フォールバック（スプレッドシートの標準列位置: C列=2, F列=5, H列=7）
-    if (recipientIdIdx === -1) recipientIdIdx = 2;
-    if (isReadIdx === -1) isReadIdx = 5;
-    if (deleteFlagIdx === -1) deleteFlagIdx = 7;
+    // フォールバック（スプレッドシートの列構成に合わせて適宜調整してください）
+    if (recipientIdIdx === -1) recipientIdIdx = 2; // C列付近の想定
+    if (senderIdIdx === -1) senderIdIdx = 1;       // B列付近の想定
+    if (isReadIdx === -1) isReadIdx = 5;           // F列付近の想定
+    if (deleteFlagIdx === -1) deleteFlagIdx = 7;   // H列付近の想定
 
     let unreadCount = 0;
 
-    // 5. 条件判定（自分宛 × 未読 × 未削除）
+    // 5. ご指定の条件判定
     messageRows.slice(1).forEach((row) => {
       const recipientId = row[recipientIdIdx]?.toString().trim() || "";
       const isReadRaw = row[isReadIdx]?.toString().trim().toLowerCase() || "";
       const deleteFlagRaw = row[deleteFlagIdx]?.toString().trim().toLowerCase() || "";
 
-      // 条件1: ログインユーザー宛てか
-      const isForMe = recipientId === String(currentMemberId).trim();
-
-      // 条件2: 既読か
+      // 条件1: is_read が false かどうか ("true", "1", "既読" 以外を未読とする)
       const isRead = isReadRaw === "true" || isReadRaw === "1" || isReadRaw === "既読";
+      const isUnread = !isRead;
 
-      // 条件3: 削除されているか
+      // 条件2: delete_flag が false かどうか ("true", "1" 以外を未削除とする)
       const isDeleted = deleteFlagRaw === "true" || deleteFlagRaw === "1";
+      const isNotDeleted = !isDeleted;
 
-      // ★ 削除されておらず (!isDeleted)、かつ未読 (!isRead) のものだけをカウント
-      if (isForMe && !isRead && !isDeleted) {
+      // 条件3: recipient_id が "admin" もしくはログイン中のユーザーの member_id かどうか
+      const isValidRecipient = recipientId === "admin" || recipientId === String(currentMemberId).trim();
+
+      // すべての条件を満たしている場合にカウントを増やす
+      if (isUnread && isNotDeleted && isValidRecipient) {
         unreadCount++;
       }
     });
