@@ -15,6 +15,8 @@ import {
   softDeleteEvent,
 } from "@/lib/sheets/events";
 
+import {removeEventCalendar,} from "@/lib/event-calendar-sync";
+
 export const runtime =
   "nodejs";
 
@@ -95,19 +97,15 @@ export async function PATCH(
           );
         },
       );
-
-    return NextResponse.json({
+      const calendarSyncResult = await removeEventCalendar( deletedEvent.event_id, );
+      return NextResponse.json({
       success: true,
-      message:
-        "イベントを削除しました。",
-      event:
-        deletedEvent,
-    });
-  } catch (error) {
-    console.error(
-      "Event delete error:",
-      error,
-    );
+      message: calendarSyncResult.success ? "イベントを削除しました。" : "イベントを削除しましたが、Googleカレンダーからの削除に失敗しました。",
+      event: deletedEvent,
+      calendarSync: { success: calendarSyncResult.success, error: calendarSyncResult.error, },
+      });
+     } catch (error) {
+       console.error( "Event delete error:", error, );
 
     const detail =
       error instanceof Error

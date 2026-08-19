@@ -164,45 +164,17 @@ const calendarSyncResult = status === "published" ? await syncPublishedEventCale
     // });
     return NextResponse.json({
   success: true,
-
-  message:
-    calendarSyncResult &&
-    !calendarSyncResult.success
-      ? "イベントの公開状態を変更しましたが、Googleカレンダーとの同期に失敗しました。"
-      : "イベントの公開状態を変更しました。",
-
-  event:
-    updatedEvent,
-
-  calendarSync:
-    calendarSyncResult
-      ? {
-          success:
-            calendarSyncResult.success,
-
-          error:
-            calendarSyncResult.error,
-        }
-      : null,
+  message: calendarSyncResult && !calendarSyncResult.success
+      ? "イベントの公開状態を変更しましたが、Googleカレンダーとの同期に失敗しました。" : "イベントの公開状態を変更しました。",
+  event: updatedEvent,
+  calendarSync: calendarSyncResult ? { success: calendarSyncResult.success, error: calendarSyncResult.error, } : null,
 });
   } catch (error) {
     console.error( "Event status update error:", error, );
-
-    const detail =
-      error instanceof Error
-        ? error.message
-        : "不明なエラーが発生しました。";
-
+    const detail = error instanceof Error ? error.message : "不明なエラーが発生しました。";
     return NextResponse.json(
-      {
-        success: false,
-        error:
-          "イベントの公開状態を変更できませんでした。",
-        detail,
-      },
-      {
-        status: 500,
-      },
+      { success: false, error: "イベントの公開状態を変更できませんでした。", detail, },
+      { status: 500, },
     );
   }
 }

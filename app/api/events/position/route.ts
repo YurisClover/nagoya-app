@@ -12,6 +12,8 @@ import {
   updateEventPosition,
 } from "@/lib/sheets/events";
 
+import { syncEventPositionCalendar,} from "@/lib/event-calendar-sync";
+
 export const runtime =
   "nodejs";
 
@@ -108,20 +110,15 @@ export async function PATCH(
       );
     }
 
-    const updatedEvent =
-      await updateEventPosition(
-        eventId,
-        body.position,
-      );
-
-    return NextResponse.json({
-      success: true,
-      message:
-        "イベント対象者を変更しました。",
-      event:
-        updatedEvent,
-    });
-  } catch (error) {
+      const updatedEvent = await updateEventPosition( eventId, body.position, );
+      const calendarSyncResult = await syncEventPositionCalendar(updatedEvent,);
+      return NextResponse.json({
+          success: true,
+          message: calendarSyncResult.success ? "イベント対象者を変更しました。" : "イベント対象者を変更しましたが、Googleカレンダーとの同期に失敗しました。",
+          event: updatedEvent,
+          calendarSync: {success: calendarSyncResult.success, error: calendarSyncResult.error, },
+         });
+   } catch (error) {
     console.error(
       "Event position update error:",
       error,
