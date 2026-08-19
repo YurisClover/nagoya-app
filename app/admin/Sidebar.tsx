@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 
 type SidebarProps = {
   unreadCount?: number;
@@ -69,16 +70,23 @@ export default function Sidebar({ unreadCount = 0, user }: SidebarProps) {
       </div>
 
       {/* フッター：ログイン中のユーザー情報 */}
-      <div className="p-4 border-t border-chrome-line bg-black/20">
-        <div className="px-2 py-1">
-          <p className="text-xs text-slate-400">ログイン中</p>
-          <p className="text-sm font-semibold text-slate-200 truncate mt-0.5">
-            {user?.name || "管理者ユーザー"}
-          </p>
-          {user?.email && (
-            <p className="text-xs text-slate-500 truncate">{user.email}</p>
-          )}
-        </div>
+      <div className="flex items-center justify-between gap-2 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-xs text-slate-400">ログイン中</p>
+            <p className="text-sm font-semibold text-slate-200 truncate mt-0.5">
+              {user?.name || "管理者ユーザー"}
+            </p>
+            {user?.email && (
+              <p className="text-xs text-slate-500 truncate">{user.email}</p>
+            )}
+          </div>
+          <button
+  type="button"
+  onClick={() => signOut({ callbackUrl: "/login" })}
+  className="shrink-0 rounded-control border border-white px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 hover:border-red-500"
+>
+  ログアウト
+</button>
       </div>
     </aside>
   );

@@ -260,8 +260,16 @@ export const getEventAttendanceList = unstable_cache(
 
     const eventRows = await eventsSheet.getRows();
 
-    // 各イベントのシートを開かずに、Events シートの registration_count をそのまま読む
-    return eventRows.map((row) => {
+    // 今月（JST）に開始するイベントのみ — 終了が来月でもOK（開始日だけ見る）
+    const thisMonth = jstYearMonth(new Date());
+    return eventRows
+      .filter(
+        (row) =>
+          !["true", "1", "yes"].includes(
+            String(row.get("is_deleted") ?? "").trim().toLowerCase(),
+          ),
+      )
+      .map((row) => {
       const eventId = String(row.get("event_id") ?? "");
       const title = String(row.get("title") ?? "").trim();
       const eventDate = String(row.get("event_date") ?? "");
@@ -271,6 +279,10 @@ export const getEventAttendanceList = unstable_cache(
       const registrationCount = parseInt(row.get("registration_count") || "0", 10);
 
       return { eventId, title, eventDate, registrationCount, formUrl };
+    })
+    .filter((item) => {
+        const d = parseSheetDate(item.eventDate, { yearHint: "current" });
+        return d !== null && jstYearMonth(d) === thisMonth;
     });
   },
   ["event-attendance-list"],
