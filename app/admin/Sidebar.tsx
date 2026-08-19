@@ -81,12 +81,12 @@ export default function Sidebar({ unreadCount = 0, user }: SidebarProps) {
             )}
           </div>
           <button
-  type="button"
-  onClick={() => signOut({ callbackUrl: "/login" })}
-  className="shrink-0 rounded-control border border-white px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 hover:border-red-500"
->
-  ログアウト
-</button>
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="shrink-0 rounded-control border border-white px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 hover:border-red-500"
+            >
+            ログアウト
+          </button>
       </div>
     </aside>
   );
