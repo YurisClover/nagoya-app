@@ -1,7 +1,6 @@
 import "server-only";
 import {
   GoogleSpreadsheet,
-  GoogleSpreadsheetWorksheet,
 } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
@@ -36,13 +35,6 @@ function resolveMemberIdHeader(headers: string[]): string | null {
   );
 }
 
-/** normalize member_id: if that column is number instead of plaintext */
-function normalizeMemberId(v: unknown): string {
-  return String(v ?? "")
-    .trim()
-    .replace(/\.0+$/, "");
-}
-
 /** event_id → newest */
 function eventIdNum(e: { event_id: string }): number {
   const n = Number(e.event_id);
@@ -58,8 +50,6 @@ function resolveSheetName(row: { get: (k: string) => unknown }): string {
 type EventItem = Omit<EventWithStatus, "is_answered">;
 type Snapshot = {
   events: EventItem[];
-  // key = event_id | Set = OK | null = can't find column or can't read | no key = no sheet
-  answers: Map<string, Set<string> | null>;
 };
 
 let cached: { data: Snapshot; expires: number } | null = null;
@@ -77,24 +67,9 @@ async function getDoc() {
   return doc;
 }
 
-/** read ALL member_id from answer sheet */
-async function readAnsweredIds(
-  sheet: GoogleSpreadsheetWorksheet,
-): Promise<Set<string> | null> {
-  const rows = await sheet.getRows();
-  const header = resolveMemberIdHeader(sheet.headerValues ?? []);
-  if (!header) return null; // have sheet but no 会員ID column → unknown (!= "not anwser")
-  return new Set(
-    rows.map((r) => normalizeMemberId(r.get(header))).filter(Boolean),
-  );
-}
-
 async function loadSnapshot(): Promise<Snapshot> {
   const doc = await getDoc();
   const eventRows = await doc.sheetsByTitle["Events"].getRows();
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
   const upcoming = eventRows
     .map((row, index) => ({
@@ -113,36 +88,13 @@ async function loadSnapshot(): Promise<Snapshot> {
       _deleted: String(row.get("is_deleted") ?? "")
         .trim()
         .toLowerCase(),
-      _sheetName: resolveSheetName(row),
-      _dateObj: parseSheetDate(row.get("event_date") || "", {
-        yearHint: "future",
-      }),
     }))
     .filter((e) => !["true", "1", "yes"].includes(e._deleted)) // soft delete (is_deleted)
-    .filter(
-      (e): e is typeof e & { _dateObj: Date } =>
-        e._dateObj !== null && e._dateObj >= today,
-    )
     .sort((a, b) => eventIdNum(b) - eventIdNum(a));
-
-  // read all event sheet once → store as set (member_id) (all user)
-  const answers = new Map<string, Set<string> | null>();
-  await Promise.all(
-    upcoming.map(async (e) => {
-      const sheet = doc.sheetsByTitle[e._sheetName];
-      if (!sheet) return; // no sheet → no key (seperate from "unreadable")
-      try {
-        answers.set(e.event_id, await readAnsweredIds(sheet));
-      } catch {
-        answers.set(e.event_id, null);
-      }
-    }),
-  );
 
   return {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    events: upcoming.map(({ _dateObj, _sheetName, _deleted, ...rest }) => rest),
-    answers,
+    events: upcoming.map(({ _deleted, ...rest }) => rest),
   };
 }
 
@@ -161,9 +113,9 @@ async function getSnapshot(): Promise<Snapshot> {
   return inflight;
 }
 /** admin: all event,
- * executive: published (general, executive),
- * general: published (general) */
-export type EventViewer = { memberId?: string; role?: string };
+executive: published (general, executive),
+general: published (general) */
+export type EventViewer = { role?: string };
 function canSee(e: EventItem, role: string): boolean {
   const r = role.trim().toLowerCase() || "general";
   const status = e.status;
@@ -174,25 +126,36 @@ function canSee(e: EventItem, role: string): boolean {
   return pos === "general";
 }
 
-/** build result user — compare member_id in memory (0 API call) */
+/** filter from role/position — is_answered by /api/events from Answers sheet */
 function buildResult(
   snap: Snapshot,
   viewer?: EventViewer,
   position?: EventPosition,
 ): EventWithStatus[] {
-  const target = normalizeMemberId(viewer?.memberId);
   const role = viewer?.role ?? "";
+  const isAdmin = role.trim().toLowerCase() === "admin";
+  // JST
+  const now = new Date();
+  const jstNow = new Date(now.getTime() + 9 * 3600_000);
+  const today = new Date(
+    Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate()) -
+      9 * 3600_000,
+  );
+  // if not end show (until end)
+  const stillRelevant = (e: EventItem) => {
+    const end =
+      parseSheetDate(e.event_end_date, { yearHint: "future" }) ??
+      parseSheetDate(e.event_date, { yearHint: "future" });
+    return end !== null && end >= today;
+  };
   return snap.events
-    .filter((e) => canSee(e, role) && (!position || e.position === position))
-    .map((e) => {
-      let is_answered: boolean | null = false;
-      if (target) {
-        // undefined = no sheet, null = can't read
-        const ids = snap.answers.get(e.event_id);
-        is_answered = ids == null ? null : ids.has(target);
-      }
-      return { ...e, is_answered };
-    });
+    .filter(
+      (e) =>
+        canSee(e, role) &&
+        (isAdmin || stillRelevant(e)) && // admin still see ended event
+        (!position || e.position === position),
+    )
+    .map((e) => ({ ...e, is_answered: null as boolean | null }));
 }
 
 export async function getEventsData(

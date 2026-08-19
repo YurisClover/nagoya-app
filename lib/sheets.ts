@@ -5,6 +5,7 @@ import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST, parseSheetDate, jstYearMonth } from "./datetime";
 import { unstable_cache } from "next/cache";
 import { updateTag } from "next/cache";
+import { sameId } from "@/lib/ids";
 import { field } from "firebase/firestore/pipelines";
 
 export type SheetUser = {
@@ -95,7 +96,7 @@ export const getDashboardMetrics = unstable_cache(
     const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
     await doc.loadInfo();
 
-    const currentMonthKey = jstYearMonth(new Date()); // "YYYY-MM" ตามเวลาญี่ปุ่น
+    const currentMonthKey = jstYearMonth(new Date()); // "YYYY-MM"
 
     // 1. ユーザー情報の集計
     const usersSheet = doc.sheetsByTitle["Users"];
@@ -184,7 +185,7 @@ export const getDashboardMetrics = unstable_cache(
     };
   },
   ["dashboard", "metrics", "v1"],
-  { revalidate: 60, tags: ["dashboard-metrics"] }
+  { revalidate: 60, tags: ["dashboard-metrics", "members"] }
 );
 
 // 2. 最近のアクティビティ取得（1分間キャッシュ）
@@ -259,8 +260,16 @@ export const getEventAttendanceList = unstable_cache(
 
     const eventRows = await eventsSheet.getRows();
 
-    // 各イベントのシートを開かずに、Events シートの registration_count をそのまま読む
-    return eventRows.map((row) => {
+    // 今月（JST）に開始するイベントのみ — 終了が来月でもOK（開始日だけ見る）
+    const thisMonth = jstYearMonth(new Date());
+    return eventRows
+      .filter(
+        (row) =>
+          !["true", "1", "yes"].includes(
+            String(row.get("is_deleted") ?? "").trim().toLowerCase(),
+          ),
+      )
+      .map((row) => {
       const eventId = String(row.get("event_id") ?? "");
       const title = String(row.get("title") ?? "").trim();
       const eventDate = String(row.get("event_date") ?? "");
@@ -270,6 +279,10 @@ export const getEventAttendanceList = unstable_cache(
       const registrationCount = parseInt(row.get("registration_count") || "0", 10);
 
       return { eventId, title, eventDate, registrationCount, formUrl };
+    })
+    .filter((item) => {
+        const d = parseSheetDate(item.eventDate, { yearHint: "current" });
+        return d !== null && jstYearMonth(d) === thisMonth;
     });
   },
   ["event-attendance-list"],
@@ -455,7 +468,7 @@ export async function updateMemberInSheet(
         const rows = await sheet.getRows();
         const target = memberId.trim();
         const row = rows.find(
-            (r) => String(r.get("member_id") ?? "").trim().replace(/\.0$/,"") === target
+            (r) => sameId(r.get("member_id"), target)
         );
         if(!row) {
             return {success: false, error: "対象の会員が見つかりませんでした。"};
@@ -614,11 +627,6 @@ export async function addGroupToSheet(data: {
     console.error("Failed to add group:", error);
     return { success: false, error: "グループの作成に失敗しました。" };
   }
-}
-
-// normalize check id
-function sameId(cell: unknown, id: string): boolean {
-    return String(cell ?? "").trim().replace(/\.0$/,"") === id.trim();
 }
 
 // delete row bottom up ↑

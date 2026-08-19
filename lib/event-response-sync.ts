@@ -1,3 +1,4 @@
+import { normalizeId } from "./ids";
 import "server-only";
 import {
   GoogleSpreadsheet,
@@ -62,11 +63,6 @@ export type EventResponseSyncResult = {
   }>;
 };
 
-function normalizeMemberId(value: unknown): string {
-  return String(value ?? "")
-    .trim()
-    .replace(/\.0+$/, "");
-}
 function parseBoolean(value: unknown): boolean {
   if (typeof value === "boolean") {
     return value;
@@ -123,7 +119,7 @@ async function loadActiveMemberIds(
   const rows = await usersSheet.getRows();
   const memberIds = rows
     .filter((row) => !parseBoolean(row.get("is_deleted")))
-    .map((row) => normalizeMemberId(row.get("member_id")))
+    .map((row) => normalizeId(row.get("member_id")))
     .filter(Boolean);
   if (memberIds.length === 0) {
     throw new Error("Usersシートのmember_id列に有効な会員IDがありません。");
@@ -230,7 +226,7 @@ async function syncResponseSheet({
 
   for (const row of rows) {
     let result: "有効" | "無効";
-    const memberId = normalizeMemberId(row.get(memberIdHeader));
+    const memberId = normalizeId(row.get(memberIdHeader));
     let error = "";
 
     if (!memberId) {
@@ -247,7 +243,7 @@ async function syncResponseSheet({
     }
 
     const currentResult = String(row.get(RESULT_HEADER) ?? "").trim();
-    const currentMemberId = normalizeMemberId(row.get(MEMBER_ID_RESULT_HEADER));
+    const currentMemberId = normalizeId(row.get(MEMBER_ID_RESULT_HEADER));
     const currentError = String(row.get(ERROR_HEADER) ?? "").trim();
     const currentValidatedAt = String(
       row.get(VALIDATED_AT_HEADER) ?? "",
@@ -310,7 +306,7 @@ async function upsertValidAnswers({
   const rowByKey = new Map<string, (typeof rows)[number]>();
   for (const row of rows) {
     const eventId = String(row.get("event_id") ?? "").trim();
-    const memberId = normalizeMemberId(row.get("member_id"));
+    const memberId = normalizeId(row.get("member_id"));
     const rowKey = `${eventId}::${memberId}`;
     rowByKey.set(rowKey, row);
   }
@@ -402,7 +398,7 @@ async function updateEventRegistrationCounts({
   const countByEventId = new Map<string, number>();
   for (const row of answerRows) {
     const eventId = String(row.get("event_id") ?? "").trim();
-    const memberId = normalizeMemberId(row.get("member_id"));
+    const memberId = normalizeId(row.get("member_id"));
 
     if (!eventId || !memberId) {
       continue;
