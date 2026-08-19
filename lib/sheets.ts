@@ -96,7 +96,7 @@ export const getDashboardMetrics = unstable_cache(
     const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
     await doc.loadInfo();
 
-    const currentMonthKey = jstYearMonth(new Date()); // "YYYY-MM" ตามเวลาญี่ปุ่น
+    const currentMonthKey = jstYearMonth(new Date()); // "YYYY-MM"
 
     // 1. ユーザー情報の集計
     const usersSheet = doc.sheetsByTitle["Users"];
@@ -185,7 +185,7 @@ export const getDashboardMetrics = unstable_cache(
     };
   },
   ["dashboard", "metrics", "v1"],
-  { revalidate: 60, tags: ["dashboard-metrics"] }
+  { revalidate: 60, tags: ["dashboard-metrics", "members"] }
 );
 
 // 2. 最近のアクティビティ取得（1分間キャッシュ）

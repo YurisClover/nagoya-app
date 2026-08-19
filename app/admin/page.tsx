@@ -4,6 +4,7 @@ import Activity from "./activity";
 import QuickAction from "./quickAction";
 import EventAttendance from "./eventAttendance";
 import { requireAdmin } from "@/lib/guards";
+import RefreshButton from "./refreshButton";
 
 export default async function AdminHomePage() {
   // check isAdmin
@@ -17,7 +18,10 @@ export default async function AdminHomePage() {
 
   return (
     <main className="space-y-6">
-      <div className="mb-4 text-xl font-bold">ダッシュボード</div>
+      <div className="mb-4 flex item-center justify-between">
+        <div className="text-xl font-bold">ダッシュボード</div>
+        <RefreshButton />
+    </div>
 
       {/* 1. 指標 */}
       <Metrics data={metricsData} />
