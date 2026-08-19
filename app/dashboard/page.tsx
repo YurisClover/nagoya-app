@@ -2,6 +2,7 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { MENU, type MenuItem } from "@/lib/menu";
 import { requireUser } from "@/lib/guards";
+import NotificationInitializer from "@/app/notification/NotificationInitializer"; 
 
 function MenuCard({ item }: { item: MenuItem }) {
   const { Icon } = item;
@@ -37,6 +38,9 @@ export default async function HomePage() {
 
   return (
     <AppShell>
+      {/* ダッシュボード画面でのみ通知初期化（トークン取得・サーバー保存）を実行 */}
+      <NotificationInitializer />
+
       <section className="card-brand mb-4">
         <p className="text-[15px] font-medium sm:text-lg">{session.user.name} 様</p>
         <p className="mt-1 text-[11px] opacity-80 sm:text-sm">名古屋中支部 会員</p>

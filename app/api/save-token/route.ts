@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { auth } from '@/auth'; 
+import { nowJST } from '@/lib/datetime'; // ★ nowJST をインポート
 
 // 1. リクエストボディの型を定義
 interface SaveTokenRequestBody {
@@ -12,7 +13,7 @@ interface SaveTokenRequestBody {
 interface GoogleCredentials {
   client_email?: string;
   private_key?: string;
-  [key: string]: unknown; // 他のプロパティが含まれる場合への安全な対応
+  [key: string]: unknown;
 }
 
 export async function POST(request: Request) {
@@ -88,8 +89,8 @@ export async function POST(request: Request) {
       currentRow.push('');
     }
 
-    currentRow[7] = token;                    // H列: fcm_token
-    currentRow[9] = new Date().toISOString(); // J列: updated_at
+    currentRow[6] = token;                // G列: fcm_token
+    currentRow[8] = nowJST();             // I列: updated_at (JST形式で保存)
 
     // Users シートへ書き戻し
     await sheets.spreadsheets.values.update({
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, message: 'FCM token saved successfully' });
 
-  } catch (error: unknown) { // 5. catch句のエラーを unknown 型に変更し、安全に判定
+  } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('=== SAVE TOKEN ERROR ===', errorMessage);
     

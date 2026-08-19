@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import Sidebar from "./Sidebar";
 import AdminShell from "@/components/AdminShell";
 import { getDashboardMetrics } from "@/lib/sheets";
+import NotificationInitializer from "@/app/notification/NotificationInitializer"; // ★ 追加
 
 export default async function AdminLayout({
   children,
@@ -19,6 +20,8 @@ export default async function AdminLayout({
 
   return (
     <AdminShell sidebar={<Sidebar initialUnreadCount={initialUnreadCount} user={session?.user} />}>
+      {/* ★ 管理者レイアウトの配下に入ったタイミングで通知の初期化を実行 */}
+      <NotificationInitializer />
       {children}
     </AdminShell>
   );
