@@ -135,22 +135,29 @@ export const getDashboardMetrics = unstable_cache(
      ? messagesSheet.getRows().then((rows) => {
          let unreadCount = 0;
          for (const row of rows) {
-            // is_read と delete_flag の値を取得し、小文字にして前後の空白を削除
+            // 各フィールドの値を取得
+            const recipientId = String(row.get("recipient_id") ?? "").trim();
             const isReadRaw = String(row.get("is_read") ?? "").trim().toLowerCase();
             const deleteFlagRaw = String(row.get("delete_flag") ?? "").trim().toLowerCase();
 
-            // 未読 (is_read が false または 0)
-            const isUnread = isReadRaw === "false" || isReadRaw === "0";
-            // 未削除 (delete_flag が false, 0, または空)
-            const isNotDeleted = deleteFlagRaw === "false" || deleteFlagRaw === "0" || deleteFlagRaw === "";
+            // 未読 (is_read が false, "false", "0" など)
+            const isRead = isReadRaw === "true" || isReadRaw === "1" || isReadRaw === "既読";
+            const isUnread = !isRead;
 
-            // 未読かつ未削除の場合のみカウントアップ
-            if (isUnread && isNotDeleted) {
+            // 未削除 (delete_flag が false, "false", "0", または空)
+            const isDeleted = deleteFlagRaw === "true" || deleteFlagRaw === "1";
+            const isNotDeleted = !isDeleted;
+
+            // 宛先が admin のものに絞る（必要に応じてユーザーID等に変更してください）
+            const isValidRecipient = recipientId === "admin"|| recipientId === String(currentMemberId).trim();
+
+            // すべての条件を満たした場合のみカウントアップ
+            if (isUnread && isNotDeleted && isValidRecipient) {
               unreadCount++;
-           }
+             }
          }
          return unreadCount;
-       })
+        })
      : Promise.resolve(0);
 
     // 3. 今月のイベント数・参加者数の集計 
