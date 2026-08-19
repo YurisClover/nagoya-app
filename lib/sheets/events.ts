@@ -184,13 +184,13 @@ export async function getEventsFromSheet(): Promise<SheetEvent[]> {
     .filter((event) => Boolean(event.event_id) && !event.is_deleted);
   const now = Date.now();
 
-  /*
-   * 開催前：
-   *   開始日時が近い順
-   *
-   * 開催済み：
-   *   新しい順で一覧の後ろ
-   */
+//   /*
+//    * 開催前：
+//    *   開始日時が近い順
+//    *
+//    * 開催済み：
+//    *   新しい順で一覧の後ろ
+//    */
 //   events.sort((eventA, eventB) => {
 //     const dateA = new Date(eventA.event_date).getTime();
 //     const dateB = new Date(eventB.event_date).getTime();
@@ -209,7 +209,7 @@ export async function getEventsFromSheet(): Promise<SheetEvent[]> {
 
 //     return validDateA - validDateB;
 //   });
-
+    // sort by event_id desc
     const idNum = (value: string) => {
         const n = Number(value);
         return Number.isFinite(n) ? n : -Infinity;
