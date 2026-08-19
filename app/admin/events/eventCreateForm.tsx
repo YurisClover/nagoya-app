@@ -218,17 +218,18 @@ export function EventCreateForm() {
   }
 
   return (
-    <section>
-      <p>
+    <section className="space-y-4">
+      <p className="text-xs leading-relaxed text-ink-muted">
         イベント作成後、Googleフォームの編集画面が開きます。
         作成時点ではイベントは準備中で、Googleフォームは非公開・受付停止です。
       </p>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="card space-y-4 p-5 sm:p-6">
         <div>
-          <label htmlFor="title">イベント名</label>
+          <label className="field-label" htmlFor="title">イベント名</label>
 
           <input
+            className="field-input"
             id="title"
             name="title"
             type="text"
@@ -238,9 +239,10 @@ export function EventCreateForm() {
         </div>
 
         <div>
-          <label htmlFor="eventDate">開始日時</label>
+          <label className="field-label" htmlFor="eventDate">開始日時</label>
 
           <input
+            className="field-input"
             id="eventDate"
             name="eventDate"
             type="datetime-local"
@@ -250,9 +252,10 @@ export function EventCreateForm() {
         </div>
 
         <div>
-          <label htmlFor="eventEndDate">終了日時</label>
+          <label className="field-label" htmlFor="eventEndDate">終了日時</label>
 
           <input
+            className="field-input"
             id="eventEndDate"
             name="eventEndDate"
             type="datetime-local"
@@ -262,9 +265,10 @@ export function EventCreateForm() {
         </div>
 
         <div>
-          <label htmlFor="location">開催場所</label>
+          <label className="field-label" htmlFor="location">開催場所</label>
 
           <input
+            className="field-input"
             id="location"
             name="location"
             type="text"
@@ -273,9 +277,10 @@ export function EventCreateForm() {
         </div>
 
         <div>
-          <label htmlFor="position">イベント対象者</label>
+          <label className="field-label" htmlFor="position">イベント対象者</label>
 
           <select
+            className="field-input bg-surface"
             id="position"
             name="position"
             defaultValue="general"
@@ -287,28 +292,23 @@ export function EventCreateForm() {
           </select>
         </div>
 
-        <button type="submit" disabled={isSubmitting}>
+        <button type="submit" disabled={isSubmitting} className="btn btn-primary">
           {isSubmitting ? "作成しています..." : "作成してGoogleフォームを編集"}
         </button>
       </form>
 
-      {message && <p role="status">{message}</p>}
+      {message && <p role="status" className="text-xs text-ink-muted">{message}</p>}
 
       {errorMessage && (
-        <p
-          role="alert"
-          style={{
-            whiteSpace: "pre-wrap",
-          }}
-        >
+        <p role="alert" className="whitespace-pre-wrap text-xs text-danger">
           {errorMessage}
         </p>
       )}
 
       {formEditUrl && (
-        <p>
+        <p className="text-xs text-ink-muted">
           編集画面が開かなかった場合：{" "}
-          <a href={formEditUrl} target="_blank" rel="noopener noreferrer">
+          <a href={formEditUrl} target="_blank" rel="noopener noreferrer" className="text-brand underline-offset-2 hover:underline">
             Googleフォームを編集
           </a>
         </p>
