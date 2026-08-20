@@ -32,7 +32,7 @@ export default function Sidebar({ unreadCount = 0, user }: SidebarProps) {
     <aside className="w-64 bg-brand text-white min-h-screen flex flex-col justify-between shrink-0 sticky top-0 h-screen">
       <div>
         {/* ヘッダー・タイトル */}
-        <div className="p-6 border-b border-slate-800">
+        <div className="p-6 border-b border-chrome-line">
           <h1 className="text-lg font-bold tracking-wide">管理システム</h1>
         </div>
 
@@ -67,6 +67,16 @@ export default function Sidebar({ unreadCount = 0, user }: SidebarProps) {
             );
           })}
         </nav>
+        {/* 会員側ページへ（管理ゾーンの外に出るリンク） */}
+        <div className="mx-4 border-t border-chrome-line pt-3">
+          <Link
+            href="/dashboard"
+            className="flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-white/70 transition-colors hover:bg-chrome hover:text-white"
+          >
+            <span>会員ページを表示</span>
+            <span aria-hidden>↗</span>
+          </Link>
+        </div>
       </div>
 
       {/* フッター：ログイン中のユーザー情報 */}
