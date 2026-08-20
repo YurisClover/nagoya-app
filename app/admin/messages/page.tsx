@@ -34,7 +34,7 @@ function AdminMessageContent() {
   useEffect(() => {
     async function fetchGroups() {
       try {
-        const res = await fetch('/api/groups');
+        const res = await fetch('/api/groups', { cache: 'no-store' });
         const data = (await res.json()) as { success: boolean; groups?: Array<{ group_id?: string; id?: string; group_name?: string; name?: string }> };
         if (data.success && Array.isArray(data.groups)) {
           setGroups(
@@ -55,7 +55,7 @@ function AdminMessageContent() {
     async (isSilent = false) => {
       if (!isSilent) setIsLoadingInquiries(true);
       try {
-        const res = await fetch('/api/admin/inquiries');
+        const res = await fetch('/api/admin/inquiries?t=${Date.now()}', { cache: 'no-store' });
         const data = (await res.json()) as { success: boolean; inquiries?: ReceivedMessage[] };
         if (data.success && Array.isArray(data.inquiries)) {
           const filteredInquiries = data.inquiries.filter((item) => {

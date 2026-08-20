@@ -88,7 +88,7 @@ export type EventAttendanceItem = {
 
 // 1. ダッシュボード指標の取得（1分間キャッシュ,既存の getSheetAuth を利用）
 export const getDashboardMetrics = unstable_cache(
-  async (): Promise<DashboardMetrics> => {
+  async (currentMemberId: string): Promise<DashboardMetrics> => {
     const sheetId = process.env.GOOGLE_SHEET_ID;
     if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
 
@@ -149,7 +149,7 @@ export const getDashboardMetrics = unstable_cache(
             const isNotDeleted = !isDeleted;
 
             // 宛先が admin のものに絞る（必要に応じてユーザーID等に変更してください）
-            const isValidRecipient = recipientId === "admin"|| recipientId === String(currentMemberId).trim();
+            const isValidRecipient = recipientId === currentMemberId.trim();
 
             // すべての条件を満たした場合のみカウントアップ
             if (isUnread && isNotDeleted && isValidRecipient) {

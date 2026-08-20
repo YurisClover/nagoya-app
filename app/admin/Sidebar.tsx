@@ -9,20 +9,21 @@ type SidebarProps = {
     name?: string | null;
     email?: string | null;
   };
-  initialUnreadCount?: number; // ★ 追加: 親から初期値を受け取る
 };
 
-export default function Sidebar({ user, initialUnreadCount = 0 }: SidebarProps) {
+export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   
   // ★ 初期値にサーバーから受け取った件数をセット（これで初回からバッジが表示されます）
-  const [unreadCount, setUnreadCount] = useState<number>(initialUnreadCount);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   // 未読バッジ件数をAPIから自動取得して最新に保つ
   useEffect(() => {
     async function fetchUnreadCount() {
       try {
-        const res = await fetch("/api/admin/unread-count");
+        const res = await fetch("/api/admin/unread-count",{
+          cache: "no-store",
+        });
         const data = await res.json();
         if (data.success && typeof data.count === "number") {
           setUnreadCount(data.count);

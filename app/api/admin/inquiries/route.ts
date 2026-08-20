@@ -1,8 +1,8 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { auth } from '@/auth';
-
-export const dynamic = 'force-dynamic';
 
 interface SessionUser {
   member_id?: string;
