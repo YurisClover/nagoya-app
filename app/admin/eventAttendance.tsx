@@ -62,12 +62,12 @@ export default function EventAttendance({ items }: EventAttendanceProps) {
                             href={item.formUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="block max-w-[220px] truncate py-2.5 text-brand underline-offset-2 hover:underline"
+                            className="block max-w-[350px] truncate py-2.5 text-brand underline-offset-2 hover:underline"
                         >
                             {item.title}
                         </a>
                         ) : (
-                        <span className="block max-w-[220px] truncate py-2.5 text-gray-900">
+                        <span className="block max-w-[350px] truncate py-2.5 text-gray-900">
                             {item.title}
                         </span>
                         )}
