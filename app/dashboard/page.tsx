@@ -3,13 +3,14 @@ import AppShell from "@/components/AppShell";
 import { MENU, type MenuItem } from "@/lib/menu";
 import { requireUser } from "@/lib/guards";
 import NotificationInitializer from "@/app/notification/NotificationInitializer";
-import { getDashboardMetrics } from "@/lib/sheets"; // ★ sheets.ts からインポート
+import { headers } from "next/headers";
+import UnreadBadge from "@/app/dashboard/UnreadBadge"; // ★ インポートを追加
 
 function MenuCard({ item, unreadCount }: { item: MenuItem; unreadCount?: number }) {
   const { Icon } = item;
   const span = item.wide ? "col-span-2" : "";
 
-  // メッセージのリンク（環境に合わせて "/messages" などのパスに変更してください）
+  // メッセージのリンク
   const isMessageItem = item.href === "/messages"; 
 
   const inner = (
@@ -18,11 +19,9 @@ function MenuCard({ item, unreadCount }: { item: MenuItem; unreadCount?: number 
       <div className={`icon-tile ${item.tone} relative`}>
         <Icon className="h-[17px] w-[17px] sm:h-5 sm:w-5" aria-hidden="true" />
         
-        {/* ★ メッセージかつ未読数が1件以上の場合に赤丸バッジを表示 */}
-        {isMessageItem && unreadCount && unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
+        {/* ★ 自動更新機能を持つ UnreadBadge コンポーネントに置き換え */}
+        {isMessageItem && (
+          <UnreadBadge initialCount={unreadCount ?? 0} />
         )}
       </div>
       <p className="text-xs font-medium text-ink sm:text-sm">{item.label}</p>
@@ -48,13 +47,32 @@ export default async function HomePage() {
   const isAdmin = session.user.role === "admin";
   const items = MENU.filter((m) => !m.adminOnly || isAdmin);
 
-  // ★ ログイン中のユーザーIDを渡して、自分宛ての未読数を取得
-  const metrics = await getDashboardMetrics(session.user.id ?? "");
-  const unreadMessagesCount = metrics.unreadMessagesCount;
+  // api/messages/unread-count/route.ts から未読数を取得
+  let unreadMessagesCount = 0;
+  try {
+    const headersList = await headers();
+    const cookie = headersList.get("cookie") || "";
+    const host = headersList.get("host") || "localhost:3000";
+    const protocol = host.includes("localhost") ? "http" : "https";
+
+    const res = await fetch(`${protocol}://${host}/api/messages/unread-count`, {
+      headers: { cookie },
+      cache: "no-store",
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        unreadMessagesCount = data.count;
+      }
+    }
+  } catch (error) {
+    console.error("未読数の取得に失敗しました:", error);
+  }
 
   return (
     <AppShell>
-      {/* ダッシュボード画面でのみ通知初期化（トークン取得・サーバー保存）を実行 */}
+      {/* ダッシュボード画面でのみ通知初期化を実行 */}
       <NotificationInitializer />
 
       <section className="card-brand mb-4">
@@ -69,7 +87,7 @@ export default async function HomePage() {
           <MenuCard 
             key={item.href} 
             item={item} 
-            unreadCount={unreadMessagesCount} // ★ 各カードに未読数を渡す
+            unreadCount={unreadMessagesCount}
           />
         ))}
       </div>

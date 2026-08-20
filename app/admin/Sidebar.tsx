@@ -22,7 +22,7 @@ export default function Sidebar({ user }: SidebarProps) {
   useEffect(() => {
     async function fetchUnreadCount() {
       try {
-        const res = await fetch("/api/admin/unread-count",{
+        const res = await fetch("/api/admin/unread-count?t=${Date.now()}",{
           cache: "no-store",
         });
         const data = await res.json();
