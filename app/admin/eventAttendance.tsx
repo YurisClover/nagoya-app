@@ -33,60 +33,71 @@ export default function EventAttendance({ items }: EventAttendanceProps) {
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-gray-600 border-collapse">
+          <table className="w-full table-fixed text-left text-sm text-gray-600 border-collapse">
             <thead className="bg-gray-50 text-xs text-gray-500 uppercase border-b border-gray-100">
               <tr>
-                <th scope="col" className="py-3 px-4 font-semibold w-1/4">
-                  イベント名
-                </th>
                 <th scope="col" className="py-3 px-4 font-semibold whitespace-nowrap">
-                  開催日
-                </th>
-                <th scope="col" className="py-3 px-4 font-semibold text-center whitespace-nowrap">
-                  登録数
-                </th>
-                <th scope="col" className="py-3 px-4 font-semibold">
-                  フォームURL
-                </th>
-              </tr>
-            </thead>
+                イベント名
+              </th>
+              <th scope="col" className="py-3 px-4 font-semibold whitespace-nowrap">
+                開催日
+              </th>
+              <th scope="col" className="w-20 py-3 px-4 font-semibold text-center whitespace-nowrap">
+                登録数
+              </th>
+            </tr>
+          </thead>
             <tbody className="divide-y divide-gray-100">
-              {pageItems.map((item) => (
-                <tr key={item.eventId} className="hover:bg-gray-50/50">
-                  {/* 1. イベント名 */}
-                  <td className="py-3.5 px-4 font-medium text-gray-900 inline-block max-w-[200px] truncate align-bottom">
-                    {item.title}
-                  </td>
+                {pageItems.map((item) => {
+                const linkable = Boolean(item.formUrl);
+                const schedule = formatEventSchedule(item.eventDate, undefined, {
+                    yearHint: "current",
+                });
+                return (
+                    <tr key={item.eventId} className="hover:bg-gray-50/50">
+                    {/* 1. イベント名（クリックでフォームへ） */}
+                    <td className="py-1 px-4 font-medium">
+                        {linkable ? (
+                        <a
+                            href={item.formUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block max-w-[220px] truncate py-2.5 text-brand underline-offset-2 hover:underline"
+                        >
+                            {item.title}
+                        </a>
+                        ) : (
+                        <span className="block max-w-[220px] truncate py-2.5 text-gray-900">
+                            {item.title}
+                        </span>
+                        )}
+                    </td>
 
-                  {/* 2. 開催日 */}
-                  <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap max-w-[130px] truncate align-bottom">
-                    {formatEventSchedule(item.eventDate, undefined, { yearHint: "current" })}
-                  </td>
+                    {/* 2. 開催日（同じくクリック可） */}
+                    <td className="py-1 px-4 text-gray-500 whitespace-nowrap">
+                        {linkable ? (
+                        <a
+                            href={item.formUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block truncate py-2.5 underline-offset-2 hover:underline"
+                        >
+                            {schedule}
+                        </a>
+                        ) : (
+                        <span className="block py-2.5">{schedule}</span>
+                        )}
+                    </td>
 
-                  {/* 3. 登録数 */}
-                  <td className="py-3.5 px-4 text-center whitespace-nowrap max-w-[80px] truncate align-bottom">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
-                      {item.registrationCount} 名
-                    </span>
-                  </td>
-
-                  {/* 4. フォームURL（生のURLをそのままリンク表示） */}
-                  <td className="py-3.5 px-4">
-                    {item.formUrl ? (
-                      <a
-                        href={item.formUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline break-all font-mono inline-block max-w-[120px] truncate align-bottom text-brand"
-                      >
-                        {item.formUrl}
-                      </a>
-                    ) : (
-                      <span className="text-xs text-gray-400">なし</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    {/* 3. 登録数 */}
+                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
+                        {item.registrationCount} 名
+                        </span>
+                    </td>
+                    </tr>
+                );
+                })}
             </tbody>
           </table>
           {totalPages > 1 && (
