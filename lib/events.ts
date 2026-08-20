@@ -13,7 +13,7 @@ import {
 } from "@/types/event";
 import { parseSheetDate } from "./datetime";
 
-const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || "";
+const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID || "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
 const TTL_MS = 60_000;
 

@@ -8,7 +8,7 @@ import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST } from "./datetime";
 
-const MAIN_SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID?.trim() ?? "";
+const MAIN_SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID?.trim() ?? "";
 const RESPONSE_SPREADSHEET_ID =
   process.env.GOOGLE_FORM_RESPONSE_SPREADSHEET_ID?.trim() ?? "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
@@ -443,7 +443,7 @@ export async function syncEventResponseSheets(): Promise<EventResponseSyncResult
       RESPONSE_SPREADSHEET_ID,
       "GOOGLE_FORM_RESPONSE_SPREADSHEET_ID",
     ),
-    createSpreadsheetDoc(MAIN_SPREADSHEET_ID, "GOOGLE_SHEET_ID"),
+    createSpreadsheetDoc(MAIN_SPREADSHEET_ID, "GOOGLE_SHEETS_ID"),
   ]);
 
   const [activeMemberIds, answerSheet] = await Promise.all([
