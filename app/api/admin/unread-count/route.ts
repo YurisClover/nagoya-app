@@ -18,7 +18,7 @@ export async function GET() {
     // 2. Google API 認証情報の確認
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = (process.env.FIREBASE_PRIVATE_KEY)?.replace(/\\n/g, "\n");
-    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
 
     if (!clientEmail || !privateKey || !spreadsheetId) {
       return NextResponse.json({ success: false, count: 0 });

@@ -33,7 +33,7 @@ export async function getSpreadsheet() {
 
   if (!sheetId) {
     throw new Error(
-      "GOOGLE_SHEET_ID is not set",
+      "GOOGLE_SHEETS_ID is not set",
     );
   }
 

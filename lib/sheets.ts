@@ -25,8 +25,8 @@ function getSheetAuth() {
 }
 
 async function getUsersSheet() {
-    const sheetId = process.env.GOOGLE_SHEET_ID;
-    if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
+    const sheetId = process.env.GOOGLE_SHEETS_ID;
+    if (!sheetId) throw new Error("GOOGLE_SHEETS_ID is not set");
     const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
     await doc.loadInfo();
     const sheet = doc.sheetsByTitle["Users"];
@@ -91,8 +91,8 @@ export type EventAttendanceItem = {
 export const getDashboardMetrics = unstable_cache(
   async (currentMemberId: string = "admin"): Promise<DashboardMetrics> => {
     const targetMemberId = currentMemberId || "admin";
-    const sheetId = process.env.GOOGLE_SHEET_ID;
-    if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
+    const sheetId = process.env.GOOGLE_SHEETS_ID;
+    if (!sheetId) throw new Error("GOOGLE_SHEETS_ID is not set");
 
     const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
     await doc.loadInfo();
@@ -208,8 +208,8 @@ export const getDashboardMetrics = unstable_cache(
 // 2. 最近のアクティビティ取得（1分間キャッシュ）
 export const getRecentActivities = unstable_cache(
   async (): Promise<ActivityItem[]> => {
-    const sheetId = process.env.GOOGLE_SHEET_ID;
-    if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
+    const sheetId = process.env.GOOGLE_SHEETS_ID;
+    if (!sheetId) throw new Error("GOOGLE_SHEETS_ID is not set");
 
     const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
     await doc.loadInfo();
@@ -266,8 +266,8 @@ export const getRecentActivities = unstable_cache(
 // 3. イベント出席状況のリスト取得（1分間キャッシュ）
 export const getEventAttendanceList = unstable_cache(
   async (): Promise<EventAttendanceItem[]> => {
-    const sheetId = process.env.GOOGLE_SHEET_ID;
-    if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
+    const sheetId = process.env.GOOGLE_SHEETS_ID;
+    if (!sheetId) throw new Error("GOOGLE_SHEETS_ID is not set");
 
     const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
     await doc.loadInfo();
@@ -309,7 +309,7 @@ export const getEventAttendanceList = unstable_cache(
 // ログ記録
 export async function logActivity(type: string, description: string): Promise<void> {
   try {
-    const sheetId = process.env.GOOGLE_SHEET_ID;
+    const sheetId = process.env.GOOGLE_SHEETS_ID;
     if (!sheetId) return;
 
     const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
@@ -524,8 +524,8 @@ export type GroupWithMembers = Group & {
 
 // 共通ドキュメント取得関数（doc.loadInfo() を1回だけ行う）
 async function getGoogleDoc() {
-  const sheetId = process.env.GOOGLE_SHEET_ID;
-  if (!sheetId) throw new Error("GOOGLE_SHEET_ID is not set");
+  const sheetId = process.env.GOOGLE_SHEETS_ID;
+  if (!sheetId) throw new Error("GOOGLE_SHEETS_ID is not set");
   const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
   await doc.loadInfo();
   return doc;

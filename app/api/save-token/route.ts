@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     });
 
     const sheets = google.sheets({ version: 'v4', auth: authGoogle });
-    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
 
     // Users シートから全データを取得
     const response = await sheets.spreadsheets.values.get({
