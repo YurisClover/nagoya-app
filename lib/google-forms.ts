@@ -1,13 +1,8 @@
 import "server-only";
 
-import {
-  createAuthenticatedGoogleFormsOAuthClient,
-} from "@/lib/google-auth";
+import { createAuthenticatedGoogleFormsOAuthClient } from "@/lib/google-auth";
 
-export type GoogleFormStatus =
-  | "private"
-  | "open"
-  | "closed";
+export type GoogleFormStatus = "private" | "open" | "closed";
 
 const FORM_STATUS_SETTINGS = {
   private: {
@@ -26,10 +21,7 @@ const FORM_STATUS_SETTINGS = {
   },
 } as const;
 
-export type EventFormQuestionType =
-  | "SHORT_TEXT"
-  | "LONG_TEXT"
-  | "RADIO";
+export type EventFormQuestionType = "SHORT_TEXT" | "LONG_TEXT" | "RADIO";
 
 export type EventFormQuestion = {
   /*
@@ -118,16 +110,12 @@ type FormsApiRequest = {
 /**
  * OAuthアクセストークンを取得する。
  */
-async function getGoogleFormsAccessToken():
-Promise<string> {
-  const auth =
-    createAuthenticatedGoogleFormsOAuthClient();
+async function getGoogleFormsAccessToken(): Promise<string> {
+  const auth = createAuthenticatedGoogleFormsOAuthClient();
 
-  const accessTokenResponse =
-    await auth.getAccessToken();
+  const accessTokenResponse = await auth.getAccessToken();
 
-  const accessToken =
-    accessTokenResponse.token;
+  const accessToken = accessTokenResponse.token;
 
   if (!accessToken) {
     throw new Error(
@@ -146,62 +134,44 @@ async function requestGoogleFormsApi<T>(
   accessToken: string,
   init: RequestInit,
 ): Promise<T> {
-  const response =
-    await fetch(
-      url,
-      {
-        ...init,
+  const response = await fetch(url, {
+    ...init,
 
-        headers: {
-          Authorization:
-            `Bearer ${accessToken}`,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
 
-          "Content-Type":
-            "application/json",
+      "Content-Type": "application/json",
 
-          ...(init.headers ?? {}),
-        },
+      ...(init.headers ?? {}),
+    },
 
-        cache: "no-store",
-      },
-    );
+    cache: "no-store",
+  });
 
-  const responseText =
-    await response.text();
+  const responseText = await response.text();
 
   if (!response.ok) {
-    let detail =
-      responseText ||
-      response.statusText;
+    let detail = responseText || response.statusText;
 
     if (responseText) {
       try {
-        const parsedError =
-          JSON.parse(
-            responseText,
-          ) as GoogleFormsApiError;
+        const parsedError = JSON.parse(responseText) as GoogleFormsApiError;
 
-        detail =
-          parsedError.error?.message ??
-          detail;
+        detail = parsedError.error?.message ?? detail;
       } catch {
         // JSON形式でない場合は、
         // 元のレスポンス文字列を使用する。
       }
     }
 
-    throw new Error(
-      `Google Forms APIエラー (${response.status}): ${detail}`,
-    );
+    throw new Error(`Google Forms APIエラー (${response.status}): ${detail}`);
   }
 
   if (!responseText) {
     return {} as T;
   }
 
-  return JSON.parse(
-    responseText,
-  ) as T;
+  return JSON.parse(responseText) as T;
 }
 
 /**
@@ -212,47 +182,25 @@ function createQuestionRequest(
   question: EventFormQuestion,
   index: number,
 ): FormsApiRequest {
-  const title =
-    question.title.trim();
+  const title = question.title.trim();
 
   if (!title) {
-    throw new Error(
-      `${index + 1}問目の質問タイトルが空です。`,
-    );
+    throw new Error(`${index + 1}問目の質問タイトルが空です。`);
   }
 
-  const questionId =
-    question.questionId?.trim();
+  const questionId = question.questionId?.trim();
 
-  if (
-    question.questionId !==
-      undefined &&
-    !questionId
-  ) {
-    throw new Error(
-      `${title}の質問IDが空です。`,
-    );
+  if (question.questionId !== undefined && !questionId) {
+    throw new Error(`${title}の質問IDが空です。`);
   }
 
-  if (
-    question.type ===
-    "RADIO"
-  ) {
-    const options =
-      question.options
-        ?.map(
-          (option) =>
-            option.trim(),
-        )
-        .filter(Boolean);
+  if (question.type === "RADIO") {
+    const options = question.options
+      ?.map((option) => option.trim())
+      .filter(Boolean);
 
-    if (
-      !options ||
-      options.length < 2
-    ) {
-      throw new Error(
-        `${title}には2つ以上の選択肢が必要です。`,
-      );
+    if (!options || options.length < 2) {
+      throw new Error(`${title}には2つ以上の選択肢が必要です。`);
     }
 
     return {
@@ -260,29 +208,21 @@ function createQuestionRequest(
         item: {
           title,
 
-          description:
-            question.description,
+          description: question.description,
 
           questionItem: {
             question: {
               questionId,
-              required:
-                question.required,
+              required: question.required,
 
               choiceQuestion: {
-                type:
-                  "RADIO",
+                type: "RADIO",
 
-                options:
-                  options.map(
-                    (option) => ({
-                      value:
-                        option,
-                    }),
-                  ),
+                options: options.map((option) => ({
+                  value: option,
+                })),
 
-                shuffle:
-                  false,
+                shuffle: false,
               },
             },
           },
@@ -300,20 +240,16 @@ function createQuestionRequest(
       item: {
         title,
 
-        description:
-          question.description,
+        description: question.description,
 
         questionItem: {
           question: {
             questionId,
 
-            required:
-              question.required,
+            required: question.required,
 
             textQuestion: {
-              paragraph:
-                question.type ===
-                "LONG_TEXT",
+              paragraph: question.type === "LONG_TEXT",
             },
           },
         },
@@ -337,18 +273,12 @@ export async function setGoogleFormStatus(
   status: GoogleFormStatus,
 ) {
   if (!formId) {
-    throw new Error(
-      "GoogleフォームIDが指定されていません。",
-    );
+    throw new Error("GoogleフォームIDが指定されていません。");
   }
 
-  const accessToken =
-    await getGoogleFormsAccessToken();
+  const accessToken = await getGoogleFormsAccessToken();
 
-  const publishState =
-    FORM_STATUS_SETTINGS[
-      status
-    ];
+  const publishState = FORM_STATUS_SETTINGS[status];
 
   return requestGoogleFormsApi<{
     formId?: string;
@@ -367,8 +297,7 @@ export async function setGoogleFormStatus(
           publishState,
         },
 
-        updateMask:
-          "publishState",
+        updateMask: "publishState",
       }),
     },
   );
@@ -380,89 +309,66 @@ export async function setGoogleFormStatus(
 export async function createEventGoogleForm(
   input: CreateEventGoogleFormInput,
 ): Promise<CreatedEventGoogleForm> {
-  const title =
-    input.title.trim();
+  const title = input.title.trim();
 
   if (!title) {
-    throw new Error(
-      "フォームタイトルが入力されていません。",
-    );
+    throw new Error("フォームタイトルが入力されていません。");
   }
 
-  const accessToken =
-    await getGoogleFormsAccessToken();
+  const accessToken = await getGoogleFormsAccessToken();
 
   /*
    * ① タイトルだけの空フォームを
    * 非公開状態で作成する。
    */
-  const createResponse =
-    await requestGoogleFormsApi<CreateFormResponse>(
-      "https://forms.googleapis.com/v1/forms?unpublished=true",
+  const createResponse = await requestGoogleFormsApi<CreateFormResponse>(
+    "https://forms.googleapis.com/v1/forms?unpublished=true",
 
-      accessToken,
+    accessToken,
 
-      {
-        method: "POST",
+    {
+      method: "POST",
 
-        body: JSON.stringify({
-          info: {
-            title,
+      body: JSON.stringify({
+        info: {
+          title,
 
-            documentTitle:
-              title,
-          },
-        }),
-      },
-    );
+          documentTitle: title,
+        },
+      }),
+    },
+  );
 
-  const formId =
-    createResponse.formId;
+  const formId = createResponse.formId;
 
   if (!formId) {
-    throw new Error(
-      "作成したGoogleフォームのIDを取得できませんでした。",
-    );
+    throw new Error("作成したGoogleフォームのIDを取得できませんでした。");
   }
 
   /*
    * ② 説明文と質問を追加する。
    */
-  const requests:
-    FormsApiRequest[] = [];
+  const requests: FormsApiRequest[] = [];
 
-  if (
-    input.description?.trim()
-  ) {
+  if (input.description?.trim()) {
     requests.push({
       updateFormInfo: {
         info: {
-          description:
-            input.description,
+          description: input.description,
         },
 
-        updateMask:
-          "description",
+        updateMask: "description",
       },
     });
   }
 
   requests.push(
-    ...input.questions.map(
-      (
-        question,
-        index,
-      ) =>
-        createQuestionRequest(
-          question,
-          index,
-        ),
+    ...input.questions.map((question, index) =>
+      createQuestionRequest(question, index),
     ),
   );
 
-  if (
-    requests.length > 0
-  ) {
+  if (requests.length > 0) {
     await requestGoogleFormsApi(
       `https://forms.googleapis.com/v1/forms/${encodeURIComponent(
         formId,
@@ -484,16 +390,12 @@ export async function createEventGoogleForm(
     formId,
     title,
 
-    editUrl:
-      `https://docs.google.com/forms/d/${formId}/edit`,
+    editUrl: `https://docs.google.com/forms/d/${formId}/edit`,
 
-    responderUrl:
-      createResponse.responderUri,
+    responderUrl: createResponse.responderUri,
 
-    isPublished:
-      false,
+    isPublished: false,
 
-    isAcceptingResponses:
-      false,
+    isAcceptingResponses: false,
   };
 }

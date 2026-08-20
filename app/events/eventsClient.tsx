@@ -1,179 +1,80 @@
 "use client";
 
-import {useState,} from "react";
+import { useState } from "react";
 import useSWR from "swr";
 import EventCard from "./EventCard";
-import type {EventPosition,EventWithStatus,} from "@/types/event";
+import type { EventPosition, EventWithStatus } from "@/types/event";
 
-type EventsClientProps = {
-  role?: string;
+const fetcher = async (url: string): Promise<EventWithStatus[]> => {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
 };
 
-// const fetcher = async (
-//   url: string,
-// ): Promise<EventWithStatus[]> => {
-//   const response =
-//     await fetch(url);
-const fetcher = async (
-  url: string,
-): Promise<EventWithStatus[]> => {
-  const response =
-    await fetch(
-      url,
-      {
-        cache: "no-store",
-      },
-    );
-
-  if (!response.ok) {
-    throw new Error(
-      `API error: ${response.status}`,
-    );
-  }
-
-  return response.json();
-};
-
-export default function EventsClient({
-  role,
-}: EventsClientProps) {
-  const canSwitchPosition =
-    role === "executive" ||
-    role === "admin";
-
-  const [
-    selectedPosition,
-    setSelectedPosition,
-  ] = useState<EventPosition>(
-    "general",
-  );
-
-  /*
-   * generalユーザーは、画面やURLを操作しても
-   * 一般会員向けのみ取得する。
-   */
-  const position: EventPosition =
-    canSwitchPosition
-      ? selectedPosition
-      : "general";
+export default function EventsClient({ role }: { role?: string }) {
+  // executive/admin สลับมุมมองได้ว่ากำลังดู event ของฝั่งไหน
+  const canSwitchPosition = role === "executive" || role === "admin";
+  const [selectedPosition, setSelectedPosition] =
+    useState<EventPosition>("general");
+  const position = canSwitchPosition ? selectedPosition : "general";
 
   const {
     data: events,
     error,
     isLoading,
-  } = useSWR<EventWithStatus[]>(
-    `/api/events?position=${position}`,
-    fetcher,
-    
-      // revalidateOnFocus: true,
-      // refreshInterval: 60_000,
-      // dedupingInterval: 30_000,
-      // focusThrottleInterval: 30_000,
-    
-      {
-          /*
-           * イベント一覧へ戻った時は
-           * 最新状態を取得する。
-          */
-              revalidateOnMount: true,
-              revalidateOnFocus: true,
-
-           /*
-            * 開きっぱなしの場合の
-            * 定期更新は今まで通り1分。
-            */
-               refreshInterval: 60_000,
-
-            /*
-             * 回答直後に一覧へ戻った場合でも
-             * 再取得を抑制しすぎない。
-             */
-               dedupingInterval: 1_000,
-               focusThrottleInterval: 1_000,
-      },
-
-  );
+  } = useSWR<EventWithStatus[]>(`/api/events?position=${position}`, fetcher, {
+    revalidateOnFocus: true,
+  });
 
   return (
-    <main className="container">
-      <h2>
-        イベント案内一覧
-      </h2>
+    <div className="page-container">
+      <h1 className="mb-4 text-lg font-bold">イベント案内一覧</h1>
 
       {canSwitchPosition && (
-        <div
-          className="mb-5 flex gap-2"
-          role="group"
-          aria-label="イベント対象者"
-        >
-          <button
-            type="button"
-            aria-pressed={
-              position === "general"
-            }
-            onClick={() =>
-              setSelectedPosition(
-                "general",
-              )
-            }
-            className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
-              position === "general"
-                ? "bg-[#1B3A5C] text-white"
-                : "bg-[#E2E8F0] text-[#4A5568]"
-            }`}
-          >
-            一般会員向け
-          </button>
-
-          <button
-            type="button"
-            aria-pressed={
-              position ===
-              "executive"
-            }
-            onClick={() =>
-              setSelectedPosition(
-                "executive",
-              )
-            }
-            className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
-              position ===
-              "executive"
-                ? "bg-[#1B3A5C] text-white"
-                : "bg-[#E2E8F0] text-[#4A5568]"
-            }`}
-          >
-            執行部向け
-          </button>
+        <div className="mb-4 flex gap-2">
+          {(
+            [
+              ["general", "一般会員向け"],
+              ["executive", "執行部向け"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={position === value}
+              onClick={() => setSelectedPosition(value)}
+              className={`rounded-control px-4 py-2 text-sm font-bold transition ${
+                position === value
+                  ? "bg-brand text-white"
+                  : "bg-surface-muted text-ink-muted hover:bg-line"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       )}
 
       {error ? (
-        <div>
-          エラーが発生しました。
+        <div className="card text-center">
+          <p className="text-sm text-danger">
+            イベント情報を取得できませんでした。
+          </p>
+          <p className="text-meta mt-1">時間をおいて再度お試しください。</p>
         </div>
       ) : isLoading ? (
-        <div>
-          読み込み中...
-        </div>
+        <p className="text-meta py-6 text-center">読み込み中...</p>
       ) : !events?.length ? (
-        <div>
+        <p className="text-meta py-6 text-center">
           予定されているイベントはありません。
-        </div>
+        </p>
       ) : (
-        <div className="event-grid">
-          {events.map(
-            (event) => (
-              <EventCard
-                key={
-                  event.event_id
-                }
-                event={event}
-              />
-            ),
-          )}
+        <div className="space-y-3">
+          {events.map((event) => (
+            <EventCard key={event.event_id} event={event} />
+          ))}
         </div>
       )}
-    </main>
+    </div>
   );
 }

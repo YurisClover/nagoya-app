@@ -1,42 +1,28 @@
-import {
-  auth,
-} from "@/auth";
+import { auth } from "@/auth";
 
-import {
-  type NextRequest,
-  NextResponse,
-} from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import {
-  setGoogleFormStatus,
-} from "@/lib/google-forms";
+import { setGoogleFormStatus } from "@/lib/google-forms";
 
-import {
-  softDeleteEvent,
-} from "@/lib/sheets/events";
+import { softDeleteEvent } from "@/lib/sheets/events";
 
-import {removeEventCalendar,} from "@/lib/event-calendar-sync";
+import { removeEventCalendar,} from "@/lib/event-calendar-sync";
 
-export const runtime =
-  "nodejs";
+export const runtime = "nodejs";
 
 type DeleteEventRequest = {
   eventId?: unknown;
 };
 
-export async function PATCH(
-  request: NextRequest,
-) {
+export async function PATCH(request: NextRequest) {
   try {
-    const session =
-      await auth();
+    const session = await auth();
 
     if (!session?.user) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            "ログインが必要です。",
+          error: "ログインが必要です。",
         },
         {
           status: 401,
@@ -44,18 +30,13 @@ export async function PATCH(
       );
     }
 
-    const role =
-      session.user.role;
+    const role = session.user.role;
 
-    if (
-      role !== "admin" &&
-      role !== "executive"
-    ) {
+    if (role !== "admin" && role !== "executive") {
       return NextResponse.json(
         {
           success: false,
-          error:
-            "イベントを削除する権限がありません。",
+          error: "イベントを削除する権限がありません。",
         },
         {
           status: 403,
@@ -63,22 +44,15 @@ export async function PATCH(
       );
     }
 
-    const body =
-      (await request.json()) as
-        DeleteEventRequest;
+    const body = (await request.json()) as DeleteEventRequest;
 
-    const eventId =
-      typeof body.eventId ===
-      "string"
-        ? body.eventId.trim()
-        : "";
+    const eventId = typeof body.eventId === "string" ? body.eventId.trim() : "";
 
     if (!eventId) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            "イベントIDが指定されていません。",
+          error: "イベントIDが指定されていません。",
         },
         {
           status: 400,
@@ -86,37 +60,34 @@ export async function PATCH(
       );
     }
 
-    const deletedEvent =
-      await softDeleteEvent(
-        eventId,
+    const deletedEvent = await softDeleteEvent(
+      eventId,
 
-        async (formId) => {
-          await setGoogleFormStatus(
-            formId,
-            "private",
-          );
-        },
-      );
-      const calendarSyncResult = await removeEventCalendar( deletedEvent.event_id, );
-      return NextResponse.json({
-      success: true,
-      message: calendarSyncResult.success ? "イベントを削除しました。" : "イベントを削除しましたが、Googleカレンダーからの削除に失敗しました。",
-      event: deletedEvent,
-      calendarSync: { success: calendarSyncResult.success, error: calendarSyncResult.error, },
-      });
-     } catch (error) {
-       console.error( "Event delete error:", error, );
+      async (formId) => {
+        await setGoogleFormStatus(formId, "private");
+      },
+    );
 
-    const detail =
-      error instanceof Error
-        ? error.message
-        : "不明なエラーが発生しました。";
+    const calendarSyncResult = await removeEventCalendar(  deletedEvent.event_id, );
+
+/*
+ * Googleカレンダーからの削除に失敗しても、
+ * イベントの論理削除自体は取り消さない。
+ */
+return NextResponse.json({ success: true,
+
+  message: calendarSyncResult.success ? "イベントを削除しました。" : "イベントを削除しましたが、Googleカレンダーからの削除に失敗しました。",
+  event: deletedEvent,
+  calendarSync: { success: calendarSyncResult.success, error: calendarSyncResult.error, },
+});
+  } catch (error) {
+    console.error("Event delete error:", error);
+    const detail = error instanceof Error ? error.message : "不明なエラーが発生しました。";
 
     return NextResponse.json(
       {
         success: false,
-        error:
-          "イベントの削除に失敗しました。",
+        error: "イベントの削除に失敗しました。",
         detail,
       },
       {

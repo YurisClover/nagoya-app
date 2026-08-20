@@ -29,11 +29,11 @@ function createSheetAuth() {
  */
 export async function getSpreadsheet() {
   const sheetId =
-    process.env.GOOGLE_SHEET_ID;
+    process.env.GOOGLE_SHEETS_ID;
 
   if (!sheetId) {
     throw new Error(
-      "GOOGLE_SHEET_ID is not set",
+      "GOOGLE_SHEETS_ID is not set",
     );
   }
 
