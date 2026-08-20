@@ -10,6 +10,8 @@ import {
   getEventsFromSheet,
 } from "@/lib/sheets/events";
 
+import { getCalendarRecords, type CalendarSyncStatus,} from "@/lib/sheets/calendar";
+
 import Link
   from "next/link";
 
@@ -38,8 +40,14 @@ export default async function EventsPage() {
     redirect("/admin");
   }
 
-  const events =
-    await getEventsFromSheet();
+  //const events = await getEventsFromSheet();
+  const [ events, calendarRecords,] = await Promise.all([ getEventsFromSheet(), getCalendarRecords(),]);
+  const calendarSyncStatuses: Record<string, CalendarSyncStatus> = {};
+  for ( const record of calendarRecords) {
+  const hasCalendarEvent = Boolean( record.google_calendar_event_id && record.google_calendar_id, );
+  calendarSyncStatuses[ record.event_id] = record.calendar_sync_status === "synced" && hasCalendarEvent
+      ? "synced" : record.calendar_sync_status === "error" ? "error" : "";
+}
 
 return (
   <main className="mx-auto max-w-7xl space-y-7 p-6">
@@ -106,8 +114,7 @@ return (
       </div>
 
       {/* イベントカード一覧 */}
-      <EventList
-        events={events}
+      <EventList events={events} calendarSyncStatuses={ calendarSyncStatuses}
       />
     </section>
   </main>

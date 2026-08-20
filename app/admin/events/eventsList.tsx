@@ -3,12 +3,17 @@ import {useRef,useState,} from "react";
 import {formatEventPeriod, }from "@/lib/datetime";
 import type {EventPosition,EventStatus,SheetEvent,} from "@/lib/sheets/events";
 
-type EventListProps = {events: SheetEvent[];};
+//type EventListProps = {events: SheetEvent[];};
+type CalendarSyncStatus = | "" | "synced" | "error";
+type CalendarSyncResult = { success: boolean; error?: string;};
+type EventListProps = { events: SheetEvent[];
+   calendarSyncStatuses: Record< string, CalendarSyncStatus >;};
 type UpdateStatusResult = {
   success: boolean;
   error?: string;
   detail?: string;
   event?: SheetEvent;
+  calendarSync?: CalendarSyncResult;
 };
 
 type UpdatePositionResult = {
@@ -16,6 +21,7 @@ type UpdatePositionResult = {
   error?: string;
   detail?: string;
   event?: SheetEvent;
+  calendarSync?: CalendarSyncResult;
 };
 
 type DeleteEventResult = {
@@ -126,15 +132,10 @@ function EventDeleteControl({
 type EventPositionControlProps = {
   event: SheetEvent;
   updatingEventId: string | null;
-
-  tryStartUpdate:
-    (eventId: string) => boolean;
-
-  finishUpdate:
-    () => void;
-
-  onUpdated:
-    (event: SheetEvent) => void;
+  tryStartUpdate: (eventId: string) => boolean;
+  finishUpdate:() => void;
+  onUpdated:(event: SheetEvent) => void;
+  onCalendarSyncChanged: ( eventId: string, status: CalendarSyncStatus,) => void;
 };
 
 function EventPositionControl({
@@ -143,6 +144,7 @@ function EventPositionControl({
   tryStartUpdate,
   finishUpdate,
   onUpdated,
+   onCalendarSyncChanged,
 }: EventPositionControlProps) {
   const [
     selectedPosition,
@@ -248,17 +250,11 @@ function EventPositionControl({
         return;
       }
 
-      const updatedEvent =
-        result.event ?? {
-          ...event,
-          position:
-            selectedPosition,
-        };
-
-      onUpdated(
-        updatedEvent,
-      );
-
+      const updatedEvent = result.event ?? { ...event, position: selectedPosition, };
+      onUpdated( updatedEvent, );
+      if (result.calendarSync) {
+        onCalendarSyncChanged( event.event_id, result.calendarSync.success ? "synced" : "error", );
+      }
       setSelectedPosition(
         updatedEvent.position,
       );
@@ -360,15 +356,10 @@ function EventPositionControl({
 type EventStatusControlProps = {
   event: SheetEvent;
   updatingEventId: string | null;
-
-  tryStartUpdate:
-    (eventId: string) => boolean;
-
-  finishUpdate:
-    () => void;
-
-  onUpdated:
-    (event: SheetEvent) => void;
+  tryStartUpdate: (eventId: string) => boolean;
+  finishUpdate: () => void;
+  onUpdated: (event: SheetEvent) => void;
+  onCalendarSyncChanged: ( eventId: string, status: CalendarSyncStatus,) => void;
 };
 
 function EventStatusControl({
@@ -377,6 +368,7 @@ function EventStatusControl({
   tryStartUpdate,
   finishUpdate,
   onUpdated,
+  onCalendarSyncChanged,
 }: EventStatusControlProps) {
   const [
     selectedStatus,
@@ -481,6 +473,16 @@ function EventStatusControl({
         updatedEvent,
       );
 
+      if (result.calendarSync) {
+         const nextCalendarStatus: CalendarSyncStatus = updatedEvent.status === "draft"
+          ? ""  : result.calendarSync .success ? "synced" : "error";
+
+  onCalendarSyncChanged(
+    event.event_id,
+    nextCalendarStatus,
+  );
+}
+
       setSelectedStatus(
         updatedEvent.status,
       );
@@ -571,7 +573,7 @@ function EventStatusControl({
 }
 
 export function EventList({
-  events,
+  events,calendarSyncStatuses:initialCalendarSyncStatuses,
 }: EventListProps) {
   const [
     displayedEvents,
@@ -579,6 +581,8 @@ export function EventList({
   ] = useState<SheetEvent[]>(
     events,
   );
+  const [ calendarSyncStatuses, setCalendarSyncStatuses,] = useState< Record< string, CalendarSyncStatus  >>(
+        initialCalendarSyncStatuses,);
 
   const [
     updatingEventId,
@@ -633,6 +637,9 @@ export function EventList({
     );
   }
 
+  function handleCalendarSyncChanged( eventId: string, status: CalendarSyncStatus,) {
+  setCalendarSyncStatuses( (currentStatuses) => ({ ...currentStatuses, [eventId]: status, }), );
+}
   function handleEventUpdated(
     updatedEvent: SheetEvent,
   ) {
@@ -695,7 +702,8 @@ export function EventList({
         event.response_sheet_id
           ? `https://docs.google.com/spreadsheets/d/${responseSpreadsheetId}/edit#gid=${event.response_sheet_id}`
           : "";
-
+          const isCalendarMissing = ( event.status === "published" || event.status === "closed" ) &&
+                calendarSyncStatuses[ event.event_id ] !== "synced";
       return (
         <article
           key={event.event_id}
@@ -708,7 +716,7 @@ export function EventList({
                 {event.title}
               </h2>
 
-              <span
+              {/* <span
                 className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
                   event.status ===
                   "published"
@@ -725,7 +733,24 @@ export function EventList({
                   ]
                 }
               </span>
-            </div>
+            </div> */}
+
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              {isCalendarMissing && (
+              <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+              カレンダー未表示
+              </span>
+               )}
+            <span
+             className={`rounded-full px-3 py-1 text-xs font-semibold ${
+             event.status ===  "published"  ? "bg-blue-100 text-blue-800"  : event.status === "closed"
+             ? "bg-slate-200 text-slate-700" : "bg-amber-100 text-amber-800"
+              }`}
+               >
+             { STATUS_LABELS[ event.status ] }
+         </span>
+      </div>
+   </div>
 
             <p className="mt-2 text-sm text-slate-600">
               {formatEventPeriod(
@@ -764,6 +789,7 @@ export function EventList({
                 onUpdated={
                   handleEventUpdated
                 }
+               onCalendarSyncChanged={ handleCalendarSyncChanged}
               />
             </div>
 
@@ -850,6 +876,7 @@ export function EventList({
                 onUpdated={
                   handleEventUpdated
                 }
+                onCalendarSyncChanged={ handleCalendarSyncChanged}
               />
             </div>
 
@@ -867,6 +894,7 @@ export function EventList({
               onDeleted={
                 handleEventDeleted
               }
+
             />
           </div>
         </article>
