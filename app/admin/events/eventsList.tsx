@@ -217,13 +217,13 @@ function EventPositionControl({
       <div className="flex items-center gap-2">
         <div className="flex gap-1.5" role="group" aria-label={`${event.title}の対象者`}>
           {(["general", "executive"] as const).map((value) => (
-            <button
+            <button 
               key={value}
               type="button"
               disabled={isAnyUpdating || value === event.position}
               onClick={() => handleUpdate(value)}
               aria-pressed={value === event.position}
-              className={`rounded-control px-3 py-1.5 text-xs font-bold transition ${
+              className={`truncate rounded-control px-3 py-1.5 text-xs font-bold transition ${
                 value === event.position
                   ? "bg-brand text-white"
                   : "bg-surface-muted text-ink-muted hover:bg-line disabled:opacity-50"
@@ -365,10 +365,12 @@ function EventStatusControl({
 
 export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStatuses, }: EventListProps) {
   const [displayedEvents, setDisplayedEvents] = useState<SheetEvent[]>(events);
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
   const [updatingEventId, setUpdatingEventId] = useState<string | null>(null);
-  const [ calendarSyncStatuses, setCalendarSyncStatuses, ] = useState<Record<string, CalendarSyncStatus>>(
-    initialCalendarSyncStatuses,
-  );
+  const [calendarSyncStatuses, setCalendarSyncStatuses, ] = useState<Record<string, CalendarSyncStatus>>(
+        initialCalendarSyncStatuses,
+       );
   /*
    * stateの反映前に別のボタンを
    * 素早く押された場合にも、
@@ -415,6 +417,14 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
       currentEvents.filter((currentEvent) => currentEvent.event_id !== eventId),
     );
   }
+
+  const totalPages = Math.max(1, Math.ceil(displayedEvents.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages); // กันค้างหน้าที่หายไปหลังลบ
+  const pageItems = displayedEvents.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
+
   function handleCalendarSyncChanged( eventId: string, status: CalendarSyncStatus, ) {
     setCalendarSyncStatuses((currentStatuses) => ({ ...currentStatuses, [eventId]: status, }));
   }
@@ -432,7 +442,7 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
   return (
     <section>
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {displayedEvents.map((event) => {
+        {pageItems.map((event) => {
           const formEditUrl = `https://docs.google.com/forms/d/${event.form_id}/edit`;
 
           const responseSpreadsheetId =
@@ -452,43 +462,33 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
               {/* イベント名・状態 */}
               <div className="border-b border-line pb-4">
                 <div className="flex items-start justify-between gap-4">
-                  <h2 className="text-lg font-bold">
+                  <h2 className="text-lg font-bold truncate">
                     {event.title}
                   </h2>
-
-                  {/* <span
-                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
-                      event.status === "published"
-                        ? "bg-blue-100 text-blue-800"
-                        : event.status === "closed"
-                          ? "bg-slate-200"
-                          : "bg-amber-100 text-amber-800"
-                    }`}
-                  >
-                    {STATUS_LABELS[event.status]}
-                  </span> */}
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        event.status === "published" ? "bg-blue-100 text-blue-800" : event.status === "closed"
-                        ? "bg-slate-200" : "bg-amber-100 text-amber-800"
-                      }`}
-                    >
-                      {STATUS_LABELS[event.status]}
-                    </span>
+                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${  event.status === "published"
+                         ? "bg-blue-100 text-blue-800"  : event.status === "closed"
+                         ? "bg-slate-200" : "bg-amber-100 text-amber-800"
+                          }`}
+                         >
+                           {STATUS_LABELS[event.status]}
+                            </span>
 
-                    {isCalendarMissing && (
-                      <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-                        カレンダー未表示
-                      </span>
+                  {isCalendarMissing && (
+                 <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                    カレンダー未表示
+                 </span>
                     )}
                   </div>
-                </div>
-
-                <p className="mt-2 text-sm text-ink-muted">
-                  {formatEventPeriod(event.event_date, event.event_end_date)}
+                </div>               
+                  <p className="mt-2 truncate text-sm text-ink-muted">
+                  {formatEventPeriod(
+                    event.event_date,
+                    event.event_end_date,
+                  )}
                 </p>
 
-                <p className="mt-1 text-sm text-ink-muted">
+                <p className="mt-1 truncate text-sm text-ink-muted">
                   開催場所：
                   <span className="font-medium">
                     {event.location || "未設定"}
@@ -499,7 +499,7 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
               {/* 対象者・申込数 */}
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="rounded-lg bg-surface-muted p-3">
-                  <p className="mb-2 text-xs font-medium text-ink-muted">
+                  <p className="mb-2 text-xs font-medium text-ink-muted truncate">
                     対象者
                   </p>
 
@@ -516,7 +516,7 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
                 <div className="rounded-lg bg-surface-muted p-3">
                   <p className="text-xs font-medium text-ink-muted">申込数</p>
 
-                  <p className="mt-1 text-xl font-bold">
+                  <p className="mt-1 text-xl font-bold truncate">
                     {event.registration_count}
                     <span className="ml-1 text-sm font-normal text-ink-muted">
                       名
@@ -594,6 +594,29 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
           );
         })}
       </div>
+            {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-end gap-3 text-xs">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setPage(currentPage - 1)}
+            className="btn btn-secondary px-3 py-1 text-xs disabled:opacity-50"
+          >
+            前へ
+          </button>
+          <span className="text-ink-muted">
+            {currentPage} / {totalPages} ページ
+          </span>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage(currentPage + 1)}
+            className="btn btn-secondary px-3 py-1 text-xs disabled:opacity-50"
+          >
+            次へ
+          </button>
+        </div>
+      )}
     </section>
   );
 }
