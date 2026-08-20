@@ -1,3 +1,6 @@
+"use client"
+
+import { useState } from "react";
 import { EventAttendanceItem } from "@/lib/sheets";
 import { formatEventSchedule } from "@/lib/datetime";
 
@@ -6,6 +9,16 @@ type EventAttendanceProps = {
 };
 
 export default function EventAttendance({ items }: EventAttendanceProps) {
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const idNum = (v: string) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : -Infinity;
+  };
+  // sort by id (desc)
+  const sorted = [...items].sort((a, b) => idNum(b.eventId) - idNum(a.eventId));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageItems = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   return (
     <div className="bg-white rounded-lg shadow-sm p-5 mt-6 w-full">
       <div className="pb-4 mb-4 border-b border-gray-100">
@@ -14,7 +27,7 @@ export default function EventAttendance({ items }: EventAttendanceProps) {
         </h2>
       </div>
 
-      {items.length === 0 ? (
+      {sorted.length === 0 ? (
         <p className="text-sm text-gray-400 py-8 text-center">
           今月のイベントはありません
         </p>
@@ -38,20 +51,20 @@ export default function EventAttendance({ items }: EventAttendanceProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((item) => (
+              {pageItems.map((item) => (
                 <tr key={item.eventId} className="hover:bg-gray-50/50">
                   {/* 1. イベント名 */}
-                  <td className="py-3.5 px-4 font-medium text-gray-900">
+                  <td className="py-3.5 px-4 font-medium text-gray-900 inline-block max-w-[200px] truncate align-bottom">
                     {item.title}
                   </td>
 
                   {/* 2. 開催日 */}
-                  <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap">
+                  <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap max-w-[130px] truncate align-bottom">
                     {formatEventSchedule(item.eventDate, undefined, { yearHint: "current" })}
                   </td>
 
                   {/* 3. 登録数 */}
-                  <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                  <td className="py-3.5 px-4 text-center whitespace-nowrap max-w-[80px] truncate align-bottom">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
                       {item.registrationCount} 名
                     </span>
@@ -64,7 +77,7 @@ export default function EventAttendance({ items }: EventAttendanceProps) {
                         href={item.formUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline break-all font-mono"
+                        className="text-xs text-blue-600 hover:underline break-all font-mono inline-block max-w-[120px] truncate align-bottom text-brand"
                       >
                         {item.formUrl}
                       </a>
@@ -76,6 +89,29 @@ export default function EventAttendance({ items }: EventAttendanceProps) {
               ))}
             </tbody>
           </table>
+          {totalPages > 1 && (
+            <div className="mt-3 flex items-center justify-end gap-3 text-xs">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="btn btn-secondary px-3 py-1 text-xs disabled:opacity-50"
+              >
+                前へ
+              </button>
+              <span className="text-ink-muted">
+                {page} / {totalPages} ページ
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+                className="btn btn-secondary px-3 py-1 text-xs disabled:opacity-50"
+              >
+                次へ
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

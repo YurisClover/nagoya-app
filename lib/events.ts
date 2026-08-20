@@ -1,14 +1,20 @@
 import "server-only";
-import { GoogleSpreadsheet, GoogleSpreadsheetWorksheet } from "google-spreadsheet";
+import {
+  GoogleSpreadsheet,
+} from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
-import type { EventWithStatus, EventSheetHealth } from "@/types/event";
-import { parseSheetDate } from "@/lib/datetime";
+import {
+  EventWithStatus,
+  EventSheetHealth,
+  toEventPosition,
+  toEventStatus,
+  type EventPosition,
+} from "@/types/event";
+import { parseSheetDate } from "./datetime";
 
-const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || "";
+const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID || "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
-
-// 60秒キャッシュ（スプレッドシートへのアクセス過多エラーを防ぐ）
 const TTL_MS = 60_000;
 
 const MEMBER_ID_HEADERS = [
@@ -19,19 +25,20 @@ const MEMBER_ID_HEADERS = [
   "会員番号",
 ];
 
+/** find 会員ID first then pattern */
 function resolveMemberIdHeader(headers: string[]): string | null {
   for (const c of MEMBER_ID_HEADERS) if (headers.includes(c)) return c;
-  return headers.find((h) => h.includes("会員") && (/ID/i.test(h) || h.includes("番号"))) ?? null;
-}
-
-function normalizeMemberId(v: unknown): string {
-  return String(v ?? "").trim().replace(/\.0+$/, "");
+  return (
+    headers.find(
+      (h) => h.includes("会員") && (/ID/i.test(h) || h.includes("番号")),
+    ) ?? null
+  );
 }
 
 /** event_id → newest */
 function eventIdNum(e: { event_id: string }): number {
-    const n = Number(e.event_id);
-    return Number.isFinite(n) ? n : -Infinity;
+  const n = Number(e.event_id);
+  return Number.isFinite(n) ? n : -Infinity;
 }
 
 /** event sheet name: response_sheet first, if no fallback to title */
@@ -40,107 +47,9 @@ function resolveSheetName(row: { get: (k: string) => unknown }): string {
   return explicit || String(row.get("title") ?? "").trim();
 }
 
-/**
- * 表示用の日付文字列を整形する関数
- * - 日をまたがない場合: 2026/8/10(月) 15:00~20:00 のように後ろの重複する日付を削る
- * - 日をまたぐ場合: 2026/8/10(月) 9:00~2026/8/11(火)20:00 のままフル表示する
- */
-function formatEventDate(dateStr: string): string {
-  if (!dateStr) return "";
-  const parts = dateStr.split(/[~～]/);
-  if (parts.length < 2) return dateStr;
-
-  const startPart = parts[0].trim();
-  const endPart = parts[1].trim();
-
-  if (/^\d{1,2}:\d{2}$/.test(endPart)) {
-    return `${startPart}~${endPart}`;
-  }
-
-  const startMatch = startPart.match(/^(\d{4}[/-]\d{1,2}[/-]\d{1,2})/);
-  const endMatch = endPart.match(/^(\d{4}[/-]\d{1,2}[/-]\d{1,2}).*?(\d{1,2}):(\d{2})$/);
-
-  if (startMatch && endMatch) {
-    const startDate = startMatch[1];
-    const endDate = endMatch[1];
-    const endTime = endMatch[2];
-
-    if (startDate === endDate) {
-      return `${startPart}~${endTime}`;
-    }
-  }
-
-  return dateStr;
-}
-
-/**
- * スプレッドシートの日付文字列を解析して Date オブジェクト（開始・終了）に変換する
- */
-function parseEventDateTime(dateStr: string): { start: Date; end: Date } | null {
-  if (!dateStr) return null;
-
-  const parts = dateStr.split(/[~～]/);
-  if (parts.length === 0) return null;
-
-  const startPart = parts[0].trim();
-  const endPart = parts[1] ? parts[1].trim() : "";
-
-  const parseSingle = (str: string, baseYear?: number) => {
-    const withYear = str.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2}).*?(\d{1,2}):(\d{2})/);
-    if (withYear) {
-      return new Date(
-        parseInt(withYear[1], 10),
-        parseInt(withYear[2], 10) - 1,
-        parseInt(withYear[3], 10),
-        parseInt(withYear[4], 10),
-        parseInt(withYear[5], 10)
-      );
-    }
-
-    const md = str.match(/(\d{1,2})[/-](\d{1,2}).*?(\d{1,2}):(\d{2})/);
-    if (md) {
-      const now = new Date();
-      const year = baseYear ?? now.getFullYear();
-      const month = parseInt(md[1], 10) - 1;
-      const day = parseInt(md[2], 10);
-      const hour = parseInt(md[3], 10);
-      const minute = parseInt(md[4], 10);
-      let d = new Date(year, month, day, hour, minute);
-      if (!baseYear && d < new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
-        d = new Date(year + 1, month, day, hour, minute);
-      }
-      return d;
-    }
-    return null;
-  };
-
-  const startDate = parseSingle(startPart);
-  if (!startDate) return null;
-
-  let endDate: Date;
-  if (!endPart) {
-    endDate = new Date(startDate);
-  } else if (/^\d{1,2}:\d{2}$/.test(endPart)) {
-    const [h, m] = endPart.split(":").map(Number);
-    endDate = new Date(
-      startDate.getFullYear(),
-      startDate.getMonth(),
-      startDate.getDate(),
-      h,
-      m
-    );
-  } else {
-    const parsedEnd = parseSingle(endPart, startDate.getFullYear());
-    endDate = parsedEnd ?? new Date(startDate);
-  }
-
-  return { start: startDate, end: endDate };
-}
-
 type EventItem = Omit<EventWithStatus, "is_answered">;
 type Snapshot = {
   events: EventItem[];
-  answers: Map<string, Set<string> | null>;
 };
 
 let cached: { data: Snapshot; expires: number } | null = null;
@@ -148,25 +57,19 @@ let inflight: Promise<Snapshot> | null = null;
 
 async function getDoc() {
   const { client_email, private_key } = getServiceAccountCredentials();
-  const auth = new JWT({ email: client_email, key: private_key, scopes: SHEETS_SCOPE });
+  const auth = new JWT({
+    email: client_email,
+    key: private_key,
+    scopes: SHEETS_SCOPE,
+  });
   const doc = new GoogleSpreadsheet(SPREADSHEET_ID, auth);
   await doc.loadInfo();
   return doc;
 }
 
-async function readAnsweredIds(sheet: GoogleSpreadsheetWorksheet): Promise<Set<string> | null> {
-  const rows = await sheet.getRows();
-  const header = resolveMemberIdHeader(sheet.headerValues ?? []);
-  if (!header) return null;
-  return new Set(rows.map((r) => normalizeMemberId(r.get(header))).filter(Boolean));
-}
-
 async function loadSnapshot(): Promise<Snapshot> {
   const doc = await getDoc();
   const eventRows = await doc.sheetsByTitle["Events"].getRows();
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
   const upcoming = eventRows
     .map((row, index) => ({
@@ -177,40 +80,28 @@ async function loadSnapshot(): Promise<Snapshot> {
       form_url: (row.get("form_url") || "#") as string,
       location: (row.get("location") || "") as string,
       event_end_date: (row.get("event_end_date") || "") as string,
-      status: String(row.get("status") ?? "").trim(),
-      position: String(row.get("position") ?? "").trim(),
-      prefill_url_template: String(row.get("prefill_url_template") ?? "").trim(),
-      _deleted: String(row.get("is_deleted") ?? "").trim().toLowerCase(),
-      _sheetName: resolveSheetName(row),
-      _dateObj: parseSheetDate(row.get("event_date") || "", { yearHint: "future" }),
+      status: toEventStatus(String(row.get("status") ?? "")),
+      position: toEventPosition(String(row.get("position") ?? "")),
+      prefill_url_template: String(
+        row.get("prefill_url_template") ?? "",
+      ).trim(),
+      _deleted: String(row.get("is_deleted") ?? "")
+        .trim()
+        .toLowerCase(),
     }))
     .filter((e) => !["true", "1", "yes"].includes(e._deleted)) // soft delete (is_deleted)
-    .filter((e): e is typeof e & { _dateObj: Date } => e._dateObj !== null && e._dateObj >= today)
     .sort((a, b) => eventIdNum(b) - eventIdNum(a));
 
-  const answers = new Map<string, Set<string> | null>();
-  await Promise.all(
-    upcoming.map(async (e) => {
-      const sheet = doc.sheetsByTitle[e._sheetName];
-      if (!sheet) return;
-      try {
-        answers.set(e.event_id, await readAnsweredIds(sheet));
-      } catch {
-        answers.set(e.event_id, null);
-      }
-    })
-  );
-
   return {
-    events: upcoming.map(({ _dateObj, _sheetName, _deleted, ...rest }) => rest),
-    answers,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    events: upcoming.map(({ _deleted, ...rest }) => rest),
   };
 }
 
+/** cache + single-flight */
 async function getSnapshot(): Promise<Snapshot> {
   if (cached && cached.expires > Date.now()) return cached.data;
   if (inflight) return inflight;
-
   inflight = loadSnapshot()
     .then((data) => {
       cached = { data, expires: Date.now() + TTL_MS };
@@ -219,46 +110,67 @@ async function getSnapshot(): Promise<Snapshot> {
     .finally(() => {
       inflight = null;
     });
-
   return inflight;
 }
-/** admin: all event, 
- * executive: published (general, executive), 
- * general: published (general) */
-export type EventViewer = { memberId?: string; role?: string };
+/** admin: all event,
+executive: published (general, executive),
+general: published (general) */
+export type EventViewer = { role?: string };
 function canSee(e: EventItem, role: string): boolean {
   const r = role.trim().toLowerCase() || "general";
-  const status = e.status.trim().toLowerCase() || "published";
-  const pos = e.position.trim().toLowerCase() || "general";
+  const status = e.status;
+  const pos = e.position;
   if (r === "admin") return true;
   if (status !== "published" && status !== "closed") return false; // draft → admin only
   if (r === "executive") return pos === "general" || pos === "executive";
   return pos === "general";
 }
 
-/** build result user — compare member_id in memory (0 API call) */
-function buildResult(snap: Snapshot, viewer?: EventViewer): EventWithStatus[] {
-  const target = normalizeMemberId(viewer?.memberId);
+/** filter from role/position — is_answered by /api/events from Answers sheet */
+function buildResult(
+  snap: Snapshot,
+  viewer?: EventViewer,
+  position?: EventPosition,
+): EventWithStatus[] {
   const role = viewer?.role ?? "";
-  return snap.events.filter((e) => canSee(e, role)).map((e) => {
-    let is_answered: boolean | null = false;
-    if (target) {
-      const ids = snap.answers.get(e.event_id);
-      is_answered = ids == null ? null : ids.has(target);
-    }
-    return { ...e, is_answered };
-  });
+  const isAdmin = role.trim().toLowerCase() === "admin";
+  // JST
+  const now = new Date();
+  const jstNow = new Date(now.getTime() + 9 * 3600_000);
+  const today = new Date(
+    Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate()) -
+      9 * 3600_000,
+  );
+  // if not end show (until end)
+  const stillRelevant = (e: EventItem) => {
+    const end =
+      parseSheetDate(e.event_end_date, { yearHint: "future" }) ??
+      parseSheetDate(e.event_date, { yearHint: "future" });
+    return end !== null && end >= today;
+  };
+  return snap.events
+    .filter(
+      (e) =>
+        canSee(e, role) &&
+        (isAdmin || stillRelevant(e)) && // admin still see ended event
+        (!position || e.position === position),
+    )
+    .map((e) => ({ ...e, is_answered: null as boolean | null }));
 }
 
-export async function getEventsData(viewer?: EventViewer): Promise<EventWithStatus[]> {
+export async function getEventsData(
+  viewer?: EventViewer,
+  position?: EventPosition,
+): Promise<EventWithStatus[]> {
   try {
-    return buildResult(await getSnapshot(), viewer);
+    return buildResult(await getSnapshot(), viewer, position);
   } catch (error) {
-    if (cached) return buildResult(cached.data, viewer); // Sheet failed/429 → use past one
+    if (cached) return buildResult(cached.data, viewer, position); // Sheet failed/429 → use past one
     throw error;
   }
 }
 
+/** check every event that bind with answer sheet (admin know first) */
 export async function getEventSheetHealth(): Promise<EventSheetHealth[]> {
   const doc = await getDoc();
   const eventRows = await doc.sheetsByTitle["Events"].getRows();
@@ -275,7 +187,12 @@ export async function getEventSheetHealth(): Promise<EventSheetHealth[]> {
           sheet_name: sheetName,
         };
         if (!sheet) {
-          return { ...base, sheet_found: false, member_id_column: null, response_count: null };
+          return {
+            ...base,
+            sheet_found: false,
+            member_id_column: null,
+            response_count: null,
+          };
         }
         try {
           const rows = await sheet.getRows();
@@ -286,8 +203,13 @@ export async function getEventSheetHealth(): Promise<EventSheetHealth[]> {
             response_count: rows.length,
           };
         } catch {
-          return { ...base, sheet_found: true, member_id_column: null, response_count: null };
+          return {
+            ...base,
+            sheet_found: true,
+            member_id_column: null,
+            response_count: null,
+          };
         }
-      })
+      }),
   );
 }

@@ -303,7 +303,7 @@ export function formatEventPeriod(
     );
 
   if (isSameDay) {
-    return `${startDateText} ${startTimeText}〜${endTimeText}`;
+    return `${startDateText} ${startTimeText} 〜 ${endTimeText}`;
   }
 
   const endDateText =
@@ -311,7 +311,7 @@ export function formatEventPeriod(
       endDate,
     );
 
-  return `${startDateText} ${startTimeText}〜${endDateText} ${endTimeText}`;
+  return `${startDateText} ${startTimeText} 〜 ${endDateText} ${endTimeText}`;
 }
 
 export function formatDateJP(iso: string | null | undefined): string {
