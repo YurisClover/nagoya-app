@@ -11,11 +11,12 @@ export default function EventCard({ event }: { event: EventWithStatus }) {
   const closed = event.status.trim().toLowerCase() === "closed";
   const inAppHref = event.event_id ? `/events/form/${event.event_id}` : null;
 
+  // Event card
   return (
-    <div className="card flex flex-col gap-4">flex items-start justify-between gap-4
+    <div className="card flex flex-col gap-4">
       <div>
         <p className="flex items-center gap-2 text-base font-bold">
-          <span className="truncate justify-between gap-4">{event.title}</span>
+          <span className="truncate">{event.title}</span>
           {event.status.trim().toLowerCase() === "draft" && (
             <span className="badge badge-muted shrink-0">下書き</span>
           )}
