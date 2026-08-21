@@ -528,7 +528,18 @@ export default function ScheduleClient({ role }: ScheduleClientProps) {
                       </div>
 
                       <div className="min-w-0">
-                        <p className="font-bold">{event.title}</p>
+                        <p className="font-bold">
+                            {event.eventId ? (
+                                <Link
+                                  href={`/events/form/${event.eventId}`}
+                                  className="font-bold hover:text-brand hover:underline"
+                                >
+                                  { event.title }
+                                </Link>
+                                ) : (
+                                  <p className="font-bold">{ event.title }</p>
+                                )}
+                        </p>
 
                         <p className="mt-1 text-sm">
                           {formatEventTimeRange(event.start, event.end)}
