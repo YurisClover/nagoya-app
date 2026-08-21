@@ -11,6 +11,7 @@ export default function EventCard({ event }: { event: EventWithStatus }) {
   const closed = event.status.trim().toLowerCase() === "closed";
   const inAppHref = event.event_id ? `/events/form/${event.event_id}` : null;
 
+  // Event card
   return (
     <div className="card flex flex-col gap-4">
       <div>
@@ -26,12 +27,12 @@ export default function EventCard({ event }: { event: EventWithStatus }) {
             <span className="badge shrink-0">役員向け</span>
           )}
         </p>
-        <p className="text-meta mt-2 flex items-center gap-1.5">
+        <p className="text-meta mt-2 flex items-center gap-1.5 truncate">
           <CalendarDays size={14} className="shrink-0" />
           {formatEventSchedule(event.event_date, event.event_end_date)}
         </p>
         {event.location && (
-          <p className="text-meta mt-1 flex items-center gap-1.5">
+          <p className="text-meta mt-1 flex items-center gap-1.5 truncate">
             <MapPin size={14} className="shrink-0" />
             {event.location}
           </p>

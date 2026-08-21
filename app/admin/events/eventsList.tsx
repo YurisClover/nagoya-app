@@ -398,7 +398,7 @@ export function EventList({ events }: EventListProps) {
   }
 
   const totalPages = Math.max(1, Math.ceil(displayedEvents.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages); // กันค้างหน้าที่หายไปหลังลบ
+  const currentPage = Math.min(page, totalPages);
   const pageItems = displayedEvents.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
