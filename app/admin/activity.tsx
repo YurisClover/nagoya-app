@@ -1,9 +1,7 @@
-import { ActivityItem } from "@/lib/sheets";
+import type { ActivityItem } from "@/lib/sheets";
 
 // Props の型定義を追加
-type ActivityProps = {
-  items: ActivityItem[];
-};
+type ActivityProps = {items: ActivityItem[];};
 
 // 親から { items } を受け取る
 export default function Activity({ items }: ActivityProps) {
@@ -13,7 +11,7 @@ export default function Activity({ items }: ActivityProps) {
         <h2 className="text-base font-bold text-gray-900">
           最近のアクティビティ
         </h2>
-        <span className="text-xs text-gray-400">直近10件</span>
+        <span className="text-xs text-gray-400">直近5件</span>
       </div>
 
       {items.length === 0 ? (

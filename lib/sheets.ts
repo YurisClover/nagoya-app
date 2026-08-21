@@ -1,10 +1,10 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { GoogleSpreadsheet, GoogleSpreadsheetRow } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST, parseSheetDate, jstYearMonth } from "./datetime";
-import { unstable_cache } from "next/cache";
-import { updateTag } from "next/cache";
+import { revalidateTag,unstable_cache,updateTag } from "next/cache";
 import { sameId } from "@/lib/ids";
 import { field } from "firebase/firestore/pipelines";
 
@@ -72,12 +72,47 @@ export type DashboardMetrics = {
   unreadMessagesCount: number;
 };
 
+export type ActivityType =
+  | "member"
+  | "attendance"
+  | "message"
+  | "group";
 export type ActivityItem = {
   id: string;
   description: string;
   timestamp: string;
   type: string;
 };
+const ACTIVITY_TIME_ZONE = "Asia/Tokyo";
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+function formatActivityTimestamp( date: Date, now: Date = new Date(),): string {
+  const dateOptions = { timeZone: ACTIVITY_TIME_ZONE, } as const;
+  const dateStr = date.toLocaleDateString("sv-SE", dateOptions);
+  const todayStr = now.toLocaleDateString("sv-SE", dateOptions);
+  const yesterdayStr = new Date(now.getTime() - ONE_DAY_MS).toLocaleDateString( "sv-SE", dateOptions, );
+
+  const time = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: ACTIVITY_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+
+  if (dateStr === todayStr) {
+    return `本日 ${time}`;
+  }
+
+  if (dateStr === yesterdayStr) {
+    return `昨日 ${time}`;
+  }
+
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const currentYear = Number(todayStr.slice(0, 4));
+  if (year === currentYear) {
+    return `${month}月${day}日`;
+  }
+  return `${year}年${month}月${day}日`;
+}
 
 export type EventAttendanceItem = {
   eventId: string;
@@ -130,7 +165,7 @@ export const getDashboardMetrics = unstable_cache(
         })
       : Promise.resolve({ total: 0, active: 0, inactive: 0, newThisMonth: 0 });
 
-    // 2. 未読メッセージ数の集計 
+    // 2. 未読メッセージ数の集計
     const messagesSheet = doc.sheetsByTitle["Messages"];
     const messagesPromise = messagesSheet
       ? messagesSheet.getRows().then((rows) => {
@@ -145,7 +180,7 @@ export const getDashboardMetrics = unstable_cache(
         })
       : Promise.resolve(0);
 
-    // 3. 今月のイベント数・参加者数の集計 
+    // 3. 今月のイベント数・参加者数の集計
     const eventsSheet = doc.sheetsByTitle["Events"];
     const eventsPromise = eventsSheet
       ? eventsSheet.getRows().then((eventRows) => {
@@ -188,62 +223,54 @@ export const getDashboardMetrics = unstable_cache(
   { revalidate: 60, tags: ["dashboard-metrics", "members"] }
 );
 
-// 2. 最近のアクティビティ取得（1分間キャッシュ）
-export const getRecentActivities = unstable_cache(
-  async (): Promise<ActivityItem[]> => {
+// 2. 最近のアクティビティ取得（5分間キャッシュ）
+export const getRecentActivities = unstable_cache( async (): Promise<ActivityItem[]> => {
     const sheetId = process.env.GOOGLE_SHEETS_ID;
-    if (!sheetId) throw new Error("GOOGLE_SHEETS_ID is not set");
-
+    if (!sheetId) {
+      throw new Error("GOOGLE_SHEETS_ID is not set");
+    }
     const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
     await doc.loadInfo();
-
     const sheet = doc.sheetsByTitle["Activities"];
-    if (!sheet) return [];
-
-    const fetchedRows = await sheet.getRows();
-
-    // 実際に値（created_at または action または description）が入っている行だけを抽出
-    const validRows = fetchedRows.filter(
-      (row) => row.get("created_at") || row.get("action") || row.get("description")
-    );
-    
-    // 末尾5件を取り出して、新しい順（降順）に並べ替える
-    const recentRows = validRows.slice(-5).reverse();
-
-    const now = new Date();
-    const todayStr = now.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
-
-    return recentRows.map((row) => {
-      const rawDateStr = row.get("created_at") || "";
-      let formattedTime = "";
-
-      if (rawDateStr) {
-        const date = parseSheetDate(rawDateStr, { yearHint: "past" });
-        if (date) {
-          const dateStr = date.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
-          const hours = date.toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", hour12: false });
-          const minutes = date.toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", minute: "2-digit" });
-
-          if (dateStr === todayStr) {
-            formattedTime = `本日 ${hours}:${minutes}`;
-          } else {
-            const month = date.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric" });
-            const day = date.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", day: "numeric" });
-            formattedTime = `${month}月${day}日`;
-        }
-      }
+    if (!sheet) {
+      return [];
     }
+    const fetchedRows = await sheet.getRows();
+    const recentActivities = fetchedRows
+      .flatMap((row, index) => {
+        const description = String(row.get("description") ?? "").trim();
+        const type = String(row.get("type") ?? "").trim();
+        const rawCreatedAt = String(row.get("created_at") ?? "").trim();
+        const createdAt = parseSheetDate(rawCreatedAt, {
+          yearHint: "past",
+        });
 
-      return {
-        id: String(row.get("activity_id") ?? Math.random().toString()),
-        description: String(row.get("description") ?? ""),
-        type: String(row.get("type") ?? "default"),
-        timestamp: formattedTime || "直近",
-      };
-    });
+        if (!description || !type || !createdAt) {
+          return [];
+        }
+
+        const activityId = String(row.get("activity_id") ?? "").trim() ||`activity-row-${index}`;
+        return [
+          {
+            id: activityId,
+            description,
+            type,
+            createdAt,
+          },
+        ];
+      })
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) .slice(0, 5);
+
+    return recentActivities.map(({ createdAt, ...activity }) => ({
+      ...activity,
+      timestamp: formatActivityTimestamp(createdAt),
+    }));
   },
   ["recent-activities"],
-  { revalidate: 60, tags: ["recent-activities"] }
+  {
+    revalidate: 300,
+    tags: ["recent-activities"],
+  },
 );
 
 // 3. イベント出席状況のリスト取得（1分間キャッシュ）
@@ -274,7 +301,7 @@ export const getEventAttendanceList = unstable_cache(
       const title = String(row.get("title") ?? "").trim();
       const eventDate = String(row.get("event_date") ?? "");
       const formUrl = String(row.get("form_url") ?? "");
-      
+
       // 列から取得
       const registrationCount = parseInt(row.get("registration_count") || "0", 10);
 
@@ -289,26 +316,39 @@ export const getEventAttendanceList = unstable_cache(
   { revalidate: 60, tags: ["event-attendance-list"] }
 );
 
-// ログ記録
-export async function logActivity(type: string, description: string): Promise<void> {
+// アクティビティ記録
+export async function logActivity( type: ActivityType, description: string,): Promise<void> {
   try {
+    const normalizedDescription = description.trim();
+    if (!normalizedDescription) {
+      return;
+    }
     const sheetId = process.env.GOOGLE_SHEETS_ID;
-    if (!sheetId) return;
-
+    if (!sheetId) {
+      console.error("GOOGLE_SHEETS_ID is not set");
+      return;
+    }
     const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
     await doc.loadInfo();
-
     const sheet = doc.sheetsByTitle["Activities"];
-    if (!sheet) return;
-
-    await sheet.addRow({
-      activity_id: `act_${Date.now()}`,
-      type: type,
-      description: description,
-      created_at: nowJST(),
+    if (!sheet) {
+      console.error("'Activities' sheet not found");
+      return;
+    }
+    await sheet.addRow(
+      {
+        activity_id: `act_${randomUUID()}`,
+        type,
+        description: normalizedDescription,
+        created_at: nowJST(),
+      },
+        { raw: true, },
+    );
+    revalidateTag("recent-activities", {
+      expire: 0,
     });
   } catch (error) {
-    console.error("アクティビティログの記録に失敗しました:", error);
+    console.error("アクティビティの記録に失敗しました:", error);
   }
 }
 
@@ -327,7 +367,7 @@ export type Member = Omit<SheetUser, "password_hash"> & {
 // 既存の getUsersSheet() を活用してシートを取得
 async function fetchAllMembersFromSheet(): Promise<Member[]> {
   try {
-    const sheet = await getUsersSheet(); 
+    const sheet = await getUsersSheet();
     const rows = await sheet.getRows();
 
     return rows.map((row) => ({
@@ -394,7 +434,7 @@ export async function getPaginatedMembers(params: {
     return Number.isFinite(n) ? n : -Infinity;
   };
   filtered.sort((a, b) => (idNum(a) - idNum(b)) * dir);
-  
+
   // 10件分切り出しとページネーション計算
   const totalItems = filtered.length;
   const totalPages = Math.ceil(totalItems / params.limit) || 1;
