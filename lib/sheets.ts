@@ -6,7 +6,7 @@ import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST, parseSheetDate, jstYearMonth } from "./datetime";
 import { revalidateTag,unstable_cache,updateTag } from "next/cache";
 import { sameId } from "@/lib/ids";
-import { field } from "firebase/firestore/pipelines";
+
 
 export type SheetUser = {
   member_id: string;
