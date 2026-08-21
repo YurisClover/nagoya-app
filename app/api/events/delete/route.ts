@@ -6,6 +6,8 @@ import { setGoogleFormStatus } from "@/lib/google-forms";
 
 import { softDeleteEvent } from "@/lib/sheets/events";
 
+import { removeEventCalendar,} from "@/lib/event-calendar-sync";
+
 export const runtime = "nodejs";
 
 type DeleteEventRequest = {
@@ -66,16 +68,21 @@ export async function PATCH(request: NextRequest) {
       },
     );
 
-    return NextResponse.json({
-      success: true,
-      message: "イベントを削除しました。",
-      event: deletedEvent,
-    });
+    const calendarSyncResult = await removeEventCalendar(  deletedEvent.event_id, );
+
+/*
+ * Googleカレンダーからの削除に失敗しても、
+ * イベントの論理削除自体は取り消さない。
+ */
+return NextResponse.json({ success: true,
+
+  message: calendarSyncResult.success ? "イベントを削除しました。" : "イベントを削除しましたが、Googleカレンダーからの削除に失敗しました。",
+  event: deletedEvent,
+  calendarSync: { success: calendarSyncResult.success, error: calendarSyncResult.error, },
+});
   } catch (error) {
     console.error("Event delete error:", error);
-
-    const detail =
-      error instanceof Error ? error.message : "不明なエラーが発生しました。";
+    const detail = error instanceof Error ? error.message : "不明なエラーが発生しました。";
 
     return NextResponse.json(
       {

@@ -22,7 +22,7 @@ export const HOME = { href: "/dashboard", navLabel: "ホーム", Icon: Home };
 export const MENU: MenuItem[] = [
   { href: "/barcode",  label: "会員証",       navLabel: "会員証", desc: "バーコード表示", Icon: IdCard,         tone: "tone-blue",   ready: true },
   { href: "/training", label: "研修時間",     navLabel: "研修",   desc: "受講状況確認",   Icon: ChartPie,       tone: "tone-green",  ready: false },
-  { href: "/schedule", label: "スケジュール", navLabel: "予定",   desc: "支部行事一覧",   Icon: CalendarDays,   tone: "tone-amber",  ready: false },
+  { href: "/schedule", label: "スケジュール", navLabel: "予定",   desc: "支部行事一覧",   Icon: CalendarDays,   tone: "tone-amber",  ready: true },
   { href: "/chat",     label: "税務相談",     navLabel: "相談",   desc: "AIチャット",     Icon: Bot,            tone: "tone-teal",   ready: false },
   { href: "/events",   label: "出席確認",     navLabel: "出席",   desc: "イベント参加",   Icon: ClipboardCheck, tone: "tone-purple", ready: true },
   { href: "/messages", label: "メッセージ",   navLabel: "連絡",   desc: "連絡・通知",     Icon: Mail,           tone: "tone-copper", ready: true },

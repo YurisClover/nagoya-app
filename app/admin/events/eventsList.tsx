@@ -7,21 +7,26 @@ import type {
   SheetEvent,
 } from "@/lib/sheets/events";
 
-type EventListProps = { events: SheetEvent[] };
+type CalendarSyncStatus = "" | "synced" | "error";
+type CalendarSyncResult = { success: boolean; error?: string;};
+type EventListProps = {
+  events: SheetEvent[];
+  calendarSyncStatuses: Record<string, CalendarSyncStatus>;
+};
 type UpdateStatusResult = {
   success: boolean;
   error?: string;
   detail?: string;
   event?: SheetEvent;
+  calendarSync?: CalendarSyncResult | null;
 };
-
 type UpdatePositionResult = {
   success: boolean;
   error?: string;
   detail?: string;
   event?: SheetEvent;
+  calendarSync?: CalendarSyncResult | null;
 };
-
 type DeleteEventResult = {
   success: boolean;
   error?: string;
@@ -129,6 +134,7 @@ type EventPositionControlProps = {
   tryStartUpdate: (eventId: string) => boolean;
   finishUpdate: () => void;
   onUpdated: (event: SheetEvent) => void;
+  onCalendarSyncChanged: ( eventId: string, status: CalendarSyncStatus, ) => void;
 };
 
 function EventPositionControl({
@@ -137,6 +143,7 @@ function EventPositionControl({
   tryStartUpdate,
   finishUpdate,
   onUpdated,
+  onCalendarSyncChanged,
 }: EventPositionControlProps) {
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -190,6 +197,9 @@ function EventPositionControl({
       };
 
       onUpdated(updatedEvent);
+      if (result.calendarSync) {
+          onCalendarSyncChanged( event.event_id, result.calendarSync.success ? "synced" : "error", );
+        }
       setMessage("イベント対象者を変更しました。");
     } catch (error) {
       const detail =
@@ -242,6 +252,7 @@ type EventStatusControlProps = {
   tryStartUpdate: (eventId: string) => boolean;
   finishUpdate: () => void;
   onUpdated: (event: SheetEvent) => void;
+  onCalendarSyncChanged: ( eventId: string, status: CalendarSyncStatus, ) => void;
 };
 
 function EventStatusControl({
@@ -250,6 +261,7 @@ function EventStatusControl({
   tryStartUpdate,
   finishUpdate,
   onUpdated,
+  onCalendarSyncChanged,
 }: EventStatusControlProps) {
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -298,6 +310,12 @@ function EventStatusControl({
       };
 
       onUpdated(updatedEvent);
+      if (result.calendarSync) {
+        const nextCalendarStatus: CalendarSyncStatus = updatedEvent.status === "draft"
+            ? "" : result.calendarSync.success ? "synced" : "error";
+        onCalendarSyncChanged( event.event_id, nextCalendarStatus, );
+      }
+
       setMessage("GoogleフォームとEventsシートへ反映しました。");
     } catch (error) {
       console.error("Event status update error:", error);
@@ -345,11 +363,14 @@ function EventStatusControl({
   );
 }
 
-export function EventList({ events }: EventListProps) {
+export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStatuses, }: EventListProps) {
   const [displayedEvents, setDisplayedEvents] = useState<SheetEvent[]>(events);
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
   const [updatingEventId, setUpdatingEventId] = useState<string | null>(null);
+  const [calendarSyncStatuses, setCalendarSyncStatuses, ] = useState<Record<string, CalendarSyncStatus>>(
+        initialCalendarSyncStatuses,
+       );
   /*
    * stateの反映前に別のボタンを
    * 素早く押された場合にも、
@@ -398,11 +419,15 @@ export function EventList({ events }: EventListProps) {
   }
 
   const totalPages = Math.max(1, Math.ceil(displayedEvents.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages); // กันค้างหน้าที่หายไปหลังลบ
+  const currentPage = Math.min(page, totalPages);
   const pageItems = displayedEvents.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
+
+  function handleCalendarSyncChanged( eventId: string, status: CalendarSyncStatus, ) {
+    setCalendarSyncStatuses((currentStatuses) => ({ ...currentStatuses, [eventId]: status, }));
+  }
 
   if (displayedEvents.length === 0) {
     return (
@@ -427,7 +452,8 @@ export function EventList({ events }: EventListProps) {
             responseSpreadsheetId && event.response_sheet_id
               ? `https://docs.google.com/spreadsheets/d/${responseSpreadsheetId}/edit#gid=${event.response_sheet_id}`
               : "";
-
+              const isCalendarMissing = (event.status === "published" || event.status === "closed") &&
+                 calendarSyncStatuses[event.event_id] !== "synced";
           return (
             <article
               key={event.event_id}
@@ -439,25 +465,30 @@ export function EventList({ events }: EventListProps) {
                   <h2 className="text-lg font-bold truncate">
                     {event.title}
                   </h2>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${  event.status === "published"
+                         ? "bg-blue-100 text-blue-800"  : event.status === "closed"
+                         ? "bg-slate-200" : "bg-amber-100 text-amber-800"
+                          }`}
+                         >
+                           {STATUS_LABELS[event.status]}
+                            </span>
 
-                  <span
-                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
-                      event.status === "published"
-                        ? "bg-blue-100 text-blue-800"
-                        : event.status === "closed"
-                          ? "bg-slate-200"
-                          : "bg-amber-100 text-amber-800"
-                    }`}
-                  >
-                    {STATUS_LABELS[event.status]}
-                  </span>
-                </div>
-
-                <p className="mt-2 text-sm text-ink-muted truncate">
-                  {formatEventPeriod(event.event_date, event.event_end_date)}
+                  {isCalendarMissing && (
+                 <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                    カレンダー未表示
+                 </span>
+                    )}
+                  </div>
+                </div>               
+                  <p className="mt-2 truncate text-sm text-ink-muted">
+                  {formatEventPeriod(
+                    event.event_date,
+                    event.event_end_date,
+                  )}
                 </p>
 
-                <p className="mt-1 text-sm text-ink-muted truncate">
+                <p className="mt-1 truncate text-sm text-ink-muted">
                   開催場所：
                   <span className="font-medium">
                     {event.location || "未設定"}
@@ -478,6 +509,7 @@ export function EventList({ events }: EventListProps) {
                     tryStartUpdate={tryStartUpdate}
                     finishUpdate={finishUpdate}
                     onUpdated={handleEventUpdated}
+                    onCalendarSyncChanged={ handleCalendarSyncChanged}
                   />
                 </div>
 
@@ -546,6 +578,7 @@ export function EventList({ events }: EventListProps) {
                     tryStartUpdate={tryStartUpdate}
                     finishUpdate={finishUpdate}
                     onUpdated={handleEventUpdated}
+                    onCalendarSyncChanged={ handleCalendarSyncChanged}
                   />
                 </div>
 

@@ -109,7 +109,7 @@ export default function Sidebar({ user }: SidebarProps) {
             href="/dashboard"
             className="flex items-center justify-between rounded-lg px-4 py-3 text-sm font-medium text-white/70 transition-colors hover:bg-chrome hover:text-white"
           >
-            <span>会員ページを表示</span>
+            <span>一般会員ページを表示</span>
             <span aria-hidden>↗</span>
           </Link>
         </div>
