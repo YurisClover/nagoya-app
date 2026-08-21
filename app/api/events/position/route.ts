@@ -4,6 +4,8 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { type EventPosition, updateEventPosition } from "@/lib/sheets/events";
 
+import { syncEventPositionCalendar,} from "@/lib/event-calendar-sync";
+
 export const runtime = "nodejs";
 
 type UpdatePositionRequest = {
@@ -73,19 +75,29 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const updatedEvent = await updateEventPosition(eventId, body.position);
+    // const updatedEvent = await updateEventPosition(eventId, body.position);
 
-    return NextResponse.json({
-      success: true,
-      message: "イベント対象者を変更しました。",
-      event: updatedEvent,
-    });
+    // return NextResponse.json({
+    //   success: true,
+    //   message: "イベント対象者を変更しました。",
+    //   event: updatedEvent,
+    // });
+    const updatedEvent = await updateEventPosition( eventId, body.position, );
+    const calendarSyncResult = await syncEventPositionCalendar( updatedEvent, );
+
+/*
+ * Googleカレンダーの同期に失敗しても、
+ * イベント対象者の変更自体は取り消さない。
+ */
+return NextResponse.json({
+  success: true,
+  message: calendarSyncResult.success ? "イベント対象者を変更しました。" : "イベント対象者を変更しましたが、Googleカレンダーとの同期に失敗しました。",
+  event: updatedEvent,
+  calendarSync: { success: calendarSyncResult.success, error: calendarSyncResult.error, },
+});
   } catch (error) {
     console.error("Event position update error:", error);
-
-    const detail =
-      error instanceof Error ? error.message : "不明なエラーが発生しました。";
-
+    const detail = error instanceof Error ? error.message : "不明なエラーが発生しました。";
     return NextResponse.json(
       {
         success: false,
