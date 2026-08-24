@@ -47,8 +47,8 @@ export async function GET(): Promise<NextResponse> {
     const header = (rows[0] || []).map((h) => String(h).toLowerCase().trim());
     let idIdx = header.findIndex((h) => h === 'member_id' || h === 'id' || h === 'memberid');
     let nameIdx = header.findIndex((h) => h === 'user_name' || h === 'username' || h === 'name');
-    let roleIdx = header.findIndex((h) => h === 'role');
-    let statusIdx = header.findIndex((h) => h === 'status');
+    const roleIdx = header.findIndex((h) => h === 'role');
+    const statusIdx = header.findIndex((h) => h === 'status');
 
     if (idIdx === -1) idIdx = 0;
     if (nameIdx === -1) nameIdx = 1;

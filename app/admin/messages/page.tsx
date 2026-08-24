@@ -54,7 +54,8 @@ function AdminMessageContent() {
   const fetchInquiries = useCallback(
     async (isSilent = false) => {
       try {
-        const res = await fetch('/api/admin/inquiries?t=${Date.now()}', { cache: 'no-store' });
+        // cache: 'no-store' がキャッシュを無効化するので、キャッシュバスター(?t=)は不要
+        const res = await fetch('/api/admin/inquiries', { cache: 'no-store' });
         const data = (await res.json()) as { success: boolean; inquiries?: ReceivedMessage[] };
         if (data.success && Array.isArray(data.inquiries)) {
           const filteredInquiries = data.inquiries.filter((item) => {
@@ -97,11 +98,17 @@ function AdminMessageContent() {
   );
 
   useEffect(() => {
-    fetchInquiries(false);
+    // ルール(react-hooks/set-state-in-effect)対応:
+    // effect 本体から state を更新する関数を「同期的に」呼ぶと警告されるため、
+    // 初回ロードも setInterval と同じくコールバック経由(setTimeout 0)で呼ぶ。
+    const initialId = setTimeout(() => fetchInquiries(false), 0);
     const intervalId = setInterval(() => {
       fetchInquiries(true);
     }, 60000);
-    return () => clearInterval(intervalId);
+    return () => {
+      clearTimeout(initialId);
+      clearInterval(intervalId);
+    };
   }, [fetchInquiries]);
 
   const handleStatusChange = async (messageId: string, newStatus: MessageStatus): Promise<void> => {

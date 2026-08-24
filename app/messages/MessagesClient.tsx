@@ -1,8 +1,40 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ContactAdminModal from '@/components/messages/ContactAdminModel';
-import InquiryItem, { ReceivedMessage } from '@/components/messages/InquiryItem';
+import InquiryItem, { ReceivedMessage, MessageStatus } from '@/components/messages/InquiryItem';
+
+// /api/messages のレスポンス形。API側は snake_case で返すが、
+// 過去の実装が camelCase を返していた時期もあるため両方 optional で受ける。
+type ApiReply = {
+  reply_id?: string;
+  id?: string;
+  sender_id?: string;
+  senderId?: string;
+  recipient_id?: string;
+  recipientId?: string;
+  sender_name?: string;
+  userName?: string;
+  recipient_name?: string;
+  recipientName?: string;
+  member_id?: string;
+  memberId?: string;
+  title?: string;
+  subject?: string;
+  body?: string;
+  is_read?: boolean;
+  isRead?: boolean;
+  created_at?: string;
+  createdAt?: string;
+};
+
+type ApiMessage = ApiReply & {
+  message_id?: string;
+  status?: string;
+  last_status_updated_by?: string;
+  lastStatusUpdatedBy?: string;
+  replies?: ApiReply[];
+};
 
 interface MessagesClientProps {
   currentUserId: string;
@@ -14,20 +46,23 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const fetchMessages = async (isBackground = false) => {
+  const fetchMessages = useCallback(async (isBackground = false) => {
     try {
-      if (!isBackground) setLoading(true);
-
       const res = await fetch('/api/messages');
-      const data = await res.json();
+      const data = (await res.json()) as { success: boolean; messages?: ApiMessage[] };
 
       if (data.success && Array.isArray(data.messages)) {
-        const formattedMessages: ReceivedMessage[] = data.messages.map((item: any, idx: number) => {
+        const formattedMessages: ReceivedMessage[] = data.messages.map((item: ApiMessage, idx: number) => {
           const senderId = item.senderId || item.sender_id || '';
           const recipientName = item.recipientName || item.recipient_name || '事務局';
 
           // 自分が送信者の場合は宛先（事務局）、それ以外（管理者からの受信など）は「事務局」にする
           const isMyMessage = String(senderId).trim() === String(currentUserId).trim();
+
+          // status は API からは string で来るため union 型に絞り込む
+          const rawStatus = (item.status || '').toLowerCase();
+          const status: MessageStatus =
+            rawStatus === 'pending' || rawStatus === 'closed' ? rawStatus : 'unsupported';
           const displayUserName = isMyMessage ? recipientName : '事務局';
 
           return {
@@ -41,9 +76,9 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
             body: item.body || '',
             isRead: Boolean(item.isRead ?? item.is_read),
             createdAt: item.createdAt || item.created_at || new Date().toISOString(),
-            status: item.status || 'unsupported',
+            status,
             lastStatusUpdatedBy: item.lastStatusUpdatedBy || item.last_status_updated_by || '',
-            replies: (item.replies || []).map((r: any, rIdx: number) => {
+            replies: (item.replies || []).map((r: ApiReply, rIdx: number) => {
               const rSenderId = String(r.senderId || r.sender_id || '').trim();
               const isMyReply = rSenderId === String(currentUserId).trim();
 
@@ -71,17 +106,22 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
     } finally {
       if (!isBackground) setLoading(false);
     }
-  };
+  }, [currentUserId]);
 
   useEffect(() => {
-    fetchMessages(false);
+    // ルール(react-hooks/set-state-in-effect)対応:
+    // 初回ロードも setInterval と同じくコールバック経由(setTimeout 0)で呼ぶ。
+    const initialId = setTimeout(() => fetchMessages(false), 0);
 
     const intervalId = setInterval(() => {
       fetchMessages(true);
     }, 60000);
 
-    return () => clearInterval(intervalId);
-  }, []);
+    return () => {
+      clearTimeout(initialId);
+      clearInterval(intervalId);
+    };
+  }, [fetchMessages]);
 
   const handleToggle = async (msg: ReceivedMessage) => {
     const isTargetExpanded = expandedId === msg.id;
@@ -198,11 +238,11 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
         ) : (
           <div className="space-y-3">
            {[...messages]
-            .sort((a: any, b: any) => {
-              const getLatestTime = (item: any) => {
+            .sort((a, b) => {
+              const getLatestTime = (item: ReceivedMessage) => {
                 let latest = item.createdAt || '';
                 if (item.replies && Array.isArray(item.replies)) {
-                  item.replies.forEach((reply: any) => {
+                  item.replies.forEach((reply) => {
                     if (reply.createdAt && reply.createdAt > latest) {
                       latest = reply.createdAt;
                     }

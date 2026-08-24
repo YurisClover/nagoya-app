@@ -44,7 +44,6 @@ interface InquiryItemProps {
   onToggle: () => void;
   onSendReply: (parentMessageId: string, recipientId: string, replyTitle: string, replyText: string) => Promise<boolean>;
   onDelete?: (messageId: string, replyIds?: string[]) => Promise<void>;
-  onMarkAsRead?: (messageId: string) => Promise<void>;
   // ★変更: 一般側では渡さなくて済むようにオプショナル(?)に変更
   onStatusChange?: (messageId: string, newStatus: MessageStatus) => Promise<void>;
   // ★追加: 管理者かどうかを判定するフラグ（デフォルトは false）
@@ -58,7 +57,6 @@ export default function InquiryItem({
   onToggle,
   onSendReply,
   onDelete,
-  onMarkAsRead,
   onStatusChange,
   isAdmin = false, // ★追加: デフォルトは一般ユーザー（false）とする
 }: InquiryItemProps) {

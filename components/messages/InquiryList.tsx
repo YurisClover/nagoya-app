@@ -5,6 +5,14 @@
 import React, { useState } from 'react';
 import InquiryItem, { ReceivedMessage, MessageStatus } from './InquiryItem';
 
+// API のレスポンスに snake_case のフィールドが混在していた時期の名残を
+// any キャストではなく optional な追加フィールドとして型で表現する。
+type RawSheetFields = {
+  delete_flag?: boolean | string;
+  isDeleted?: boolean;
+  created_at?: string;
+};
+
 interface InquiryListProps {
   inquiries: ReceivedMessage[];
   isLoading: boolean;
@@ -41,22 +49,24 @@ export default function InquiryList({
   const activeInquiries = [...inquiries]
     .filter((item) => {
       // API側の仕様に合わせて、複数のフラグ形式を許容する
+      const raw = item as ReceivedMessage & RawSheetFields;
       const isDeleted =
-        (item as any).delete_flag === true ||
-        (item as any).delete_flag === 'true' ||
-        item.deleteFlag === true ||
-        item.deleteFlag === 'true' ||
-        (item as any).isDeleted === true;
+        raw.delete_flag === true ||
+        raw.delete_flag === 'true' ||
+        raw.deleteFlag === true ||
+        raw.deleteFlag === 'true' ||
+        raw.isDeleted === true;
 
       return !isDeleted;
     })
     .sort((a, b) => {
       // 親メッセージと全返信の中から最も新しい日時を取得
-      const getLatestTime = (item: ReceivedMessage) => {
-        let latest = item.createdAt || (item as any).created_at || '';
+      const getLatestTime = (item: ReceivedMessage & RawSheetFields) => {
+        let latest = item.createdAt || item.created_at || '';
         if (item.replies && Array.isArray(item.replies)) {
           item.replies.forEach((reply) => {
-            const replyTime = reply.createdAt || (reply as any).created_at;
+            const replyTime =
+              reply.createdAt || (reply as typeof reply & RawSheetFields).created_at;
             if (replyTime && replyTime > latest) {
               latest = replyTime;
             }
@@ -113,9 +123,6 @@ export default function InquiryList({
               onToggle={() => handleToggle(item)}
               onSendReply={onSendReply}
               onDelete={onDeleteMessage}
-              onMarkAsRead={async (messageId) => {
-                onMarkAsRead(messageId);
-              }}
               onStatusChange={onStatusChange}
               isAdmin={isAdmin} // ★ 追加: InquiryItem へバケツリレー
             />

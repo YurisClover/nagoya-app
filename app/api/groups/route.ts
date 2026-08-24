@@ -44,8 +44,9 @@ export async function GET() {
       .filter((g) => g.id !== '' || g.name !== '');
 
     return NextResponse.json({ success: true, groups });
-  } catch (error: any) {
-    console.error('グループ一覧取得エラー:', error);
-    return NextResponse.json({ success: false, groups: [], error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('グループ一覧取得エラー:', errorMessage);
+    return NextResponse.json({ success: false, groups: [], error: errorMessage }, { status: 500 });
   }
 }

@@ -63,7 +63,7 @@ export async function POST(req: Request) {
 
     let resolvedRecipientId = recipientId;
     let finalTitle = title?.trim();
-    let resolvedParentId = parentMessageId || '';
+    const resolvedParentId = parentMessageId || '';
 
     if (rows.length > 1) {
       const headers = (rows[0] || []).map((h) => h.toLowerCase().replace(/[_-\s]/g, "").trim());

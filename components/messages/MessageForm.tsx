@@ -212,8 +212,9 @@ export default function MessageForm({ groups, onSuccess }: MessageFormProps) {
           alert(`送信エラー: ${data.error || '送信に失敗しました'}`);
         }
       }
-    } catch (err: any) {
-      alert(`通信エラー: ${err.message || 'エラーが発生しました'}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'エラーが発生しました';
+      alert(`通信エラー: ${msg}`);
     } finally {
       setIsSending(false);
     }
@@ -229,7 +230,7 @@ export default function MessageForm({ groups, onSuccess }: MessageFormProps) {
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">送信先</label>
             <select
               value={targetType}
-              onChange={(e) => setTargetType(e.target.value as any)}
+              onChange={(e) => setTargetType(e.target.value as 'all' | 'group' | 'individual')}
               className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
             >
               <option value="all">全会員</option>

@@ -70,8 +70,9 @@ export async function GET(req: Request) {
       .filter((id) => id !== '');
 
     return NextResponse.json({ success: true, memberIds, groupId: targetGroupId });
-  } catch (error: any) {
-    console.error('グループメンバー取得エラー:', error);
-    return NextResponse.json({ success: false, memberIds: [], error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('グループメンバー取得エラー:', errorMessage);
+    return NextResponse.json({ success: false, memberIds: [], error: errorMessage }, { status: 500 });
   }
 }

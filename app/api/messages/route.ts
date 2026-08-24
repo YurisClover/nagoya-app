@@ -75,7 +75,7 @@ export async function GET() {
     const uHeaders = (userRows[0] || []).map((h) => h.toLowerCase().trim());
     let uMemberIdIdx = uHeaders.findIndex((h) => h === "member_id" || h === "id" || h === "memberid");
     let uNameIdx = uHeaders.findIndex((h) => h === "user_name" || h === "username" || h === "name");
-    let uRoleIdx = uHeaders.findIndex((h) => h === "role");
+    const uRoleIdx = uHeaders.findIndex((h) => h === "role");
 
     if (uMemberIdIdx === -1) uMemberIdIdx = 0;
     if (uNameIdx === -1) uNameIdx = 1;
@@ -111,8 +111,8 @@ export async function GET() {
     let deleteFlagIdx = msgHeaders.findIndex((h) => h === "deleteflag" || h === "deleted");
     let parentIdIdx = msgHeaders.findIndex((h) => h === "parentid" || h === "parent");
     // ★追加: ステータスと更新者の列インデックス検出
-    let statusIdx = msgHeaders.findIndex((h) => h === "status");
-    let lastStatusUpdatedByIdx = msgHeaders.findIndex((h) => h === "laststatusupdatedby" || h === "statusupdatedby");
+    const statusIdx = msgHeaders.findIndex((h) => h === "status");
+    const lastStatusUpdatedByIdx = msgHeaders.findIndex((h) => h === "laststatusupdatedby" || h === "statusupdatedby");
 
     if (idIdx === -1) idIdx = 0;
     if (senderIdIdx === -1) senderIdIdx = 1;

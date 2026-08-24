@@ -64,7 +64,7 @@ export async function GET(): Promise<NextResponse> {
     const userHeader = userHeaderRow.map((h: unknown) => String(h).toLowerCase().trim());
     let uMemberIdIdx = userHeader.findIndex((h) => h === 'member_id' || h === 'id' || h === 'memberid');
     let uNameIdx = userHeader.findIndex((h) => h === 'name' || h === 'username' || h === 'user_name');
-    let uRoleIdx = userHeader.findIndex((h) => h === 'role');
+    const uRoleIdx = userHeader.findIndex((h) => h === 'role');
 
     if (uMemberIdIdx === -1) uMemberIdIdx = 0;
     if (uNameIdx === -1) uNameIdx = 1;
@@ -92,7 +92,7 @@ export async function GET(): Promise<NextResponse> {
     let bodyIdx = msgHeader.findIndex((h) => h === 'body' || h === 'content');
     let isReadIdx = msgHeader.findIndex((h) => h === 'is_read' || h === 'isread' || h === 'read');
     let createdAtIdx = msgHeader.findIndex((h) => h === 'created_at' || h === 'createdat' || h === 'timestamp' || h === 'date');
-    let deleteFlagIdx = msgHeader.findIndex((h) => h === 'delete_flag' || h === 'deleteflag' || h === 'is_deleted' || h === 'deleted');
+    const deleteFlagIdx = msgHeader.findIndex((h) => h === 'delete_flag' || h === 'deleteflag' || h === 'is_deleted' || h === 'deleted');
     let parentIdIdx = msgHeader.findIndex((h) => h === 'parent_id' || h === 'parentid' || h === 'reply_to_id');
     let statusIdx = msgHeader.findIndex((h) => h === 'status');
     let lastStatusUpdatedByIdx = msgHeader.findIndex((h) => h === 'last_status_updated_by' || h === 'status_updated_by');
