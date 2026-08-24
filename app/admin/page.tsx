@@ -5,14 +5,10 @@ import QuickAction from "./quickAction";
 import EventAttendance from "./eventAttendance";
 import { requireAdmin } from "@/lib/guards";
 import RefreshButton from "./refreshButton";
-import { auth } from "@/auth"; 
 
 export default async function AdminHomePage() {
   // check isAdmin
-  await requireAdmin();
-
-  // ② ログイン中のセッションからユーザーID（member_id）を取得
-  const session = await auth();
+  const session = await requireAdmin();
   const currentMemberId = session?.user?.id || "admin";
 
   // ③ 取得したIDを getDashboardMetrics に渡す
