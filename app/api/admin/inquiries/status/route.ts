@@ -1,16 +1,8 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
-import { Session } from 'next-auth';
+import { getApiUser } from '@/lib/guards';
 import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 type MessageStatus = 'unsupported' | 'pending' | 'closed';
-
-interface SessionUser {
-  member_id?: string;
-  id?: string;
-  name?: string | null;
-  email?: string | null;
-}
 
 interface RequestBody {
   messageId: string;
@@ -19,17 +11,16 @@ interface RequestBody {
 
 export async function PATCH(req: Request) {
   try {
-    const session: Session | null = await auth();
-    if (!session) {
+    const apiUser = await getApiUser();
+    if (!apiUser) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
-    if (session.user?.role !== 'admin') {
+    if (apiUser.role !== 'admin') {
       return NextResponse.json({ success: false, error: '権限がありません' }, { status: 403 });
     }
 
-    const user = session.user as SessionUser | undefined;
-    const updaterId: string = user?.member_id || user?.id || '管理者';
+    const updaterId: string = apiUser.memberId;
 
     const body = (await req.json()) as RequestBody;
     const { messageId, status } = body;

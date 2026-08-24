@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getApiUser } from '@/lib/guards';
 import crypto from 'crypto';
 import { nowJST } from '@/lib/datetime'; // lib/datetime.ts をインポート
 import { getSheetsClient } from "@/lib/sheets/googleapis";
-
-interface SessionUser {
-  id?: string;
-  member_id?: string;
-}
 
 interface RequestBody {
   parentMessageId?: string;
@@ -18,15 +13,13 @@ interface RequestBody {
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    const user = session?.user as SessionUser | undefined;
-    const currentMemberId = user?.member_id || user?.id;
+    const apiUser = await getApiUser();
 
-    if (!session || !currentMemberId) {
+    if (!apiUser) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
-    if (session.user?.role !== 'admin') {
+    if (apiUser.role !== 'admin') {
       return NextResponse.json({ success: false, error: '権限がありません' }, { status: 403 });
     }
 
@@ -37,7 +30,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: '必須パラメーターが不足しています' }, { status: 400 });
     }
 
-    const myAdminId = String(currentMemberId).trim();
+    const myAdminId = apiUser.memberId;
     const { sheets, spreadsheetId } = getSheetsClient();
 
 

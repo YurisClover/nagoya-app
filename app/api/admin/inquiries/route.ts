@@ -1,15 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getApiUser } from '@/lib/guards';
 import { getSheetsClient } from "@/lib/sheets/googleapis";
-
-interface SessionUser {
-  member_id?: string;
-  id?: string;
-  name?: string | null;
-  email?: string | null;
-}
 
 type MessageStatus = 'unsupported' | 'pending' | 'closed';
 
@@ -38,22 +31,20 @@ interface MessageThread extends ParsedMessage {
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const session = await auth();
-    const user = session?.user as SessionUser | undefined;
-    const currentMemberId = user?.member_id || user?.id;
+    const apiUser = await getApiUser();
 
-    if (!session || !currentMemberId) {
+    if (!apiUser) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
     // この一覧は事務局(admin)専用。ここを開けると全会員の問い合わせが
     // 一般会員から読めてしまうため、role で必ず遮断する。
 
-    if (session.user?.role !== 'admin') {
+    if (apiUser.role !== 'admin') {
       return NextResponse.json({ success: false, error: '権限がありません' }, { status: 403 });
     }
 
-    const myAdminId = String(currentMemberId).trim();
+    const myAdminId = apiUser.memberId;
     const { sheets, spreadsheetId } = getSheetsClient(true);
 
 

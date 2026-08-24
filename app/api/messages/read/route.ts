@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getApiUser } from '@/lib/guards';
 import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 interface RequestBody {
@@ -16,13 +16,12 @@ interface SheetUpdateItem {
 // admin 専用の処理ではないため /api/admin ではなく messages 配下に置く。
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session) {
+    const apiUser = await getApiUser();
+    if (!apiUser) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
-    const memberId = session.user?.id ?? '';
-    const role = session.user?.role ?? '';
+    const { memberId, role } = apiUser;
 
     const bodyData = (await req.json()) as RequestBody;
     const { messageId, replyIds = [] } = bodyData;

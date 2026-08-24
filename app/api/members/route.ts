@@ -1,14 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getApiUser } from '@/lib/guards';
 import { getSheetsClient } from "@/lib/sheets/googleapis";
-
-interface SessionUser {
-  member_id?: string;
-  id?: string;
-  role?: string;
-}
 
 export type MemberOption = {
   member_id: string;
@@ -22,13 +16,12 @@ export type MemberOption = {
 // ここでは active な会員をまとめて返すだけにする。
 export async function GET(): Promise<NextResponse> {
   try {
-    const session = await auth();
-    const user = session?.user as SessionUser | undefined;
+    const apiUser = await getApiUser();
 
-    if (!session || !user) {
+    if (!apiUser) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
-    if (user.role !== 'admin') {
+    if (apiUser.role !== 'admin') {
       return NextResponse.json({ success: false, error: '権限がありません' }, { status: 403 });
     }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getApiUser } from '@/lib/guards';
 import dns from 'node:dns';
 import { nowJST } from '@/lib/datetime';
 import crypto from 'crypto';
@@ -8,14 +8,6 @@ import { getSheetsClient } from "@/lib/sheets/googleapis";
 // ローカル開発環境（npm run dev）の時だけ IPv4 を優先にし、デプロイ環境（IPv6-Only等）では設定しない
 if (process.env.NODE_ENV === 'development') {
   dns.setDefaultResultOrder('ipv4first');
-}
-
-// 1. セッションユーザーの型定義
-interface SessionUser {
-  member_id?: string;
-  id?: string;
-  name?: string | null;
-  email?: string | null;
 }
 
 // 2. リクエストボディの型定義
@@ -31,24 +23,16 @@ interface SendNotificationBody {
 export async function POST(request: Request) {
   try {
     // 1. サーバーセッションからログインユーザー情報を取得
-    const session = await auth();
-    if (!session || !session.user) {
+    const apiUser = await getApiUser();
+    if (!apiUser) {
       return NextResponse.json(
         { success: false, error: '認証されていません。ログインしてください。' },
         { status: 401 }
       );
     }
 
-    // 2. セッションから sender_id (member_id または id) を確定
-    const user = session.user as SessionUser;
-    const targetSenderId = user.member_id || user.id;
-
-    if (!targetSenderId) {
-      return NextResponse.json(
-        { success: false, error: '送信者の member_id がセッションから取得できませんでした' },
-        { status: 400 }
-      );
-    }
+    // sender は必ずセッションから確定する(auth.ts が member_id を session.user.id に格納)
+    const targetSenderId = apiUser.memberId;
 
     // 3. リクエストボディに型を適用
     const bodyData = (await request.json()) as SendNotificationBody;
@@ -61,7 +45,7 @@ export async function POST(request: Request) {
 
     // 権限ルール: 一般会員が送れる宛先は「事務局(admin)」のみ。
     // 全会員 / グループ / 個人宛ては admin 専用(会員が全員へ一斉送信できてしまうのを防ぐ)。
-    if (rawRecipient !== 'admin' && session.user?.role !== 'admin') {
+    if (rawRecipient !== 'admin' && apiUser.role !== 'admin') {
       return NextResponse.json(
         { success: false, error: '一般会員が送信できる宛先は事務局のみです' },
         { status: 403 }

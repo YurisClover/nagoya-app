@@ -1,15 +1,8 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getApiUser } from '@/lib/guards';
 import crypto from 'crypto';
 import { nowJST } from '@/lib/datetime';
 import { getSheetsClient } from "@/lib/sheets/googleapis";
-
-type SessionUser = {
-  member_id?: string;
-  id?: string;
-  name?: string | null;
-  email?: string | null;
-};
 
 interface ReplyRequestBody {
   parentMessageId?: string;
@@ -20,11 +13,9 @@ interface ReplyRequestBody {
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    const user = session?.user as SessionUser | undefined;
-    const currentMemberId = user?.member_id || user?.id;
+    const apiUser = await getApiUser();
 
-    if (!session || !currentMemberId) {
+    if (!apiUser) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -52,7 +43,7 @@ export async function POST(req: Request) {
     const createdAt = nowJST();
 
     // なりすまし防止: sender はリクエストボディではなく必ずセッションから取る
-    const senderId = currentMemberId;
+    const senderId = apiUser.memberId;
 
     const messagesRes = await sheets.spreadsheets.values.get({
       spreadsheetId,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getApiUser } from "@/lib/guards";
 import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 // 405エラーや静的判定を防ぐため、必ず動的レンダリングを指定します
@@ -27,20 +27,11 @@ type Thread = ParsedMessage & {
   _latestTimestamp?: number;
 };
 
-type SessionUser = {
-  member_id?: string;
-  id?: string;
-  name?: string | null;
-  email?: string | null;
-};
-
 export async function GET() {
   try {
-    const session = await auth();
-    const user = session?.user as SessionUser | undefined;
-    const currentMemberId = user?.member_id || user?.id;
+    const apiUser = await getApiUser();
 
-    if (!session || !currentMemberId) {
+    if (!apiUser) {
       return NextResponse.json(
         { success: false, error: "認証されていません。" },
         { status: 401 }
@@ -97,10 +88,10 @@ export async function GET() {
       }
     });
 
-    const myUserId = String(currentMemberId).trim();
+    const myUserId = apiUser.memberId;
     // 自分が admin かどうかはセッションの role を第一に信頼する
     const isMySelfAdmin =
-      session.user?.role === "admin" || adminMemberIds.has(myUserId.toLowerCase());
+      apiUser.role === "admin" || adminMemberIds.has(myUserId.toLowerCase());
 
     // Messages ヘッダーの列位置を取得
     const msgHeaders = messageRows[0].map((h) => h.toLowerCase().replace(/[_-\s]/g, "").trim());

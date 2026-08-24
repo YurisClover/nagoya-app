@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getApiUser } from '@/lib/guards';
 import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 // 1. リクエストボディの型を定義
@@ -10,13 +10,12 @@ interface DeleteRequestBody {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session || !session.user) {
+    const apiUser = await getApiUser();
+    if (!apiUser) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
-    const memberId = session.user?.id ?? '';
-    const role = session.user?.role ?? '';
+    const { memberId, role } = apiUser;
 
     // 2. request.json() に型を適用
     const bodyData = (await request.json()) as DeleteRequestBody;

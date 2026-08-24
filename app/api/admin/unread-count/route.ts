@@ -1,22 +1,23 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getApiUser } from "@/lib/guards";
 import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 export async function GET() {
   try {
     // 1. セッションチェック
-    const session = await auth();
-    const currentMemberId = session?.user?.id;
+    const apiUser = await getApiUser();
 
     // 未ログインの場合は未読 0 件として返す
-    if (!session || !currentMemberId) {
+    if (!apiUser) {
       return NextResponse.json({ success: true, count: 0 });
     }
 
+    const currentMemberId = apiUser.memberId;
+
     // 事務局の未読件数は admin 専用情報
-    if (session.user?.role !== 'admin') {
+    if (apiUser.role !== 'admin') {
       return NextResponse.json({ success: false, count: 0, error: '権限がありません' }, { status: 403 });
     }
 

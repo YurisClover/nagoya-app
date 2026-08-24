@@ -23,7 +23,7 @@ export type ApiUser = { memberId: string; role: string };
 
 export async function getApiUser(): Promise<ApiUser | null> {
     const session = await auth();
-    const memberId = session?.user?.id ?? "";
+    const memberId = (session?.user?.id ?? "").trim();
     if (!session || !memberId) return null;
     return { memberId, role: session.user?.role ?? "" };
 }
