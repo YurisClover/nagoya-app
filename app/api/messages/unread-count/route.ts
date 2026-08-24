@@ -55,6 +55,7 @@ export async function GET() {
     // 5. ご指定の条件判定
     messageRows.slice(1).forEach((row) => {
       const recipientId = row[recipientIdIdx]?.toString().trim() || "";
+      const senderId = row[senderIdIdx]?.toString().trim() || "";
       const isReadRaw = row[isReadIdx]?.toString().trim().toLowerCase() || "";
       const deleteFlagRaw = row[deleteFlagIdx]?.toString().trim().toLowerCase() || "";
 
@@ -69,8 +70,11 @@ export async function GET() {
       // 条件3: recipient_id がログイン中のユーザーの member_id かどうか
       const isValidRecipient = recipientId === String(currentMemberId).trim();
 
+      // 条件4: 自分が送信した行は数えない(一覧側の既読定義と一致させる)
+      const isNotMine = senderId !== String(currentMemberId).trim();
+
       // すべての条件を満たしている場合にカウントを増やす
-      if (isUnread && isNotDeleted && isValidRecipient) {
+      if (isUnread && isNotDeleted && isValidRecipient && isNotMine) {
         unreadCount++;
       }
     });

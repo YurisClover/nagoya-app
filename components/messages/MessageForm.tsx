@@ -19,12 +19,20 @@ type MemberOption = {
 interface MessageFormProps {
   groups: Group[];
   onSuccess: () => void;
+  /** グループを事前選択した状態でフォームを開く(/admin/groups の送信リンク用) */
+  initialGroupId?: string;
 }
 
-export default function MessageForm({ groups, onSuccess }: MessageFormProps) {
-  const [targetType, setTargetType] = useState<'all' | 'group' | 'individual'>('all');
-  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
-  const [selectedGroupName, setSelectedGroupName] = useState<string>('');
+export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: MessageFormProps) {
+  const [targetType, setTargetType] = useState<'all' | 'group' | 'individual'>(
+    initialGroupId ? 'group' : 'all'
+  );
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(initialGroupId);
+
+  // グループ名は groups + selectedGroupId から導出できるので state に持たない。
+  // (groups は親が非同期で取得するため、state にコピーすると同期漏れが起きる)
+  const selectedGroupName =
+    groups.find((g) => g.group_id === selectedGroupId)?.group_name ?? '';
   const [individualInput, setIndividualInput] = useState<string>('');
   const [rawTitle, setRawTitle] = useState<string>('');
   const [body, setBody] = useState<string>('');
@@ -79,8 +87,6 @@ export default function MessageForm({ groups, onSuccess }: MessageFormProps) {
 
   const handleGroupChange = (groupId: string) => {
     setSelectedGroupId(groupId);
-    const target = groups.find((g) => g.group_id === groupId);
-    setSelectedGroupName(target ? target.group_name : '');
   };
 
   const getPrefix = () => {
@@ -101,7 +107,6 @@ export default function MessageForm({ groups, onSuccess }: MessageFormProps) {
     setMemberQuery('');
     setShowResults(false);
     setSelectedGroupId('');
-    setSelectedGroupName('');
     onSuccess();
   };
 

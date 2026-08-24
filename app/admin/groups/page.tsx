@@ -68,13 +68,12 @@ export default async function GroupsPage() {
                   action={deleteGroupAction.bind(null, group.group_id)}
                   groupName={group.group_name}
                 />
-                <button
-                  type="button"
-                  disabled
+                <Link
+                  href={`/admin/messages?group=${group.group_id}`}
                   className="btn btn-secondary px-4 py-1.5 text-xs"
                 >
                   送信
-                </button>
+                </Link>
               </div>
             </div>
           );
