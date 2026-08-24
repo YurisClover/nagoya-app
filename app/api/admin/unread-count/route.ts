@@ -60,6 +60,7 @@ export async function GET() {
     // 5. ご指定の条件判定
     messageRows.slice(1).forEach((row) => {
       const recipientId = row[recipientIdIdx]?.toString().trim() || "";
+      const senderId = row[senderIdIdx]?.toString().trim() || "";
       const isReadRaw = row[isReadIdx]?.toString().trim().toLowerCase() || "";
       const deleteFlagRaw = row[deleteFlagIdx]?.toString().trim().toLowerCase() || "";
 
@@ -74,8 +75,14 @@ export async function GET() {
       // 条件3: recipient_id が "admin" もしくはログイン中のユーザーの member_id かどうか
       const isValidRecipient = recipientId === "admin" || recipientId === String(currentMemberId).trim();
 
+      // 条件4: 自分が送信した行は数えない。
+      // 受信一覧(/api/admin/inquiries)は sender===自分 の行を既読として表示するため、
+      // ここで除外しないと「画面上は全部既読なのにバッジだけ残る」ズレが起きる。
+      // (バッジと一覧で「未読」の定義を必ず一致させること)
+      const isNotMine = senderId !== String(currentMemberId).trim();
+
       // すべての条件を満たしている場合にカウントを増やす
-      if (isUnread && isNotDeleted && isValidRecipient) {
+      if (isUnread && isNotDeleted && isValidRecipient && isNotMine) {
         unreadCount++;
       }
     });

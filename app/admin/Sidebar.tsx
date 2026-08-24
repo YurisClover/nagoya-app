@@ -22,7 +22,9 @@ export default function Sidebar({ user }: SidebarProps) {
   useEffect(() => {
     async function fetchUnreadCount() {
       try {
-        const res = await fetch("/api/admin/unread-count?t=${Date.now()}",{
+        // cache: "no-store" がキャッシュを無効化するので、キャッシュバスター(?t=)は不要。
+        // (旧コードはシングルクォートのため ${Date.now()} が文字列のまま送られていた)
+        const res = await fetch("/api/admin/unread-count", {
           cache: "no-store",
         });
         const data = await res.json();
