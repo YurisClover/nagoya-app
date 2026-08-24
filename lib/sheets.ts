@@ -6,7 +6,6 @@ import { nowJST, parseSheetDate, jstYearMonth } from "./datetime";
 import { unstable_cache } from "next/cache";
 import { updateTag } from "next/cache";
 import { sameId } from "@/lib/ids";
-import { field } from "firebase/firestore/pipelines";
 
 export type SheetUser = {
   member_id: string;
@@ -89,7 +88,8 @@ export type EventAttendanceItem = {
 
 // 1. ダッシュボード指標の取得（1分間キャッシュ,既存の getSheetAuth を利用）
 export const getDashboardMetrics = unstable_cache(
-  async (): Promise<DashboardMetrics> => {
+  async (currentMemberId: string = "admin"): Promise<DashboardMetrics> => {
+    const targetMemberId = currentMemberId || "admin";
     const sheetId = process.env.GOOGLE_SHEETS_ID;
     if (!sheetId) throw new Error("GOOGLE_SHEETS_ID is not set");
 
@@ -130,20 +130,36 @@ export const getDashboardMetrics = unstable_cache(
         })
       : Promise.resolve({ total: 0, active: 0, inactive: 0, newThisMonth: 0 });
 
-    // 2. 未読メッセージ数の集計 
+    // 2. 未読メッセージ数の集計
     const messagesSheet = doc.sheetsByTitle["Messages"];
     const messagesPromise = messagesSheet
-      ? messagesSheet.getRows().then((rows) => {
-          let unreadCount = 0;
-          for (const row of rows) {
+     ? messagesSheet.getRows().then((rows) => {
+         let unreadCount = 0;
+         for (const row of rows) {
+            // 各フィールドの値を取得
+            const recipientId = String(row.get("recipient_id") ?? "").trim();
             const isReadRaw = String(row.get("is_read") ?? "").trim().toLowerCase();
-            if (isReadRaw === "false" || isReadRaw === "0") {
+            const deleteFlagRaw = String(row.get("delete_flag") ?? "").trim().toLowerCase();
+
+            // 未読 (is_read が false, "false", "0" など)
+            const isRead = isReadRaw === "true" || isReadRaw === "1" || isReadRaw === "既読";
+            const isUnread = !isRead;
+
+            // 未削除 (delete_flag が false, "false", "0", または空)
+            const isDeleted = deleteFlagRaw === "true" || deleteFlagRaw === "1";
+            const isNotDeleted = !isDeleted;
+
+            // 宛先が admin のものに絞る（必要に応じてユーザーID等に変更してください）
+            const isValidRecipient = recipientId === "admin" || recipientId === targetMemberId;
+
+            // すべての条件を満たした場合のみカウントアップ
+            if (isUnread && isNotDeleted && isValidRecipient) {
               unreadCount++;
-            }
-          }
-          return unreadCount;
+             }
+         }
+         return unreadCount;
         })
-      : Promise.resolve(0);
+     : Promise.resolve(0);
 
     // 3. 今月のイベント数・参加者数の集計 
     const eventsSheet = doc.sheetsByTitle["Events"];

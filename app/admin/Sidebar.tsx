@@ -1,19 +1,57 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 
 type SidebarProps = {
-  unreadCount?: number;
   user?: {
     name?: string | null;
     email?: string | null;
   };
 };
 
-export default function Sidebar({ unreadCount = 0, user }: SidebarProps) {
+export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
+  
+  // ★ 初期値にサーバーから受け取った件数をセット（これで初回からバッジが表示されます）
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  // 未読バッジ件数をAPIから自動取得して最新に保つ
+  useEffect(() => {
+    async function fetchUnreadCount() {
+      try {
+        const res = await fetch("/api/admin/unread-count?t=${Date.now()}",{
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (data.success && typeof data.count === "number") {
+          setUnreadCount(data.count);
+        }
+      } catch (err) {
+        console.error("未読バッジ件数の取得に失敗しました:", err);
+      }
+    }
+
+    // 裏側で最新データを取得
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 60000);
+
+    const handleUnreadUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ unreadCount: number }>;
+      if (customEvent.detail && typeof customEvent.detail.unreadCount === "number") {
+        setUnreadCount(customEvent.detail.unreadCount);
+      }
+    };
+
+    window.addEventListener("unread-count-updated", handleUnreadUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("unread-count-updated", handleUnreadUpdate);
+    };
+  }, []);
 
   // メニューの定義
   const navItems = [
@@ -24,6 +62,7 @@ export default function Sidebar({ unreadCount = 0, user }: SidebarProps) {
     {
       label: "メッセージ送信",
       href: "/admin/messages",
+      // ★ isLoadingの判定を削除し、シンプルに 0 より大きければ表示
       badge: unreadCount > 0 ? unreadCount : null,
     },
   ];
@@ -36,10 +75,8 @@ export default function Sidebar({ unreadCount = 0, user }: SidebarProps) {
           <h1 className="text-lg font-bold tracking-wide">管理システム</h1>
         </div>
 
-        {/* ナビゲーションメニュー */}
         <nav className="p-4 flex flex-col gap-1.5">
           {navItems.map((item) => {
-            // 💡 ここを変更：ダッシュボード（/admin）は完全一致、その他は前方一致で判定
             const isActive =
               item.href === "/admin"
                 ? pathname === "/admin"
@@ -57,7 +94,6 @@ export default function Sidebar({ unreadCount = 0, user }: SidebarProps) {
               >
                 <span>{item.label}</span>
 
-                {/* 未読メッセージ数のバッジ */}
                 {item.badge !== null && item.badge !== undefined && (
                   <span className="badge">
                     {item.badge}

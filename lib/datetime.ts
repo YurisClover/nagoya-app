@@ -12,7 +12,7 @@ function todayInJST(): { y: number; m: number; d: number } {
   return { y: g("year"), m: g("month"), d: g("day") };
 }
 
-/** save date fucntion */
+/** save date function */
 export function nowJST(date = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Tokyo",
@@ -27,10 +27,10 @@ export function nowJST(date = new Date()): string {
 
 /**
 parse date from sheet
- 1) ISO 8601
- 2) "YYYY/M/D ..."
- 3) "M/D (曜日) HH:mm~"
- */
+ 1) ISO 8601
+ 2) "YYYY/M/D ..."
+ 3) "M/D (曜日) HH:mm~"
+ */
 export function parseSheetDate(
   value: string,
   opts: { yearHint?: "current" | "future" | "past" } = {}
@@ -64,49 +64,70 @@ export function parseSheetDate(
   return d;
 }
 
-// YYYY/MM/DD HH:MM ~ HH:MM
+// 2026年8月10日 (月) 10:00～20:00 または 2026年8月10日 (月) 10:00～2026年8月11日 (火) 20:00
 export function formatEventSchedule(
   startRaw: string,
   endRaw?: string,
   opts: { yearHint?: "current" | "future" | "past" } = {}
 ): string {
-  const start = parseSheetDate(startRaw, { yearHint: opts.yearHint ?? "future" });
-  if (!start) return startRaw || "";
+  if (!startRaw) return "";
+
+  let startStr = String(startRaw).trim();
+  let endStr = endRaw ? String(endRaw).trim() : "";
+
+  // 1つのセルの中に「~」または「〜」が含まれている場合、前半と後半に分割
+  if (!endStr && /[〜~～]/.test(startStr)) {
+    const parts = startStr.split(/[〜~～]/);
+    startStr = parts[0].trim();
+    endStr = parts[1]?.trim() ?? "";
+  }
+
+  // 開始日時をパース
+  const start = parseSheetDate(startStr, { yearHint: opts.yearHint ?? "future" });
+  if (!start) return startRaw;
+
   const fp = (d: Date, o: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", ...o }).formatToParts(d);
   const g = (p: Intl.DateTimeFormatPart[], t: string) => p.find((x) => x.type === t)?.value ?? "";
 
-  const dp = fp(start, { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
-  const datePart = `${g(dp, "year")}/${g(dp, "month")}/${g(dp, "day")} (${g(dp, "weekday")})`;
-  if (!/\d{1,2}:\d{2}/.test(String(startRaw))) return datePart; // no time -> display only date
+  // 開始日の日付パーツ取得（例：2026年8月10日 (月)） ※カッコを半角 () に変更
+  const dp = fp(start, { year: "numeric", month: "numeric", day: "numeric", weekday: "short" });
+  const datePart = `${g(dp, "year")}年${g(dp, "month")}月${g(dp, "day")}日 (${g(dp, "weekday")})`;
+
+  // 時間がない場合は日付のみ返す
+  if (!/\d{1,2}:\d{2}/.test(startStr)) return datePart;
 
   const tp = fp(start, { hour: "2-digit", minute: "2-digit", hour12: false });
   let out = `${datePart} ${g(tp, "hour")}:${g(tp, "minute")}`;
 
-  // create end time from "Start date JST"
-  const mkSameDay = (hh: number, mm: number) =>
-    jstInstant(+g(dp, "year"), +g(dp, "month"), +g(dp, "day"), hh, mm);
-
+  // 終了日時を判定
   let end: Date | null = null;
-  const hm = String(endRaw ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
-  if (hm) end = mkSameDay(+hm[1], +hm[2]);
-  else if (endRaw) end = parseSheetDate(endRaw);
-  else {
-    const emb = String(startRaw).match(/\d{1,2}:\d{2}\s*[〜~～]\s*(\d{1,2}):(\d{2})/);
-    if (emb) end = mkSameDay(+emb[1], +emb[2]);
+  if (endStr) {
+    const hm = endStr.match(/^(\d{1,2}):(\d{2})$/);
+    if (hm) {
+      end = jstInstant(+g(dp, "year"), +g(dp, "month"), +g(dp, "day"), +hm[1], +hm[2]);
+    } else {
+      end = parseSheetDate(endStr, { yearHint: opts.yearHint ?? "future" });
+    }
   }
 
   if (end && !isNaN(end.getTime())) {
     const key = (d: Date) => fp(d, { year: "numeric", month: "2-digit", day: "2-digit" }).map((p) => p.value).join("");
     const ep = fp(end, { hour: "2-digit", minute: "2-digit", hour12: false });
-    if (key(start) === key(end)) out += `〜${g(ep, "hour")}:${g(ep, "minute")}`;
-    else {
-      const edp = fp(end, { month: "2-digit", day: "2-digit" });
-      out += `〜${g(edp, "month")}/${g(edp, "day")} ${g(ep, "hour")}:${g(ep, "minute")}`; // if next day
+
+    // 同一日の場合：2026年8月10日 (月) 15:00～20:00
+    if (key(start) === key(end)) {
+      out += `～${g(ep, "hour")}:${g(ep, "minute")}`;
+    } else {
+      // 日をまたぐ場合：2026年8月10日 (月) 9:00～2026年8月11日 (火) 20:00 ※カッコを半角 () に変更
+      const edp = fp(end, { year: "numeric", month: "numeric", day: "numeric", weekday: "short" });
+      const endDatePart = `${g(edp, "year")}年${g(edp, "month")}月${g(edp, "day")}日 (${g(edp, "weekday")})`;
+      out += `～${endDatePart} ${g(ep, "hour")}:${g(ep, "minute")}`;
     }
   } else {
-    out += "〜"; // if start time only
+    out += "～"; // 終了時間が取得できなかった場合
   }
+
   return out;
 }
 
@@ -119,6 +140,46 @@ export function jstYearMonth(date: Date): string {
   return `${g("year")}-${g("month")}`;
 }
 
+/**
+ * ISO形式等の日付文字列を「本日 HH:mm」または「MM月DD日 HH:mm」にフォーマットします
+ */
+export function formatRelativeDateTime(dateStr: string): string {
+  if (!dateStr) return '';
+  const date = parseSheetDate(dateStr);
+  if (!date || isNaN(date.getTime())) return dateStr;
+
+  const today = todayInJST();
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(date);
+
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+  const y = parseInt(g("year"), 10);
+  const m = parseInt(g("month"), 10);
+  const d = parseInt(g("day"), 10);
+  
+  let hour = g("hour");
+  if (hour === "24") hour = "00";
+  const minute = g("minute");
+
+  // 今日の場合
+  if (y === today.y && m === today.m && d === today.d) {
+    return `本日 ${hour}:${minute}`;
+  }
+
+  // 今日より前（過去）の場合：07月31日 15:56 のように2桁揃えで出力
+  const mm = pad(m);
+  const dd = pad(d);
+
+  if (y === today.y) {
+    return `${mm}月${dd}日 ${hour}:${minute}`;
+   } else {
+    return `${y}年${mm}月${dd}日 ${hour}:${minute}`;
+   }
+  }
 /**
  * 管理者イベント一覧用の日時表示。
  *

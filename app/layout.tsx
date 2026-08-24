@@ -27,7 +27,10 @@ export default function RootLayout({
       lang="ja"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {/* アプリ内の全ページで通知を受信・表示するためにここに配置 */}
+        {children}
+      </body>
     </html>
   );
 }
