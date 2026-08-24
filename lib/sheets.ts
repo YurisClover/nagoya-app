@@ -6,7 +6,6 @@ import { nowJST, parseSheetDate, jstYearMonth } from "./datetime";
 import { unstable_cache } from "next/cache";
 import { updateTag } from "next/cache";
 import { sameId } from "@/lib/ids";
-import { field } from "firebase/firestore/pipelines";
 
 export type SheetUser = {
   member_id: string;

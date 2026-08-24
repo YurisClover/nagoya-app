@@ -2,7 +2,6 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { MENU, type MenuItem } from "@/lib/menu";
 import { requireUser } from "@/lib/guards";
-import NotificationInitializer from "@/app/notification/NotificationInitializer";
 import { headers } from "next/headers";
 import UnreadBadge from "@/app/dashboard/UnreadBadge"; // ★ インポートを追加
 import { ROLE_LABELS, UserRole } from "@/types/user";
@@ -73,9 +72,6 @@ export default async function HomePage() {
 
   return (
     <AppShell>
-      {/* ダッシュボード画面でのみ通知初期化を実行 */}
-      <NotificationInitializer />
-
       <section className="card-brand mb-4">
         <p className="text-[15px] font-medium sm:text-lg">{session.user.name} 様</p>
         <p className="mt-1 text-[11px] opacity-80 sm:text-sm">名古屋中支部 {ROLE_LABELS[session.user.role as UserRole]}</p>

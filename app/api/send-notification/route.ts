@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
 import { auth } from '@/auth';
 import dns from 'node:dns';
 import { nowJST } from '@/lib/datetime';
 import crypto from 'crypto';
+import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 // ローカル開発環境（npm run dev）の時だけ IPv4 を優先にし、デプロイ環境（IPv6-Only等）では設定しない
 if (process.env.NODE_ENV === 'development') {
@@ -53,29 +53,13 @@ export async function POST(request: Request) {
     // 3. リクエストボディに型を適用
     const bodyData = (await request.json()) as SendNotificationBody;
 
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
+    const { sheets, spreadsheetId } = getSheetsClient();
 
-    if (!clientEmail || !privateKey || !spreadsheetId) {
-      return NextResponse.json(
-        { success: false, error: 'スプレッドシートの設定（環境変数）が不足しています' },
-        { status: 500 }
-      );
-    }
 
     // 宛先 (recipient_id) の取得
     const rawRecipient = bodyData.recipient_id || bodyData.recipientId || 'all';
 
-    const authClient = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: clientEmail,
-        private_key: privateKey,
-      },
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
 
-    const sheets = google.sheets({ version: 'v4', auth: authClient });
 
     // 4. Users シートを取得してアクティブなユーザーを把握
     const usersRes = await sheets.spreadsheets.values.get({

@@ -1,6 +1,6 @@
 // src/app/api/group-members/route.ts
 import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
+import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 export async function GET(req: Request) {
   try {
@@ -9,19 +9,9 @@ export async function GET(req: Request) {
     const groupName = searchParams.get('groupName');
     const groupIdParam = searchParams.get('groupId');
 
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
+    const { sheets, spreadsheetId } = getSheetsClient(true);
 
-    if (!clientEmail || !privateKey || !spreadsheetId) {
-      return NextResponse.json({ success: false, memberIds: [] }, { status: 500 });
-    }
 
-    const auth = new google.auth.GoogleAuth({
-      credentials: { client_email: clientEmail, private_key: privateKey },
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
 
     let targetGroupId = groupIdParam;
 

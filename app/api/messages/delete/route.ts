@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
 import { auth } from '@/auth';
+import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 // 1. リクエストボディの型を定義
 interface DeleteRequestBody {
@@ -23,20 +23,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'messageId が指定されていません' }, { status: 400 });
     }
 
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = (process.env.FIREBASE_PRIVATE_KEY)?.replace(/\\n/g, '\n');
-    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
+    const { sheets, spreadsheetId } = getSheetsClient();
 
-    if (!clientEmail || !privateKey || !spreadsheetId) {
-      return NextResponse.json({ success: false, error: '環境変数が設定されていません' }, { status: 500 });
-    }
 
-    const authClient = new google.auth.GoogleAuth({
-      credentials: { client_email: clientEmail, private_key: privateKey },
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
 
-    const sheets = google.sheets({ version: 'v4', auth: authClient });
 
     // Messagesシートの全データを取得（A:I列）
     const response = await sheets.spreadsheets.values.get({

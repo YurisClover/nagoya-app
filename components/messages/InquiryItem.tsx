@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { formatRelativeDateTime } from '@/lib/datetime';
 import InlineReplyForm from './InlineReplyForm';
 
@@ -9,6 +9,7 @@ export type ReplyMessage = {
   senderId: string;
   recipientId?: string;
   userName: string;
+  senderName?: string;
   recipientName?: string;
   memberId?: string;
   subject: string;
@@ -91,34 +92,8 @@ export default function InquiryItem({
     : false;
   const hasThreadUnread: boolean = isParentUnread || hasUnreadReplies;
 
-  useEffect(() => {
-    if (!isExpanded) return;
-
-    const unreadReplyIds: string[] = inquiry.replies
-      ?.filter((r: ReplyMessage) => !r.isRead && String(r.senderId).trim() !== String(currentUserId).trim())
-      .map((r: ReplyMessage) => r.id) || [];
-
-    if (isParentUnread || unreadReplyIds.length > 0) {
-      const handleRead = async (): Promise<void> => {
-        try {
-          const res = await fetch('/api/admin/inquiries/read', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              messageId: inquiry.id,
-              replyIds: unreadReplyIds
-            }),
-          });
-          if (res.ok && onMarkAsRead) {
-            await onMarkAsRead(inquiry.id);
-          }
-        } catch (error) {
-          console.error('自動既読処理に失敗しました:', error);
-        }
-      };
-      handleRead();
-    }
-  }, [isExpanded, inquiry, currentUserId, onMarkAsRead, isParentUnread]);
+  // 既読化は親コンポーネント側で toggle 時に行う(InquiryList.handleToggle /
+  // MessagesClient.handleToggle)。共有コンポーネントのここでは行わない。
 
   const handleDelete = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
@@ -168,15 +143,15 @@ export default function InquiryItem({
           </div>
         </div>
 
-        <div className="flex items-center space-x-3 flex-shrink-0">
+        <div className="flex items-center space-x-1.5 sm:space-x-3 flex-shrink-0">
           <div className="flex items-center space-x-1.5">
             {/* バッジは常に表示 */}
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${config.className}`}>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${config.className}`}>
               {config.label}
             </span>
-            {/* ★変更: 管理者名(ID)は管理者にのみ表示する */}
+            {/* ★変更: 管理者名(ID)は管理者にのみ、かつ画面が狭い時は隠す */}
             {isAdmin && inquiry.lastStatusUpdatedBy && (
-              <span className="text-[11px] text-slate-400">
+              <span className="hidden sm:inline text-[11px] text-slate-400">
                 ({inquiry.lastStatusUpdatedBy})
               </span>
             )}
@@ -236,7 +211,7 @@ export default function InquiryItem({
                 <div key={reply.id} className="bg-white border border-slate-200 p-3 rounded-lg text-sm">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs text-slate-900">
-                      {reply.userName || reply.senderId} {isAdmin && reply.memberId ? `(${reply.memberId})` : ''}
+                      {reply.senderName || reply.userName || reply.senderId} {isAdmin && reply.memberId ? `(${reply.memberId})` : ''}
                     </span>
                     <span className="text-[11px] text-slate-400">{formatRelativeDateTime(reply.createdAt)}</span>
                   </div>

@@ -12,6 +12,8 @@ interface SheetUpdateItem {
   values: string[][];
 }
 
+// 既読化: 指定された message_id / reply_id の is_read を true にする。
+// admin 専用の処理ではないため /api/admin ではなく messages 配下に置く。
 export async function POST(req: Request) {
   try {
     const session = await auth();
@@ -28,9 +30,6 @@ export async function POST(req: Request) {
     }
 
     const { sheets, spreadsheetId } = getSheetsClient();
-
-
-
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
@@ -53,8 +52,7 @@ export async function POST(req: Request) {
       const mId = row[idIdx]?.toString().trim();
       if (mId && targetIds.has(mId)) {
         const rowIndex = index + 1;
-        const colLetter = String.fromCharCode(65 + isReadIdx); // F列
-        // F列（is_read）を小文字 'true' に更新
+        const colLetter = String.fromCharCode(65 + isReadIdx);
         updateData.push({
           range: `Messages!${colLetter}${rowIndex}`,
           values: [['true']],

@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import MessageForm from '@/app/admin/messages/admin/messages/MessageForm';
-import InquiryList from '@/app/admin/messages/admin/messages/InquiryList';
-import { ReceivedMessage, MessageStatus } from '@/app/admin/messages/admin/messages/InquiryItem';
+import MessageForm from '@/components/messages/MessageForm';
+import InquiryList from '@/components/messages/InquiryList';
+import { ReceivedMessage, MessageStatus } from '@/components/messages/InquiryItem';
 import { SessionProvider, useSession } from 'next-auth/react';
 
 type Group = {
@@ -53,7 +53,6 @@ function AdminMessageContent() {
 
   const fetchInquiries = useCallback(
     async (isSilent = false) => {
-      if (!isSilent) setIsLoadingInquiries(true);
       try {
         const res = await fetch('/api/admin/inquiries?t=${Date.now()}', { cache: 'no-store' });
         const data = (await res.json()) as { success: boolean; inquiries?: ReceivedMessage[] };
@@ -241,8 +240,8 @@ function AdminMessageContent() {
   });
 
   return (
-    <div className="p-8 max-w-5xl space-y-8">
-      <h2 className="text-2xl font-bold text-slate-900">メッセージ管理</h2>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl space-y-6 sm:space-y-8">
+      <h2 className="text-xl sm:text-2xl font-bold text-slate-900">メッセージ管理</h2>
 
       {/* 送信フォーム */}
       <MessageForm groups={groups} onSuccess={() => fetchInquiries(true)} />

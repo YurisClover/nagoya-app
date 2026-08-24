@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import ContactAdminModal from '@/app/admin/messages/ContactAdminModel';
-import InquiryItem, { ReceivedMessage } from '@/app/admin/messages/admin/messages/InquiryItem';
+import ContactAdminModal from '@/components/messages/ContactAdminModel';
+import InquiryItem, { ReceivedMessage } from '@/components/messages/InquiryItem';
 
 interface MessagesClientProps {
   currentUserId: string;
@@ -92,7 +92,7 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
     if (!isTargetExpanded && hasUnread) {
       try {
         const replyIds = msg.replies?.map((r) => r.id) || [];
-        await fetch('/api/admin/inquiries/read', {
+        await fetch('/api/messages/read', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

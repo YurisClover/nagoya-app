@@ -2,11 +2,18 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 type Group = {
   group_id: string;
   group_name: string;
+};
+
+type MemberOption = {
+  member_id: string;
+  user_name: string;
+  role: string;
+  status: string;
 };
 
 interface MessageFormProps {
@@ -23,11 +30,48 @@ export default function MessageForm({ groups, onSuccess }: MessageFormProps) {
   const [body, setBody] = useState<string>('');
   const [isSending, setIsSending] = useState<boolean>(false);
 
-  const normalizeToEightDigits = (str: string) => {
-    const halfWidth = str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) =>
-      String.fromCharCode(s.charCodeAt(0) - 0xfee0)
-    );
-    return halfWidth.replace(/[^0-9]/g, '').slice(0, 8);
+  // 個人宛先ピッカー用の状態
+  const [members, setMembers] = useState<MemberOption[]>([]);
+  const [memberQuery, setMemberQuery] = useState<string>('');
+  const [showResults, setShowResults] = useState<boolean>(false);
+  const [membersLoaded, setMembersLoaded] = useState<boolean>(false);
+
+  // 個人指定を選んだ時に一度だけ会員一覧を取得する
+  useEffect(() => {
+    if (targetType !== 'individual' || membersLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/members', { cache: 'no-store' });
+        const data = (await res.json()) as { success: boolean; members?: MemberOption[] };
+        if (!cancelled && data.success && Array.isArray(data.members)) {
+          setMembers(data.members);
+          setMembersLoaded(true);
+        }
+      } catch (err) {
+        console.error('会員一覧の取得に失敗しました:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [targetType, membersLoaded]);
+
+  // 氏名・会員IDで絞り込み(前後空白と全角半角の揺れは normalize しないシンプル一致)
+  const q = memberQuery.trim().toLowerCase();
+  const filteredMembers = q
+    ? members
+        .filter(
+          (m) =>
+            m.user_name.toLowerCase().includes(q) || m.member_id.toLowerCase().includes(q)
+        )
+        .slice(0, 8)
+    : [];
+
+  const selectMember = (m: MemberOption) => {
+    setIndividualInput(m.member_id);
+    setMemberQuery(`${m.user_name}（${m.member_id}）`);
+    setShowResults(false);
   };
 
   const isEightDigitMemberId = /^[0-9]{8}$/.test(individualInput);
@@ -54,6 +98,8 @@ export default function MessageForm({ groups, onSuccess }: MessageFormProps) {
     setRawTitle('');
     setBody('');
     setIndividualInput('');
+    setMemberQuery('');
+    setShowResults(false);
     setSelectedGroupId('');
     setSelectedGroupName('');
     onSuccess();
@@ -214,24 +260,61 @@ export default function MessageForm({ groups, onSuccess }: MessageFormProps) {
           )}
 
           {targetType === 'individual' && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">宛先 (会員ID)</label>
+            <div className="relative">
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                宛先を検索（氏名 または 会員ID）
+              </label>
               <input
                 type="text"
-                inputMode="numeric"
-                maxLength={8}
-                placeholder="例: 10001234 (半角数字8桁)"
-                value={individualInput}
-                onChange={(e) => setIndividualInput(normalizeToEightDigits(e.target.value))}
-                className={`w-full p-2.5 bg-slate-50 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 ${
+                placeholder="氏名または会員IDを入力して選択"
+                value={memberQuery}
+                onChange={(e) => {
+                  setMemberQuery(e.target.value);
+                  setShowResults(true);
+                  // 手入力で内容が変わったら、確定済みの宛先IDはいったんクリア
+                  setIndividualInput('');
+                }}
+                onFocus={() => setShowResults(true)}
+                className={`w-full p-2.5 bg-slate-50 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
                   isIndividualError
                     ? 'border-red-400 bg-red-50/50 focus:ring-red-400'
                     : 'border-slate-300 focus:ring-slate-500'
                 }`}
               />
+
+              {/* 絞り込み結果のドロップダウン */}
+              {showResults && q && (
+                <ul className="absolute z-10 mt-1 w-full max-h-60 overflow-auto bg-white border border-slate-200 rounded-lg shadow-lg">
+                  {filteredMembers.length === 0 ? (
+                    <li className="px-3 py-2 text-sm text-slate-400">
+                      {membersLoaded ? '該当する会員が見つかりません' : '読み込み中...'}
+                    </li>
+                  ) : (
+                    filteredMembers.map((m) => (
+                      <li key={m.member_id}>
+                        <button
+                          type="button"
+                          onClick={() => selectMember(m)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between"
+                        >
+                          <span className="font-medium text-slate-800">{m.user_name}</span>
+                          <span className="text-xs text-slate-500 font-mono">{m.member_id}</span>
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              )}
+
+              {/* 確定済みの宛先を表示 */}
+              {isEightDigitMemberId && !showResults && (
+                <p className="text-xs text-green-600 mt-1 font-medium">
+                  宛先: {individualInput}
+                </p>
+              )}
               {isIndividualError && (
                 <p className="text-xs text-red-500 mt-1 font-medium">
-                  ※ 会員IDは半角数字「8桁」で入力してください (現在 {individualInput.length} 桁)
+                  ※ 一覧から会員を選択してください
                 </p>
               )}
             </div>

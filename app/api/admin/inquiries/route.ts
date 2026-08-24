@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
 import { auth } from '@/auth';
+import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 interface SessionUser {
   member_id?: string;
@@ -21,6 +21,7 @@ interface ParsedMessage {
   generalUserId: string;
   userName: string;
   memberId: string;
+  senderName: string;
   recipientName: string;
   subject: string;
   body: string;
@@ -46,20 +47,10 @@ export async function GET(): Promise<NextResponse> {
     }
 
     const myAdminId = String(currentMemberId).trim();
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
+    const { sheets, spreadsheetId } = getSheetsClient(true);
 
-    if (!clientEmail || !privateKey || !spreadsheetId) {
-      return NextResponse.json({ success: false, error: '環境変数が設定されていません' }, { status: 500 });
-    }
 
-    const authClient = new google.auth.GoogleAuth({
-      credentials: { client_email: clientEmail, private_key: privateKey },
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
 
-    const sheets = google.sheets({ version: 'v4', auth: authClient });
 
     const [usersRes, messagesRes] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Users!A1:Z' }),
@@ -155,13 +146,23 @@ export async function GET(): Promise<NextResponse> {
       if (seenMsgIds.has(messageId)) return;
       seenMsgIds.add(messageId);
 
-      const userInfo = userMap[senderId] || { name: senderId || '不明', memberId: senderId };
+      // 表示上の「相手」を決める:
+      //   閲覧者(admin)が送信者なら相手は受信者、そうでなければ送信者。
+      //   これで一斉送信(sender=admin)でも各行に受信者名が出る。
+      const counterpartId = getGeneralUserId(senderId, recipientId);
+      const counterpartInfo = userMap[counterpartId] || { name: counterpartId || '不明', memberId: counterpartId };
+
+      const senderInfo = userMap[senderId] || { name: senderId || '不明', memberId: senderId };
       let recipientName = '不明';
       const rIdLower = recipientId.toLowerCase();
       if (rIdLower === 'all' || rIdLower === '全体') recipientName = '全会員';
       else if (rIdLower === 'admin') recipientName = '事務局';
       else if (userMap[recipientId]) recipientName = userMap[recipientId].name;
       else recipientName = recipientId;
+
+      // 一斉送信(all/全体)は相手が特定の1人ではないので「全会員」をラベルにする
+      const counterpartLabel =
+        rIdLower === 'all' || rIdLower === '全体' ? '全会員' : counterpartInfo.name;
 
       const isReadVal = row[isReadIdx] != null ? String(row[isReadIdx]).trim().toLowerCase() : '';
       let isRead = isReadVal === 'true' || isReadVal === '1' || isReadVal === '既読';
@@ -189,9 +190,10 @@ export async function GET(): Promise<NextResponse> {
         parentId: parentIdVal,
         senderId,
         recipientId,
-        generalUserId: getGeneralUserId(senderId, recipientId),
-        userName: userInfo.name,
-        memberId: userInfo.memberId,
+        generalUserId: counterpartId,
+        userName: counterpartLabel,
+        memberId: counterpartInfo.memberId,
+        senderName: senderInfo.name,
         recipientName,
         subject: subjectVal,
         body: bodyVal,

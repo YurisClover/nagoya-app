@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
 import { auth } from '@/auth';
 import { Session } from 'next-auth';
+import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 type MessageStatus = 'unsupported' | 'pending' | 'closed';
 
@@ -35,20 +35,10 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: false, error: '無効なパラメータです' }, { status: 400 });
     }
 
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
+    const { sheets, spreadsheetId } = getSheetsClient();
 
-    if (!clientEmail || !privateKey || !spreadsheetId) {
-      return NextResponse.json({ success: false, error: '環境変数が設定されていません' }, { status: 500 });
-    }
 
-    const authClient = new google.auth.GoogleAuth({
-      credentials: { client_email: clientEmail, private_key: privateKey },
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
 
-    const sheets = google.sheets({ version: 'v4', auth: authClient });
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: 'Messages!A1:Z',

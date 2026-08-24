@@ -1,25 +1,12 @@
 import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
+import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 export async function GET() {
   try {
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
+    const { sheets, spreadsheetId } = getSheetsClient(true);
 
-    if (!clientEmail || !privateKey || !spreadsheetId) {
-      return NextResponse.json({ success: true, groups: [] });
-    }
 
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: clientEmail,
-        private_key: privateKey,
-      },
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
 
-    const sheets = google.sheets({ version: 'v4', auth });
 
     // Groupsシートから取得
     const res = await sheets.spreadsheets.values.get({
