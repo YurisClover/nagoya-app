@@ -19,6 +19,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
+    if (session.user?.role !== 'admin') {
+      return NextResponse.json({ success: false, error: '権限がありません' }, { status: 403 });
+    }
+
     const bodyData = (await req.json()) as RequestBody;
     const { messageId, replyIds = [] } = bodyData;
     const targetIds = new Set([messageId, ...replyIds].filter((id): id is string => Boolean(id)));

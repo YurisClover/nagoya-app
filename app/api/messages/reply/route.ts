@@ -16,7 +16,6 @@ interface ReplyRequestBody {
   recipientId?: string;
   title?: string;
   body?: string;
-  senderId?: string;
 }
 
 export async function POST(req: Request) {
@@ -33,7 +32,7 @@ export async function POST(req: Request) {
     }
 
     const bodyData = (await req.json()) as ReplyRequestBody;
-    const { parentMessageId, recipientId, title, body, senderId: inputSenderId } = bodyData;
+    const { parentMessageId, recipientId, title, body } = bodyData;
 
     if (!body) {
       return NextResponse.json(
@@ -52,7 +51,8 @@ export async function POST(req: Request) {
     // ★ lib/datetime.ts の nowJST() を使用して日時を生成
     const createdAt = nowJST();
 
-    const senderId = inputSenderId || currentMemberId;
+    // なりすまし防止: sender はリクエストボディではなく必ずセッションから取る
+    const senderId = currentMemberId;
 
     const messagesRes = await sheets.spreadsheets.values.get({
       spreadsheetId,

@@ -15,6 +15,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
+    const memberId = session.user?.id ?? '';
+    const role = session.user?.role ?? '';
+
     // 2. request.json() に型を適用
     const bodyData = (await request.json()) as DeleteRequestBody;
     const { messageId, replyIds } = bodyData;
@@ -46,9 +49,14 @@ export async function POST(request: Request) {
     let deleteFlagIdx = headers.findIndex((h) => h === 'delete_flag' || h === 'deleteflag');
     let parentIdIdx = headers.findIndex((h) => h === 'parent_id' || h === 'parentid' || h === 'parent');
 
+    let senderIdx = headers.findIndex((h) => h === 'sender_id' || h === 'senderid' || h === 'sender');
+    let recipientIdx = headers.findIndex((h) => h === 'recipient_id' || h === 'recipientid' || h === 'recipient');
+
     if (idIdx === -1) idIdx = 0; // A列
     if (deleteFlagIdx === -1) deleteFlagIdx = 7; // H列 (index 7)
     if (parentIdIdx === -1) parentIdIdx = 8; // I列 (index 8)
+    if (senderIdx === -1) senderIdx = 1; // B列
+    if (recipientIdx === -1) recipientIdx = 2; // C列
 
     const colLetter = String.fromCharCode(65 + deleteFlagIdx);
 
@@ -79,6 +87,14 @@ export async function POST(request: Request) {
     for (let i = 1; i < rows.length; i++) {
       const currentId = rows[i][idIdx]?.toString().trim();
       if (currentId && targetIds.has(currentId)) {
+        // 所有チェック: admin は全行、一般会員は自分が当事者の行のみ削除できる
+        // (UUID を知っているだけでは他人のメッセージを消せない)。
+        const rowSender = rows[i][senderIdx]?.toString().trim() ?? '';
+        const rowRecipient = rows[i][recipientIdx]?.toString().trim() ?? '';
+        const canDelete =
+          role === 'admin' || rowSender === memberId || rowRecipient === memberId;
+        if (!canDelete) continue;
+
         const rowIndex = i + 1; // スプレッドシートの行番号（1始まり）
         
         // H列（delete_flag）を 'true' に更新

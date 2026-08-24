@@ -24,6 +24,10 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
+    if (session.user?.role !== 'admin') {
+      return NextResponse.json({ success: false, error: '権限がありません' }, { status: 403 });
+    }
+
     const user = session.user as SessionUser | undefined;
     const updaterId: string = user?.member_id || user?.id || '管理者';
 

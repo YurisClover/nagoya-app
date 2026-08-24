@@ -15,6 +15,11 @@ export async function GET() {
       return NextResponse.json({ success: true, count: 0 });
     }
 
+    // 事務局の未読件数は admin 専用情報
+    if (session.user?.role !== 'admin') {
+      return NextResponse.json({ success: false, count: 0, error: '権限がありません' }, { status: 403 });
+    }
+
     // 2. Google API 認証情報の確認
     const { sheets, spreadsheetId } = getSheetsClient(true);
 

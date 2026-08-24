@@ -81,7 +81,8 @@ export async function GET() {
     if (uNameIdx === -1) uNameIdx = 1;
 
     const userNameMap = new Map<string, string>();
-    const adminMemberIds = new Set<string>(["admin", "10001234"]);
+    // 'admin' リテラルのみ。admin 会員IDのハードコードはしない(role 列から動的に集める)。
+    const adminMemberIds = new Set<string>(["admin"]);
 
     userRows.slice(1).forEach((row) => {
       const mId = row[uMemberIdIdx]?.toString().trim();
@@ -97,7 +98,9 @@ export async function GET() {
     });
 
     const myUserId = String(currentMemberId).trim();
-    const isMySelfAdmin = adminMemberIds.has(myUserId.toLowerCase());
+    // 自分が admin かどうかはセッションの role を第一に信頼する
+    const isMySelfAdmin =
+      session.user?.role === "admin" || adminMemberIds.has(myUserId.toLowerCase());
 
     // Messages ヘッダーの列位置を取得
     const msgHeaders = messageRows[0].map((h) => h.toLowerCase().replace(/[_-\s]/g, "").trim());

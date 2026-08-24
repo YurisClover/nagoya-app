@@ -46,6 +46,13 @@ export async function GET(): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: '認証されていません' }, { status: 401 });
     }
 
+    // この一覧は事務局(admin)専用。ここを開けると全会員の問い合わせが
+    // 一般会員から読めてしまうため、role で必ず遮断する。
+
+    if (session.user?.role !== 'admin') {
+      return NextResponse.json({ success: false, error: '権限がありません' }, { status: 403 });
+    }
+
     const myAdminId = String(currentMemberId).trim();
     const { sheets, spreadsheetId } = getSheetsClient(true);
 
@@ -70,7 +77,9 @@ export async function GET(): Promise<NextResponse> {
     if (uNameIdx === -1) uNameIdx = 1;
 
     const userMap: Record<string, { name: string; memberId: string }> = {};
-    const adminMemberIds = new Set<string>(['admin', '10001234', myAdminId.toLowerCase()]);
+    // 'admin' リテラル宛てのみ初期登録。admin の会員IDは Users シートの role 列から
+    // 動的に集める(IDのハードコード禁止)。呼び出し元は上で role 検証済み。
+    const adminMemberIds = new Set<string>(['admin']);
 
     userRows.slice(1).forEach((row: unknown[]) => {
       const mId = row[uMemberIdIdx] != null ? String(row[uMemberIdIdx]).trim() : '';
@@ -124,7 +133,9 @@ export async function GET(): Promise<NextResponse> {
       return isNaN(t) ? 0 : t;
     };
 
-    const isAdmin = (id: string): boolean => adminMemberIds.has((id || '').toLowerCase());
+    const isAdmin = (id: string): boolean =>
+      adminMemberIds.has((id || '').toLowerCase()) ||
+      (id || '').toLowerCase() === myAdminId.toLowerCase();
     const getGeneralUserId = (senderId: string, recipientId: string): string => isAdmin(senderId) ? recipientId : senderId;
 
     const allParsedMessages: ParsedMessage[] = [];

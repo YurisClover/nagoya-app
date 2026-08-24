@@ -166,7 +166,7 @@ function AdminMessageContent() {
     notifyUnreadCountChange(remainingUnread);
 
     try {
-      await fetch('/api/admin/inquiries/read', {
+      await fetch('/api/messages/read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

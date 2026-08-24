@@ -1,9 +1,19 @@
 // src/app/api/group-members/route.ts
 import { NextResponse } from 'next/server';
+import { getApiUser } from '@/lib/guards';
 import { getSheetsClient } from "@/lib/sheets/googleapis";
 
 export async function GET(req: Request) {
   try {
+    // グループ所属の会員IDリストは個人情報。未ログイン/一般会員には返さない。
+    const apiUser = await getApiUser();
+    if (!apiUser) {
+      return NextResponse.json({ success: false, memberIds: [], error: '認証されていません' }, { status: 401 });
+    }
+    if (apiUser.role !== 'admin') {
+      return NextResponse.json({ success: false, memberIds: [], error: '権限がありません' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     // group_name または group_id を受け取る
     const groupName = searchParams.get('groupName');

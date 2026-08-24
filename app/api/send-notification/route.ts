@@ -59,6 +59,15 @@ export async function POST(request: Request) {
     // 宛先 (recipient_id) の取得
     const rawRecipient = bodyData.recipient_id || bodyData.recipientId || 'all';
 
+    // 権限ルール: 一般会員が送れる宛先は「事務局(admin)」のみ。
+    // 全会員 / グループ / 個人宛ては admin 専用(会員が全員へ一斉送信できてしまうのを防ぐ)。
+    if (rawRecipient !== 'admin' && session.user?.role !== 'admin') {
+      return NextResponse.json(
+        { success: false, error: '一般会員が送信できる宛先は事務局のみです' },
+        { status: 403 }
+      );
+    }
+
 
 
     // 4. Users シートを取得してアクティブなユーザーを把握
