@@ -79,13 +79,13 @@ export default function SearchFilters({
         />
       </div>
 
-      {/* 役職フィルター */}
+      {/* 権限フィルター */}
       <select
         value={initialRole}
         onChange={(e) => updateParams("role", e.target.value)}
         className="px-3 py-2 border rounded text-sm focus:outline-none bg-white"
       >
-        <option value="all">全ての役職</option>
+        <option value="all">全ての権限</option>
         <option value="general">一般会員</option>
         <option value="executive">執行部</option>
         <option value="admin">管理者</option>
