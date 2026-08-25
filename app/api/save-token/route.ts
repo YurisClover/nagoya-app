@@ -1,113 +1,126 @@
-import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
-import { auth } from '@/auth'; 
-import { nowJST } from '@/lib/datetime'; // ★ nowJST をインポート
+import { NextResponse } from "next/server";
+import { getApiUser } from "@/lib/guards";
+import { getSheetsClient } from "@/lib/sheets/googleapis";
 
-// 1. リクエストボディの型を定義
-interface SaveTokenRequestBody {
-  token?: string;
-  email?: string;
-}
+interface SaveTokenRequestBody { token?: string;}
+function columnIndexToLetter(index: number): string {
+  let n = index + 1;
+  let result = "";
 
-// 2. Googleサービスアカウント情報の型を定義
-interface GoogleCredentials {
-  client_email?: string;
-  private_key?: string;
-  [key: string]: unknown;
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+  return result;
 }
 
 export async function POST(request: Request) {
   try {
-    // 3. request.json() に型を適用
+    const apiUser = await getApiUser();
+    if (!apiUser) {
+      return NextResponse.json(
+        { success: false, error: "認証されていません" },
+        { status: 401 }
+      );
+    }
+
     const body = (await request.json()) as SaveTokenRequestBody;
-    const { token, email: clientEmail } = body;
-
+    const token = body.token?.trim();
     if (!token) {
-      return NextResponse.json({ success: false, error: 'Token is missing' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Token is missing" },
+        { status: 400 }
+      );
     }
 
-    const session = await auth();
-    const userEmail = session?.user?.email || clientEmail;
-
-    if (!userEmail) {
-      return NextResponse.json({ success: false, error: 'Unauthorized: Email not found' }, { status: 401 });
-    }
-
-    const base64Key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-    if (!base64Key) {
-      return NextResponse.json({ success: false, error: 'GOOGLE_SERVICE_ACCOUNT_KEY is missing' }, { status: 500 });
-    }
-
-    // Base64デコードしてJSONオブジェクトに変換し、型を適用
-    const decodedJson = Buffer.from(base64Key.trim(), 'base64').toString('utf8');
-    const credentials = JSON.parse(decodedJson) as GoogleCredentials;
-
-    if (!credentials.client_email || !credentials.private_key) {
-      return NextResponse.json({ success: false, error: 'Invalid service account JSON structure' }, { status: 500 });
-    }
-
-    const authGoogle = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: credentials.client_email,
-        private_key: credentials.private_key,
-      },
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-
-    const sheets = google.sheets({ version: 'v4', auth: authGoogle });
-    const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
-
-    // Users シートから全データを取得
+    const { sheets, spreadsheetId } = getSheetsClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Users!A:K',
+      range: "Users!A1:Z",
     });
 
-    // 4. APIの戻り値を string[][] 型として明示
-    const rows = (response.data.values as string[][]) || [];
-    
+    const rows = (response.data.values || []) as string[][];
     if (rows.length === 0) {
-      return NextResponse.json({ success: false, error: 'Users sheet data is empty' }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: "Users sheet data is empty" },
+        { status: 404 }
+      );
     }
 
-    // ユーザー検索 (D列: index 3)
-    let targetRowIndex = -1;
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      if (row && row.length > 3 && row[3] === userEmail) {
-        targetRowIndex = i + 1;
-        break;
-      }
+    const headers = rows[0].map((header) => String(header).toLowerCase().trim() );
+    const memberIdIdx = headers.findIndex(
+      (header) => header === "member_id" || header === "id" || header === "memberid"
+    );
+
+    const fcmTokenIdx = headers.findIndex( (header) => header === "fcm_token" );
+    if (memberIdIdx === -1 || fcmTokenIdx === -1) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Usersシートに member_id または fcm_token 列が見つかりません",
+        },
+        { status: 400 }
+      );
     }
 
-    if (targetRowIndex === -1) {
-      return NextResponse.json({ success: false, error: `User email (${userEmail}) not found in Users sheet` }, { status: 404 });
+    const rowIndex = rows.findIndex(
+      (row, index) => index > 0 && String(row[memberIdIdx] ?? "").trim() === apiUser.memberId
+    );
+    if (rowIndex === -1) {
+      return NextResponse.json(
+        { success: false, error: "ログインユーザーがUsersシートに見つかりません" },
+        { status: 404 }
+      );
     }
 
-    const currentRow = [...rows[targetRowIndex - 1]];
-    while (currentRow.length < 11) {
-      currentRow.push('');
-    }
+    // const fcmTokenColumn = columnIndexToLetter(fcmTokenIdx);
+    // const cellRange = `Users!${fcmTokenColumn}${rowIndex + 1}`;
 
-    currentRow[6] = token;                // G列: fcm_token
-    currentRow[8] = nowJST();             // I列: updated_at (JST形式で保存)
+    // // fcm_token のセルだけ更新する。
+    // // 名前・role・status・updated_at 等の既存データには触れない。
+    // await sheets.spreadsheets.values.update({
+    //   spreadsheetId,
+    //   range: cellRange,
+    //   valueInputOption: "RAW",
+    //   requestBody: { values: [[token]], },
+    // });
+    const fcmTokenColumn = columnIndexToLetter(fcmTokenIdx);
+    const cellRange = `Users!${fcmTokenColumn}${rowIndex + 1}`;
+    const duplicateTokenRows = rows .map((row, index) => ({ row, index })) .filter(
+    ({ row, index }) =>
+      index > 0 &&
+      index !== rowIndex &&
+      String(row[fcmTokenIdx] ?? "").trim() === token
+  );
 
-    // Users シートへ書き戻し
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `Users!A${targetRowIndex}:K${targetRowIndex}`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [currentRow],
-      },
+const updateData = [
+  ...duplicateTokenRows.map(({ index }) => ({
+    range: `Users!${fcmTokenColumn}${index + 1}`,
+    values: [[""]],
+  })),
+  {
+    range: cellRange,
+    values: [[token]],
+  },
+];
+
+await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: {
+    valueInputOption: "RAW",
+    data: updateData,
+  },
+});
+
+    return NextResponse.json({
+      success: true,
+      message: "FCM token saved successfully",
     });
-
-    return NextResponse.json({ success: true, message: 'FCM token saved successfully' });
-
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('=== SAVE TOKEN ERROR ===', errorMessage);
-    
-    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
+    console.error("=== SAVE TOKEN ERROR ===", errorMessage);
+    return NextResponse.json(
+      { success: false, error: errorMessage },
+      { status: 500 }
+    );
   }
 }

@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import AppHeader from "./AppHeader";
 import AppNav from "./AppNav";
+import NotificationInitializer from "@/app/notification/NotificationInitializer";
 
 /** user frame = theme bg + header + nav tab + content */
 export default async function AppShell({ children }: { children: React.ReactNode }) {
@@ -10,6 +11,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
   return (
     // theme-body = bg/font theme (move from body → no duplicate)
     <div className="theme-body min-h-screen">
+      <NotificationInitializer />
       <div className="app-frame">
         <AppHeader />
         <AppNav isAdmin={isAdmin} />

@@ -16,11 +16,11 @@ type ToastData = {
 };
 
 // ログイン中の会員情報の型（プロジェクトに合わせて調整してください）
-type UserProfile = {
-  member_id: string;      // 例: "10001235"
-  group_id?: string;      // 例: "GRP_001" (所属なしの場合は null/undefined)
-  is_executive?: boolean; // 執行部かどうか (true/false)
-};
+// type UserProfile = {
+//   member_id: string;      // 例: "10001235"
+//   group_id?: string;      // 例: "GRP_001" (所属なしの場合は null/undefined)
+//   is_executive?: boolean; // 執行部かどうか (true/false)
+// };
 
 // ==========================================
 // メインコンポーネント
@@ -35,6 +35,7 @@ export default function NotificationInitializer() {
 
   useEffect(() => {
     // 既に初期化済みの場合は何もしない（2回実行防止）
+    //if (process.env.NODE_ENV === "development") return;
     if (initialized.current) return;
     initialized.current = true;
 
@@ -70,7 +71,13 @@ export default function NotificationInitializer() {
         // --------------------------------------------------
         // [Step 4] Service Worker の登録と Messaging の確認
         // --------------------------------------------------
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        //const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        const serviceWorkerUrl = process.env.NODE_ENV === "development"
+         ? "/api/firebase-messaging-sw-dev"
+         : "/firebase-messaging-sw.js";
+        const registration = await navigator.serviceWorker.register( serviceWorkerUrl,{ scope: "/",
+            },
+           );
         await navigator.serviceWorker.ready;
 
         // ★ 修正: インポートした messaging が null じゃないか（ブラウザ対応しているか）チェック
@@ -85,8 +92,10 @@ export default function NotificationInitializer() {
         onMessage(messaging, (payload) => {
           console.log('🔔 アプリ起動中に新しい通知を受信しました:', payload);
 
-          const title = payload.notification?.title || '新着メッセージ';
-          const body = payload.notification?.body || '';
+          // const title = payload.notification?.title || '新着メッセージ';
+          // const body = payload.notification?.body || '';
+          const title = payload.data?.title || payload.notification?.title || '新着メッセージ';
+          const body = payload.data?.body || payload.notification?.body || '';
           const url = payload.data?.url || '/';
 
           // 画面にトースト（ポップアップ）を表示し、5秒後に自動で消す
@@ -110,39 +119,37 @@ export default function NotificationInitializer() {
         // --------------------------------------------------
         // [Step 7] トピック登録（全会員・個人・グループなど）
         // --------------------------------------------------
-        try {
-          const storedUser = localStorage.getItem('user_profile');
-          const currentUser: UserProfile | null = storedUser ? JSON.parse(storedUser) : null;
-          const topicsToSubscribe: string[] = ['all'];
+        // try {
+        //   const storedUser = localStorage.getItem('user_profile');
+        //   const currentUser: UserProfile | null = storedUser ? JSON.parse(storedUser) : null;
+        //   const topicsToSubscribe: string[] = ['all'];
 
-          if (currentUser) {
-            if (currentUser.member_id)  topicsToSubscribe.push(currentUser.member_id);
-            if (currentUser.group_id)   topicsToSubscribe.push(currentUser.group_id);
-            if (currentUser.is_executive) topicsToSubscribe.push('executive');
-          }
+        //   if (currentUser) {
+        //     if (currentUser.member_id)  topicsToSubscribe.push(currentUser.member_id);
+        //     if (currentUser.group_id)   topicsToSubscribe.push(currentUser.group_id);
+        //     if (currentUser.is_executive) topicsToSubscribe.push('executive');
+        //   }
 
-          for (const topic of topicsToSubscribe) {
-            await fetch('/api/subscribe', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ token, topic }),
-            });
-          }
-          console.log('✅ トピックの登録が完了しました:', topicsToSubscribe);
-        } catch (e) {
-          console.error('❌ トピック登録中にエラーが発生しました:', e);
-        }
+        //   for (const topic of topicsToSubscribe) {
+        //     await fetch('/api/subscribe', {
+        //       method: 'POST',
+        //       headers: { 'Content-Type': 'application/json' },
+        //       body: JSON.stringify({ token, topic }),
+        //     });
+        //   }
+        //   console.log('✅ トピックの登録が完了しました:', topicsToSubscribe);
+        // } catch (e) {
+        //   console.error('❌ トピック登録中にエラーが発生しました:', e);
+        // }
 
         // --------------------------------------------------
-        // [Step 8] 取得したトークンをサーバーへ保存
+        // [Step 7] 取得したトークンをサーバーへ保存
         // --------------------------------------------------
         const savedToken = localStorage.getItem('fcm_token');
         if (savedToken === token) {
-          console.log('ℹ️ トークンは既に保存されているため、サーバーへの送信をスキップします。');
-          return;
-        }
-
-        console.log('🔑 新しいデバイストークンを取得しました:', token);
+        console.log(':インフォメーション: トークンは既に保存されているため、サーバーへの送信をスキップします。');
+          }else {
+           console.log(':鍵: 新しいデバイストークンを取得しました:', token);}
 
         const res = await fetch('/api/save-token', {
           method: 'POST',
