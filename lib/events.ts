@@ -11,7 +11,8 @@ import {
   toEventStatus,
   type EventPosition,
 } from "@/types/event";
-import { parseSheetDate } from "./datetime";
+import { nowJST, parseSheetDate } from "./datetime";
+import { compareByNearestStart } from "./event-order";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID || "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
@@ -40,11 +41,6 @@ function resolveMemberIdHeader(headers: string[]): string | null {
 }
 
 /** event_id → newest */
-function eventIdNum(e: { event_id: string }): number {
-  const n = Number(e.event_id);
-  return Number.isFinite(n) ? n : -Infinity;
-}
-
 /** event sheet name: response_sheet first, if no fallback to title */
 function resolveSheetName(row: { get: (k: string) => unknown }): string {
   const explicit = String(row.get("response_sheet") ?? "").trim();
@@ -94,7 +90,8 @@ async function loadSnapshot(): Promise<Snapshot> {
         .toLowerCase(),
     }))
     .filter((e) => !["true", "1", "yes"].includes(e._deleted)) // soft delete (is_deleted)
-    .sort((a, b) => eventIdNum(b) - eventIdNum(a));
+    // 並び順は共通ロジックに集約(lib/event-order.ts 参照)
+    .sort(compareByNearestStart(nowJST().slice(0, 10)));
 
   return {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
