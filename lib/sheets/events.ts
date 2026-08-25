@@ -162,7 +162,10 @@ export async function addEventToSheet(
       created_by: createdEvent.created_by,
       created_at: createdEvent.created_at,
       registration_count: createdEvent.registration_count,
-      is_deleted: createdEvent.is_deleted,
+      // raw:true(そのまま保存)モードでは boolean を渡すと「FALSE という文字列」に
+      // なり、シート上で 'FALSE(先頭アポストロフィ)表示になる。他シート
+      // (Messages の delete_flag 等)と同じ小文字の文字列で統一する。
+      is_deleted: createdEvent.is_deleted ? "true" : "false",
       prefill_url_template: createdEvent.prefill_url_template,
     },
     {
@@ -314,7 +317,8 @@ export async function softDeleteEvent(
    */
   await makeGoogleFormPrivate(formId);
   eventRow.set("status", "draft");
-  eventRow.set("is_deleted", true);
+  // 他シートと同じ小文字文字列で統一(boolean を raw 保存すると 'TRUE 表示になる)
+  eventRow.set("is_deleted", "true");
   await eventRow.save({ raw: true });
   return mapEventRow(eventRow);
 }
