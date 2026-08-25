@@ -75,7 +75,7 @@ export default async function HomePage() {
       <section className="card-brand mb-4">
         <p className="text-[15px] font-medium sm:text-lg">{session.user.name} 様</p>
         <p className="mt-1 text-[11px] opacity-80 sm:text-sm">名古屋中支部 {ROLE_LABELS[session.user.role as UserRole]}</p>
-        <span className="chip mt-2">会員番号：{session.user.id}</span>
+        <span className="chip mt-2">会員ID：{session.user.id}</span>
       </section>
 
       <h2 className="section-title">メニュー</h2>

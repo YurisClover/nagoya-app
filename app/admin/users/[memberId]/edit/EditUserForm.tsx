@@ -39,7 +39,7 @@ export default function EditUserForm({
 
       <form action={formAction} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1">会員番号</label>
+          <label className="block text-sm font-medium mb-1">会員ID</label>
           <input
             type="text"
             value={member.member_id}
