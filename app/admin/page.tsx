@@ -20,8 +20,8 @@ export default async function AdminHomePage() {
 
   return (
     <main className="space-y-6">
-      <div className="mb-4 flex item-center justify-between">
-        <div className="text-xl font-bold">ダッシュボード</div>
+      <div className="flex items-center justify-between border-b border-line pb-4">
+        <h1 className="text-2xl font-bold">ダッシュボード</h1>
         <RefreshButton />
       </div>
 

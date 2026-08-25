@@ -33,7 +33,7 @@ export default function EventsClient({ role }: { role?: string }) {
 
   return (
     <div className="page-container">
-      <h1 className="mb-4 text-lg font-bold">イベント案内一覧</h1>
+      <h1 className="mb-4 text-lg font-bold">イベント一覧</h1>
 
       {canSwitchPosition && (
         <div className="mb-4 flex gap-2">

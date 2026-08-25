@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { CalendarDays, MapPin } from "lucide-react";
 import { formatEventPeriod } from "@/lib/datetime";
 import type {
   EventPosition,
@@ -481,16 +482,17 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
                     )}
                   </div>
                 </div>               
-                  <p className="mt-2 truncate text-sm text-ink-muted">
+                  <p className="mt-2 flex items-center gap-1.5 truncate text-sm text-ink-muted">
+                  <CalendarDays size={14} className="shrink-0" />
                   {formatEventPeriod(
                     event.event_date,
                     event.event_end_date,
                   )}
                 </p>
 
-                <p className="mt-1 truncate text-sm text-ink-muted">
-                  開催場所：
-                  <span className="font-medium">
+                <p className="mt-1 flex items-center gap-1.5 truncate text-sm text-ink-muted">
+                  <MapPin size={14} className="shrink-0" />
+                  <span className="truncate font-medium">
                     {event.location || "未設定"}
                   </span>
                 </p>

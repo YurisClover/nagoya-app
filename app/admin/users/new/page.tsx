@@ -48,7 +48,7 @@ export default function NewUserPage() {
         </div>
 
         <div>
-          <label className="field-label">役職</label>
+          <label className="field-label">権限</label>
           <select name="role" defaultValue="general" className="field-input bg-surface">
             <option value="general">一般会員 (general)</option>
             <option value="executive">執行部 (executive)</option>

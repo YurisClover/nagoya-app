@@ -29,7 +29,7 @@ export default async function BarcodePage() {
         <div className="card space-y-4">
           <dl className="space-y-3 text-sm">
             <InfoRow label="氏名" value={userName} />
-            <InfoRow label="会員番号" value={memberId || "—"} />
+            <InfoRow label="会員ID" value={memberId || "—"} />
             <InfoRow label="所属支部" value={BRANCH_NAME} />
           </dl>
 
@@ -37,7 +37,7 @@ export default async function BarcodePage() {
             {memberId ? (
               <MemberBarcode memberId={memberId} />
             ) : (
-              <p className="text-center text-sm text-ink-muted">会員番号が登録されていません</p>
+              <p className="text-center text-sm text-ink-muted">会員IDが登録されていません</p>
             )}
           </div>
 

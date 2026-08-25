@@ -11,12 +11,17 @@ import {
   toEventStatus,
   type EventPosition,
 } from "@/types/event";
-import { parseSheetDate } from "./datetime";
+import { nowJST, parseSheetDate } from "./datetime";
+import { compareByNearestStart, isEventFinished } from "./event-order";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID || "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
 const TTL_MS = 60_000;
 
+// ⚠️ 置換禁止: ここは「実際の Google フォームの質問文 / Answers シートの見出し」と
+// 一致させるための文字列。UI ラベルを「会員ID」に統一しても、既存フォームの
+// 質問文は「会員番号〜」のまま残るため、旧表記のパターンを消すと回答と会員の
+// 紐付けができなくなり、回答一覧に名前が出なくなる。両表記とも必ず残すこと。
 const MEMBER_ID_HEADERS = [
   "会員IDをご記入ください。",
   "会員番号をご記入ください。",
@@ -36,11 +41,6 @@ function resolveMemberIdHeader(headers: string[]): string | null {
 }
 
 /** event_id → newest */
-function eventIdNum(e: { event_id: string }): number {
-  const n = Number(e.event_id);
-  return Number.isFinite(n) ? n : -Infinity;
-}
-
 /** event sheet name: response_sheet first, if no fallback to title */
 function resolveSheetName(row: { get: (k: string) => unknown }): string {
   const explicit = String(row.get("response_sheet") ?? "").trim();
@@ -70,6 +70,7 @@ async function getDoc() {
 async function loadSnapshot(): Promise<Snapshot> {
   const doc = await getDoc();
   const eventRows = await doc.sheetsByTitle["Events"].getRows();
+  const todayJst = nowJST().slice(0, 10);
 
   const upcoming = eventRows
     .map((row, index) => ({
@@ -90,7 +91,11 @@ async function loadSnapshot(): Promise<Snapshot> {
         .toLowerCase(),
     }))
     .filter((e) => !["true", "1", "yes"].includes(e._deleted)) // soft delete (is_deleted)
-    .sort((a, b) => eventIdNum(b) - eventIdNum(a));
+    // 会員側では終了済みイベントを非表示にする(admin 側は全件表示のまま)。
+    // ここで隠すため、終了済みイベントのフォームページも notFound になる。
+    .filter((e) => !isEventFinished(e, todayJst))
+    // 並び順は共通ロジックに集約(lib/event-order.ts 参照)
+    .sort(compareByNearestStart(todayJst));
 
   return {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

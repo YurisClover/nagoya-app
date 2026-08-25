@@ -156,7 +156,8 @@ export async function POST(request: Request) {
 
     // 6. 対象メンバーそれぞれに対して1件ずつメッセージ行を作成（A〜I列の完全対応）
     const rowsToAppend = targetMemberIds.map((recipientMemberId) => {
-      const isRead = String(targetSenderId).trim() === String(recipientMemberId).trim() ? 'true' : 'false';
+      // boolean のまま渡す(RAW + boolean = 素の TRUE/FALSE セル。文字列だと 'true 表示になる)
+      const isRead = String(targetSenderId).trim() === String(recipientMemberId).trim();
 
       return [
         crypto.randomUUID(),          // A: message_id (UUID)
@@ -164,15 +165,18 @@ export async function POST(request: Request) {
         recipientMemberId,            // C: recipient_id (受信者の member_id または 'admin')
         bodyData.title || '',         // D: subject (title)
         bodyData.body || '',          // E: body
-        isRead,                       // F: is_read
+        isRead,                       // F: is_read(直後に boolean セル化する — 下記参照)
         createdAt,                    // G: created_at (nowJST())
-        'false',                      // H: delete_flag
+        false,                        // H: delete_flag(直後に boolean セル化する — 下記参照)
         parentId,                     // I: parent_id
       ];
     });
 
     // 7. Messagesシートに一括保存
-    await sheets.spreadsheets.values.append({
+    // 行全体は RAW で追加する(USER_ENTERED だと G列の日時文字列が date serial に
+    // 変換され読み取りが壊れる)。RAW では boolean も 'TRUE という文字列になるため、
+    // 追加直後に F/H 列だけ USER_ENTERED で上書きして boolean セル化する。
+    const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: 'Messages!A:I',
       valueInputOption: 'RAW', 
@@ -181,6 +185,7 @@ export async function POST(request: Request) {
       },
     });
 
+<<<<<<< HEAD
 // ----------------------------------------------------
 // 8. FCMプッシュ通知
 // メッセージ保存とは独立させ、通知失敗で既存の送信処理を失敗させない
@@ -231,6 +236,32 @@ try {
   // Push通知が失敗してもMessages保存は成功扱いにする
   console.error('FCM通知送信エラー:', notificationError);
 }
+=======
+    // F(is_read)/H(delete_flag)を boolean セルに変換。失敗しても文字列の
+    // 'TRUE/'FALSE が残るだけで読み取り側は動くため、警告に留める。
+    try {
+      const updatedRange = appendResult.data.updates?.updatedRange ?? '';
+      const rangeMatch = updatedRange.match(/!([A-Z]+)(\d+):[A-Z]+(\d+)$/);
+      if (rangeMatch) {
+        const startRow = Number(rangeMatch[2]);
+        const endRow = Number(rangeMatch[3]);
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            valueInputOption: 'USER_ENTERED',
+            data: [
+              // 列位置は上の rowsToAppend の並び(A〜I)に対応
+              { range: `Messages!F${startRow}:F${endRow}`, values: rowsToAppend.map((r) => [r[5] ? 'TRUE' : 'FALSE']) },
+              { range: `Messages!H${startRow}:H${endRow}`, values: rowsToAppend.map((r) => [r[7] ? 'TRUE' : 'FALSE']) },
+            ],
+          },
+        });
+      }
+    } catch (flagError) {
+      console.warn('is_read/delete_flag の boolean セル化に失敗しました(表示のみの問題):', flagError);
+    }
+
+>>>>>>> develop
     return NextResponse.json({
       success: true,
       savedCount: rowsToAppend.length,

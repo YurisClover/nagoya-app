@@ -8,7 +8,7 @@ export default async function NewGroupPage() {
   const allUsers = await getCachedMembers();
 
   return (
-    <div className="p-6">
+    <div>
       <GroupForm allUsers={allUsers} action={createGroupAction} />
     </div>
   );

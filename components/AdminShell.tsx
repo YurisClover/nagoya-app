@@ -41,9 +41,11 @@ export default function AdminShell({
           <span className="text-sm font-bold">管理画面</span>
         </header>
 
-        {/* every admin pages are in same container (same size and position) */}
+        {/* every admin pages are in same container (same size and position).
+            余白(インセット)はここ1か所で管理する — 各ページ側では p-* や max-w-* を
+            重ねないこと(二重インセットの原因になる) */}
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-6xl p-4 sm:p-6">{children}</div>
+          <div className="mx-auto w-full max-w-6xl p-6 sm:p-10 lg:p-12">{children}</div>
         </main>
       </div>
     </div>

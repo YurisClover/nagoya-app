@@ -126,56 +126,60 @@ export default function InquiryItem({
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-2">
-              <span className="font-bold text-base text-slate-900 leading-tight truncate">
-                {inquiry.userName}
-              </span>
-              {/* 一般ユーザー側には相手のIDを見せないようにする場合、ここも isAdmin で囲むことができます */}
-              {inquiry.memberId && (
-                <span className="text-xs text-slate-500 font-medium shrink-0">({inquiry.memberId})</span>
-              )}
-            </div>
+            {/* 会員IDは一覧の行には出さない — ID側が shrink-0 のため
+                狭い画面で名前が潰れて読めなくなる。admin には展開時に表示する */}
+            <p className="font-bold text-base text-slate-900 leading-tight truncate">
+              {inquiry.userName}
+            </p>
             <p className={`text-sm mt-0.5 truncate ${hasThreadUnread ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
               {inquiry.subject}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-1.5 sm:space-x-3 flex-shrink-0">
-          <div className="flex items-center space-x-1.5">
-            {/* バッジは常に表示 */}
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${config.className}`}>
-              {config.label}
-            </span>
-            {/* ★変更: 管理者名(ID)は管理者にのみ、かつ画面が狭い時は隠す */}
+        {/* 右側は縦2段に積む: 上段=バッジ+削除ボタン / 下段=日時。
+            横1列に3つ並べると幅が「合計」になり名前を圧迫するが、
+            縦積みなら幅は「一番広い1つ分」で済む */}
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1">
+            {/* ステータス変更者IDは admin のみ・広い画面のみ */}
             {isAdmin && inquiry.lastStatusUpdatedBy && (
               <span className="hidden sm:inline text-[11px] text-slate-400">
                 ({inquiry.lastStatusUpdatedBy})
               </span>
             )}
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${config.className}`}>
+              {config.label}
+            </span>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isDeleting}
+              title="メッセージを削除"
+              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
           </div>
 
           <span className="text-xs text-slate-400 font-medium whitespace-nowrap">
             {formatRelativeDateTime(inquiry.createdAt)}
           </span>
-
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={isDeleting}
-            title="メッセージを削除"
-            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
         </div>
       </div>
 
       {isExpanded && (
         <div className="px-4 pb-5 pt-2 border-t border-slate-200/60 bg-white/50 space-y-4">
-          
+
+          {/* 会員IDは admin にだけ、展開時に表示(一覧の行を圧迫しない位置) */}
+          {isAdmin && inquiry.memberId && (
+            <p className="pt-2 text-xs text-slate-500">
+              会員ID: <span className="font-mono font-medium text-slate-700">{inquiry.memberId}</span>
+            </p>
+          )}
+
           {/* ★変更: isAdminがtrueの時のみステータス変更ボタンを表示 */}
           {isAdmin && (
             <div className="flex items-center space-x-2 pt-2">

@@ -38,7 +38,7 @@ export default function Sidebar({ user }: SidebarProps) {
 
     // 裏側で最新データを取得
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 60000);
+    const interval = setInterval(fetchUnreadCount, 300000);
 
     const handleUnreadUpdate = (event: Event) => {
       const customEvent = event as CustomEvent<{ unreadCount: number }>;
