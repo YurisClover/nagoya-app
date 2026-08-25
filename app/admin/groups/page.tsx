@@ -17,7 +17,7 @@ export default async function GroupsPage() {
           href="/admin/groups/new"
           className="btn btn-primary"
         >
-          ＋ グループを作成
+          ＋ グループ作成
         </Link>
       </div>
 

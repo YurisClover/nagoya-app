@@ -39,7 +39,7 @@ export default async function UsersPage({
           href="/admin/users/new"
           className="btn btn-primary"
         >
-          新規会員を登録
+          ＋ 新規会員登録
         </Link>
       </div>
       
