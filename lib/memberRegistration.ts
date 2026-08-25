@@ -3,15 +3,15 @@
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { requireAdmin } from "@/lib/guards";
-import { USER_ROLES, USER_STATUSES, type UserRole, type UserStatus } from "@/types/user";
-import { addMemberToSheet, updateMemberInSheet, getCachedMembers } from "@/lib/sheets";
+import { STATUS_LABELS,USER_ROLES, USER_STATUSES, type UserRole, type UserStatus } from "@/types/user";
+import { addMemberToSheet, updateMemberInSheet, getCachedMembers,logActivity } from "@/lib/sheets";
 import { nowJST } from "./datetime";
 
 const BCRYPT_COST = 12;
 type FormState = { error: string } | null;
 
 export async function createMemberAction(prevState: FormState, formData: FormData) {
-  
+
   await requireAdmin();
   const user_name = (formData.get("user_name") as string)?.trim();
   const email = (formData.get("email") as string)?.trim();
@@ -59,10 +59,10 @@ export async function createMemberAction(prevState: FormState, formData: FormDat
     created_at: now, updated_at: now,
   });
   if (!result.success) {
-    return { error: result.error ?? "登録に失敗しました。" };
-  }
-
-  redirect("/admin/users");
+  return { error: result.error ?? "登録に失敗しました。" };
+   }
+    await logActivity( "member", `${user_name} さんが新規登録されました`,);
+    redirect("/admin/users");
 }
 
 export async function updateMemberAction(
@@ -91,6 +91,7 @@ export async function updateMemberAction(
     ? (rawStatus as UserStatus) : "active";
 
   const allMembers = await getCachedMembers();
+  const currentMember = allMembers.find( (member) => String(member.member_id).trim() === memberId.trim(),);
   const exists = allMembers.some(
     (m) =>
       m.email.toLowerCase() === email.toLowerCase() &&
@@ -110,8 +111,10 @@ export async function updateMemberAction(
     ...(password ? { password_hash: await bcrypt.hash(password, BCRYPT_COST) } : {}),
   });
   if (!result.success) {
-    return { error: result.error ?? "更新に失敗しました。" };
-  }
-  
-  redirect("/admin/users");
+  return { error: result.error ?? "更新に失敗しました。" };
+}
+const statusChanged = currentMember !== undefined && currentMember.status !== status;
+await logActivity( "member", statusChanged  ? `${user_name} さんのステータスを${STATUS_LABELS[status]}に変更`: `${user_name} さんの会員情報を更新`,
+);
+redirect("/admin/users");
 }
