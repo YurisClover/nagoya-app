@@ -101,9 +101,11 @@ export async function POST(request: Request) {
           sheets.spreadsheets.values.update({
             spreadsheetId,
             range: `Messages!${colLetter}${rowIndex}`,
-            valueInputOption: 'RAW',
+            valueInputOption: 'USER_ENTERED',
             requestBody: {
-              values: [['true']],
+              // USER_ENTERED + 'TRUE' = UI で TRUE と入力したのと同じ → boolean セルになる。
+              // (RAW は boolean を渡しても文字列化され 'TRUE 表示になるため使わない)
+              values: [['TRUE']],
             },
           })
         );
