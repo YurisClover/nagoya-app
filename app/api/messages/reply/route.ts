@@ -124,7 +124,7 @@ export async function POST(req: Request) {
 
     if (!finalTitle) finalTitle = '（件名なし）';
 
-    const isRead = String(senderId).trim() === String(resolvedRecipientId).trim() ? 'true' : 'false';
+    const isRead = String(senderId).trim() === String(resolvedRecipientId).trim();
 
     const newRow = [
       messageId,
@@ -134,16 +134,41 @@ export async function POST(req: Request) {
       body,
       isRead,
       createdAt,
-      'false',
+      false,
       resolvedParentId,
     ];
 
-    await sheets.spreadsheets.values.append({
+    // 行全体は RAW で追加する(USER_ENTERED だと日時文字列が date serial に変換され
+    // 読み取りが壊れる)。RAW では boolean も 'TRUE という文字列になるため、
+    // 追加直後に F(is_read)/H(delete_flag)だけ USER_ENTERED で boolean セル化する。
+    const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: 'Messages!A1:I',
       valueInputOption: 'RAW',
       requestBody: { values: [newRow] },
     });
+
+    // 失敗しても文字列の 'TRUE/'FALSE が残るだけで読み取り側は動くため、警告に留める。
+    try {
+      const updatedRange = appendResult.data.updates?.updatedRange ?? '';
+      const rangeMatch = updatedRange.match(/!(?:[A-Z]+)(\d+):[A-Z]+\d+$/);
+      if (rangeMatch) {
+        const rowNumber = Number(rangeMatch[1]);
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            valueInputOption: 'USER_ENTERED',
+            data: [
+              // 列位置は上の newRow の並び(A〜I)に対応
+              { range: `Messages!F${rowNumber}`, values: [[isRead ? 'TRUE' : 'FALSE']] },
+              { range: `Messages!H${rowNumber}`, values: [['FALSE']] },
+            ],
+          },
+        });
+      }
+    } catch (flagError) {
+      console.warn('is_read/delete_flag の boolean セル化に失敗しました(表示のみの問題):', flagError);
+    }
 
     return NextResponse.json({ success: true, messageId });
     

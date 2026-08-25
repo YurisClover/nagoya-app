@@ -71,7 +71,9 @@ export async function POST(req: Request) {
         const colLetter = String.fromCharCode(65 + isReadIdx);
         updateData.push({
           range: `Messages!${colLetter}${rowIndex}`,
-          values: [['true']],
+          // USER_ENTERED + 'TRUE' = UI で TRUE と入力したのと同じ → boolean セルになる。
+          // (RAW は boolean を渡しても文字列化され 'TRUE 表示になるため使わない)
+          values: [['TRUE']],
         });
       }
     });
@@ -80,7 +82,7 @@ export async function POST(req: Request) {
       await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId,
         requestBody: {
-          valueInputOption: 'RAW',
+          valueInputOption: 'USER_ENTERED',
           data: updateData,
         },
       });
