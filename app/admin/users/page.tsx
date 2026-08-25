@@ -63,9 +63,9 @@ export default async function UsersPage({
                         query: { ...resolvedParams, sort: sort === "desc" ? "asc" : "desc", page: 1 },
                         }}
                         className="inline-flex items-center gap-1 hover:text-brand"
-                        title="会員番号で並び替え"
+                        title="会員IDで並び替え"
                     >
-                        会員番号 {sort === "desc" ? "▼" : "▲"}
+                        会員ID {sort === "desc" ? "▼" : "▲"}
                     </Link>
                 </th>
                 <th className="p-3 font-semibold">氏名</th>

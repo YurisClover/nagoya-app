@@ -17,6 +17,10 @@ const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID || "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
 const TTL_MS = 60_000;
 
+// ⚠️ 置換禁止: ここは「実際の Google フォームの質問文 / Answers シートの見出し」と
+// 一致させるための文字列。UI ラベルを「会員ID」に統一しても、既存フォームの
+// 質問文は「会員番号〜」のまま残るため、旧表記のパターンを消すと回答と会員の
+// 紐付けができなくなり、回答一覧に名前が出なくなる。両表記とも必ず残すこと。
 const MEMBER_ID_HEADERS = [
   "会員IDをご記入ください。",
   "会員番号をご記入ください。",

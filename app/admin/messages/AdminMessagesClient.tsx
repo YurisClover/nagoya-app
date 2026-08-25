@@ -250,7 +250,7 @@ export default function AdminMessagesClient({
   });
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl space-y-6 sm:space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <h2 className="text-xl sm:text-2xl font-bold text-slate-900">メッセージ管理</h2>
 
       {/* 送信フォーム */}

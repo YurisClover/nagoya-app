@@ -18,7 +18,7 @@ export default function RefreshButton() {
           router.refresh(); // soft refresh
         })
       }
-      className="btn btn-secondary px-3 py-1.5 text-xs disabled:opacity-50"
+      className="btn btn-primary"
     >
       {isPending ? "更新中..." : "更新"}
     </button>

@@ -35,7 +35,7 @@ export default async function EventsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl space-y-7 p-6">
+    <main className="space-y-7">
       {/* ヘッダー */}
       <div className="border-b border-line pb-5">
         <div className="flex items-start justify-between gap-6">

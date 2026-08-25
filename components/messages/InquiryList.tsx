@@ -113,8 +113,8 @@ export default function InquiryList({
         <div className="flex items-center space-x-3">
           <h3 className="text-base font-bold text-slate-800">受信メッセージ（問い合わせ）</h3>
           {unreadCountTotal > 0 && (
-            <span className="px-2.5 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">
-              未読 {unreadCountTotal}件
+            <span className="px-2.5 py-0.5 item-center bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">
+              未読{unreadCountTotal}件
             </span>
           )}
         </div>
