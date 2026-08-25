@@ -10,8 +10,6 @@ export default function Metrics({ data }: MetricsProps) {
   const {
     totalMembers,
     newMembersThisMonth,
-    activeMembers,
-    inactiveMembers,
     monthlyEventsCount,
     eventRegistrationsCount,
     unreadMessagesCount,
@@ -28,18 +26,6 @@ export default function Metrics({ data }: MetricsProps) {
         </p>
         <p className="text-xs text-emerald-600 font-medium mt-2">
           +{newMembersThisMonth} 今月
-        </p>
-      </div>
-
-      {/* 2. 有効会員 */}
-      <div className="card min-w-[150px] flex-1">
-        <p className="text-sm text-gray-500 font-medium">有効会員</p>
-        <p className="text-2xl font-bold text-green-600 mt-1 truncate">
-          {activeMembers.toLocaleString("ja-JP")}{" "}
-          <span className="text-sm font-normal text-gray-500">名</span>
-        </p>
-        <p className="text-xs text-gray-500 font-medium mt-2 truncate">
-          無効 {inactiveMembers} 名
         </p>
       </div>
 
