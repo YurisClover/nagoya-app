@@ -4,6 +4,9 @@
 
 import React, { useState } from 'react';
 import InquiryItem, { ReceivedMessage, MessageStatus } from './InquiryItem';
+import PagerControls from '@/components/PagerControls';
+
+const ITEMS_PER_PAGE = 10;
 
 // API のレスポンスに snake_case のフィールドが混在していた時期の名残を
 // any キャストではなく optional な追加フィールドとして型で表現する。
@@ -44,6 +47,7 @@ export default function InquiryList({
   isAdmin = false, // ★ 追加: デフォルトは false
 }: InquiryListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
 
   // メッセージのフィルタリングとソート
   const activeInquiries = [...inquiries]
@@ -82,6 +86,15 @@ export default function InquiryList({
       return timeB.localeCompare(timeA);
     });
 
+  // ページング: 60秒ポーリングで件数が減った場合に currentPage が範囲外に
+  // ならないよう、描画時にクランプする(effect で setState しない)。
+  const pageCount = Math.ceil(activeInquiries.length / ITEMS_PER_PAGE);
+  const safePage = Math.min(currentPage, Math.max(pageCount - 1, 0));
+  const pagedInquiries = activeInquiries.slice(
+    safePage * ITEMS_PER_PAGE,
+    (safePage + 1) * ITEMS_PER_PAGE
+  );
+
   const handleToggle = (inquiry: ReceivedMessage) => {
     const isOpening = expandedId !== inquiry.id;
     setExpandedId(isOpening ? inquiry.id : null);
@@ -114,7 +127,7 @@ export default function InquiryList({
         <p className="text-sm text-slate-500 py-4">管理者宛てのメッセージはありません</p>
       ) : (
         <div className="space-y-4">
-          {activeInquiries.map((item) => (
+          {pagedInquiries.map((item) => (
             <InquiryItem
               key={item.id}
               inquiry={item}
@@ -129,6 +142,8 @@ export default function InquiryList({
           ))}
         </div>
       )}
+
+      <PagerControls pageCount={pageCount} currentPage={safePage} onPageChange={setCurrentPage} />
     </section>
   );
 }

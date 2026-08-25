@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ContactAdminModal from '@/components/messages/ContactAdminModel';
 import InquiryItem, { ReceivedMessage, MessageStatus } from '@/components/messages/InquiryItem';
+import PagerControls from '@/components/PagerControls';
+
+const ITEMS_PER_PAGE = 10;
 
 // /api/messages のレスポンス形。API側は snake_case で返すが、
 // 過去の実装が camelCase を返していた時期もあるため両方 optional で受ける。
@@ -45,6 +48,7 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
   const [messages, setMessages] = useState<ReceivedMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
 
   const fetchMessages = useCallback(async (isBackground = false) => {
     try {
@@ -209,6 +213,28 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
     }
   };
 
+  // 最新の動きがあった順(親と全返信の中で一番新しい日時)に並べ替え
+  const getLatestTime = (item: ReceivedMessage) => {
+    let latest = item.createdAt || '';
+    if (item.replies && Array.isArray(item.replies)) {
+      item.replies.forEach((reply) => {
+        if (reply.createdAt && reply.createdAt > latest) {
+          latest = reply.createdAt;
+        }
+      });
+    }
+    return latest ? new Date(latest).getTime() : 0;
+  };
+  const sortedMessages = [...messages].sort((a, b) => getLatestTime(b) - getLatestTime(a));
+
+  // ページング: ポーリングで件数が減っても範囲外にならないよう描画時にクランプ
+  const pageCount = Math.ceil(sortedMessages.length / ITEMS_PER_PAGE);
+  const safePage = Math.min(currentPage, Math.max(pageCount - 1, 0));
+  const pagedMessages = sortedMessages.slice(
+    safePage * ITEMS_PER_PAGE,
+    (safePage + 1) * ITEMS_PER_PAGE
+  );
+
   return (
     <div className="p-4 max-w-xl mx-auto space-y-4 font-sans text-slate-800">
       <button
@@ -236,27 +262,9 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
             受信したメッセージはありません
           </div>
         ) : (
-          <div className="space-y-3">
-           {[...messages]
-            .sort((a, b) => {
-              const getLatestTime = (item: ReceivedMessage) => {
-                let latest = item.createdAt || '';
-                if (item.replies && Array.isArray(item.replies)) {
-                  item.replies.forEach((reply) => {
-                    if (reply.createdAt && reply.createdAt > latest) {
-                      latest = reply.createdAt;
-                    }
-                  });
-                }
-                return latest ? new Date(latest).getTime() : 0;
-              };
-
-              const timeA = getLatestTime(a);
-              const timeB = getLatestTime(b);
-
-              return timeB - timeA;
-            })
-              .map((inquiry, index) => (
+          <>
+            <div className="space-y-3">
+              {pagedMessages.map((inquiry, index) => (
                 <InquiryItem
                   key={inquiry.id || `inquiry-${index}`}
                   inquiry={inquiry}
@@ -267,7 +275,13 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
                   currentUserId={currentUserId}
                 />
               ))}
-          </div>
+            </div>
+            <PagerControls
+              pageCount={pageCount}
+              currentPage={safePage}
+              onPageChange={setCurrentPage}
+            />
+          </>
         )}
       </div>
     </div>
