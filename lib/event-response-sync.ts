@@ -7,6 +7,7 @@ import {
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import { nowJST } from "./datetime";
+import { logActivity } from "./sheets";
 
 const MAIN_SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID?.trim() ?? "";
 const RESPONSE_SPREADSHEET_ID =
@@ -292,15 +293,13 @@ async function syncResponseSheet({
   };
 }
 
-async function upsertValidAnswers({
-  answerSheet,
-  validAnswers,
-}: {
+async function upsertValidAnswers({ answerSheet, validAnswers,}: {
   answerSheet: GoogleSpreadsheetWorksheet;
   validAnswers: ValidAnswer[];
 }): Promise<{
   inserted: number;
   updated: number;
+  insertedByEventId: Map<string, number>;
 }> {
   const rows = await answerSheet.getRows();
   const rowByKey = new Map<string, (typeof rows)[number]>();
@@ -313,13 +312,14 @@ async function upsertValidAnswers({
 
   let inserted = 0;
   let updated = 0;
+  const insertedByEventId = new Map<string, number>();
+
   for (const answer of validAnswers) {
     const key = `${answer.eventId}::${answer.memberId}`;
     const existingRow = rowByKey.get(key);
-    const answerId = existingRow
-      ? String(existingRow.get("answer_id") ?? "").trim() ||
-        `ans_${answer.eventId}_${answer.memberId}`
+    const answerId = existingRow  ? String(existingRow.get("answer_id") ?? "").trim() || `ans_${answer.eventId}_${answer.memberId}`
       : `ans_${answer.eventId}_${answer.memberId}`;
+
     const sourceValues = {
       answer_id: answerId,
       event_id: String(answer.eventId),
@@ -331,70 +331,59 @@ async function upsertValidAnswers({
 
     if (!existingRow) {
       const newRow = await answerSheet.addRow(
-        {
-          ...sourceValues,
-          synced_at: nowJST(),
-        },
-        {
-          raw: true,
-        },
+        { ...sourceValues, synced_at: nowJST(),},
+        { raw: true, },
       );
       rowByKey.set(key, newRow);
       inserted += 1;
+      insertedByEventId.set( answer.eventId, (insertedByEventId.get(answer.eventId) ?? 0) + 1, );
       continue;
     }
-    const hasChanged = Object.entries(sourceValues).some(
-      ([header, value]) =>
-        String(existingRow.get(header) ?? "").trim() !== String(value).trim(),
+
+    const hasChanged = Object.entries(sourceValues).some( ([header, value]) => String(existingRow.get(header) ?? "").trim() !==
+        String(value).trim(),
     );
 
     if (!hasChanged) {
       continue;
     }
-
     for (const [header, value] of Object.entries(sourceValues)) {
       existingRow.set(header, value);
     }
-
     existingRow.set("synced_at", nowJST());
     await existingRow.save({ raw: true });
     updated += 1;
   }
-
-  return { inserted, updated };
+  return {
+    inserted,
+    updated,
+    insertedByEventId,
+  };
 }
 
-async function updateEventRegistrationCounts({
-  mainDoc,
-  answerSheet,
-}: {
+async function updateEventRegistrationCounts({ mainDoc, answerSheet,}: {
   mainDoc: GoogleSpreadsheet;
   answerSheet: GoogleSpreadsheetWorksheet;
-}): Promise<number> {
+}): Promise<{
+  updated: number;
+  eventTitleById: Map<string, string>;
+}> {
   const eventsSheet = mainDoc.sheetsByTitle["Events"];
-
   if (!eventsSheet) {
     throw new Error("Eventsシートが見つかりません。");
   }
-
   await eventsSheet.loadHeaderRow();
   const headers = eventsSheet.headerValues ?? [];
-  const requiredHeaders = ["event_id", "registration_count"];
-  const missingHeaders = requiredHeaders.filter(
-    (header) => !headers.includes(header),
-  );
-
+  const requiredHeaders = [
+    "event_id",
+    "title",
+    "registration_count",
+  ];
+  const missingHeaders = requiredHeaders.filter( (header) => !headers.includes(header), );
   if (missingHeaders.length > 0) {
-    throw new Error(
-      `eventsシートに必要な列がありません：${missingHeaders.join("、")}`,
-    );
+    throw new Error( `Eventsシートに必要な列がありません：${missingHeaders.join("、")}`, );
   }
-
-  const [answerRows, eventRows] = await Promise.all([
-    answerSheet.getRows(),
-    eventsSheet.getRows(),
-  ]);
-
+  const [answerRows, eventRows] = await Promise.all([ answerSheet.getRows(), eventsSheet.getRows(), ]);
   const countByEventId = new Map<string, number>();
   for (const row of answerRows) {
     const eventId = String(row.get("event_id") ?? "").trim();
@@ -403,34 +392,35 @@ async function updateEventRegistrationCounts({
     if (!eventId || !memberId) {
       continue;
     }
-    countByEventId.set(eventId, (countByEventId.get(eventId) ?? 0) + 1);
+    countByEventId.set( eventId,  (countByEventId.get(eventId) ?? 0) + 1, );
   }
 
   let updated = 0;
+  const eventTitleById = new Map<string, string>();
 
   for (const row of eventRows) {
     const eventId = String(row.get("event_id") ?? "").trim();
-
     if (!eventId) {
       continue;
     }
-
+    const eventTitle = String(row.get("title") ?? "").trim();
+    if (eventTitle) {
+      eventTitleById.set(eventId, eventTitle);
+    }
     const nextCount = countByEventId.get(eventId) ?? 0;
-    const currentRaw = String(row.get("registration_count") ?? "").trim();
+    const currentRaw = String( row.get("registration_count") ?? "", ).trim();
     const currentCount = Number(currentRaw);
-
-    if (
-      currentRaw !== "" &&
-      Number.isFinite(currentCount) &&
-      currentCount === nextCount
-    ) {
+    if ( currentRaw !== "" && Number.isFinite(currentCount) && currentCount === nextCount ) {
       continue;
     }
     row.set("registration_count", nextCount);
     await row.save();
     updated += 1;
   }
-  return updated;
+  return {
+    updated,
+    eventTitleById,
+  };
 }
 
 /**
@@ -499,9 +489,14 @@ export async function syncEventResponseSheets(): Promise<EventResponseSyncResult
 
   result.answerInserted = answerResult.inserted;
   result.answerUpdated = answerResult.updated;
-  result.registrationCountsUpdated = await updateEventRegistrationCounts({
-    mainDoc,
-    answerSheet,
-  });
-  return result;
+  const registrationResult = await updateEventRegistrationCounts({ mainDoc, answerSheet, });
+     result.registrationCountsUpdated = registrationResult.updated;
+     for (const [eventId, insertedCount] of answerResult.insertedByEventId) {
+  const eventTitle = registrationResult.eventTitleById.get(eventId);
+  if (!eventTitle || insertedCount <= 0) {
+    continue;
+  }
+  await logActivity( "attendance", `${eventTitle}の出席登録が${insertedCount}件届きました`, );
+}
+return result;
 }
