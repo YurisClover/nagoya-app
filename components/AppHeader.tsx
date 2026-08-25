@@ -1,4 +1,6 @@
-import { signOut } from "@/auth";
+"use client";
+
+import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 
 export default function AppHeader() {
@@ -9,12 +11,13 @@ export default function AppHeader() {
         <p className="text-[10px] opacity-80">名古屋税理士会</p>
       </div>
 
-      <form action={async () => { "use server"; await signOut({ redirectTo: "/login" }); }}>
-        <button type="submit" className="btn btn-ghost px-2 py-1 text-[11px]">
-          <LogOut size={16} aria-hidden="true" />
-          ログアウト
-        </button>
-      </form>
+      <button
+        onClick={() => signOut({ callbackUrl: "/login" })}
+        className="btn btn-ghost px-2 py-1 text-[11px]"
+      >
+        <LogOut size={16} aria-hidden="true" />
+        ログアウト
+      </button>
     </header>
   );
 }

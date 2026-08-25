@@ -47,7 +47,7 @@ export default function MemberBarcode({ memberId }: { memberId: string }) {
   if (!isValid) {
     return (
       <p className="text-center text-sm text-gray-500">
-        会員番号の形式が正しくないため、バーコードを表示できません。
+        会員IDの形式が正しくないため、バーコードを表示できません。
       </p>
     );
   }

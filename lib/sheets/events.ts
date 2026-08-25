@@ -1,6 +1,8 @@
 import "server-only";
 import type { GoogleSpreadsheetRow } from "google-spreadsheet";
 import { getSpreadsheet } from "@/lib/sheets/client";
+import { nowJST } from "@/lib/datetime";
+import { compareByNearestStart } from "@/lib/event-order";
 export type EventStatus = "draft" | "published" | "closed";
 export type EventPosition = "general" | "executive";
 export type SheetEvent = {
@@ -55,6 +57,38 @@ function parseBoolean(value: unknown): boolean {
       .trim()
       .toLowerCase() === "true"
   );
+}
+
+type EventsSheet = Awaited<ReturnType<typeof getEventsSheet>>;
+
+/**
+ * 指定行の1セルだけを「本物の boolean」として書き込む。
+ *
+ * 行単位の書き込み(addRow / row.save)は raw / USER_ENTERED を
+ * 行全体でしか選べない:
+ *   - raw:true  … "true"/"false" が文字列で入り、'true(アポストロフィ)表示になる
+ *   - raw:false … 同じ行の ISO 日付文字列まで日付値に変換されて読み取り側が壊れる
+ * セル単位 API(loadCells → cell.value = boolean)は型付きで書けるため、
+ * 他シートと同じ「素の TRUE / FALSE(boolean セル)」になる。
+ */
+async function setBooleanCell(
+  sheet: EventsSheet,
+  rowNumber: number,
+  header: string,
+  value: boolean,
+): Promise<void> {
+  const columnIndex = sheet.headerValues.indexOf(header);
+  if (columnIndex === -1) return;
+
+  const rowIndex = rowNumber - 1; // rowNumber は1始まり、cell API は0始まり
+  await sheet.loadCells({
+    startRowIndex: rowIndex,
+    endRowIndex: rowIndex + 1,
+    startColumnIndex: columnIndex,
+    endColumnIndex: columnIndex + 1,
+  });
+  sheet.getCell(rowIndex, columnIndex).value = value;
+  await sheet.saveUpdatedCells();
 }
 
 function mapEventRow(row: GoogleSpreadsheetRow): SheetEvent {
@@ -148,7 +182,7 @@ export async function addEventToSheet(
     event_id: String(maximumEventId + 1),
   };
 
-  await sheet.addRow(
+  const createdRow = await sheet.addRow(
     {
       event_id: String(createdEvent.event_id),
       title: createdEvent.title,
@@ -162,7 +196,9 @@ export async function addEventToSheet(
       created_by: createdEvent.created_by,
       created_at: createdEvent.created_at,
       registration_count: createdEvent.registration_count,
-      is_deleted: createdEvent.is_deleted,
+      // いったん文字列で入れておき、直後にセル単位 API で boolean に上書きする。
+      // (文字列はフォールバック — 万一セル更新に失敗しても parseBoolean は読める)
+      is_deleted: createdEvent.is_deleted ? "true" : "false",
       prefill_url_template: createdEvent.prefill_url_template,
     },
     {
@@ -170,6 +206,15 @@ export async function addEventToSheet(
       insert: true,
     },
   );
+
+  // is_deleted セルだけ boolean 型で上書きし、他シートと同じ素の FALSE 表示に揃える。
+  // 失敗しても "false" 文字列が既に入っており読み取りは壊れないため握りつぶす。
+  try {
+    await setBooleanCell(sheet, createdRow.rowNumber, "is_deleted", createdEvent.is_deleted);
+  } catch (error) {
+    console.warn("is_deleted セルの boolean 化に失敗しました(表示のみの問題):", error);
+  }
+
   return createdEvent;
 }
 
@@ -182,39 +227,8 @@ export async function getEventsFromSheet(): Promise<SheetEvent[]> {
   const events = rows
     .map(mapEventRow)
     .filter((event) => Boolean(event.event_id) && !event.is_deleted);
-  const now = Date.now();
-
-//   /*
-//    * 開催前：
-//    *   開始日時が近い順
-//    *
-//    * 開催済み：
-//    *   新しい順で一覧の後ろ
-//    */
-//   events.sort((eventA, eventB) => {
-//     const dateA = new Date(eventA.event_date).getTime();
-//     const dateB = new Date(eventB.event_date).getTime();
-//     const validDateA = Number.isNaN(dateA) ? Number.MAX_SAFE_INTEGER : dateA;
-//     const validDateB = Number.isNaN(dateB) ? Number.MAX_SAFE_INTEGER : dateB;
-//     const isPastA = validDateA < now;
-//     const isPastB = validDateB < now;
-
-//     if (isPastA !== isPastB) {
-//       return isPastA ? 1 : -1;
-//     }
-
-//     if (isPastA && isPastB) {
-//       return validDateB - validDateA;
-//     }
-
-//     return validDateA - validDateB;
-//   });
-    // sort by event_id desc
-    const idNum = (value: string) => {
-        const n = Number(value);
-        return Number.isFinite(n) ? n : -Infinity;
-    };
-    events.sort((a, b) => idNum(b.event_id) - idNum(a.event_id));
+// 並び順は共通ロジックに集約(lib/event-order.ts 参照)
+  events.sort(compareByNearestStart(nowJST().slice(0, 10)));
 
   return events;
 }
@@ -314,9 +328,13 @@ export async function softDeleteEvent(
    */
   await makeGoogleFormPrivate(formId);
   eventRow.set("status", "draft");
-  eventRow.set("is_deleted", true);
   await eventRow.save({ raw: true });
-  return mapEventRow(eventRow);
+
+  // is_deleted は行単位ではなくセル単位で boolean として書く(理由は setBooleanCell 参照)
+  await setBooleanCell(sheet, eventRow.rowNumber, "is_deleted", true);
+
+  // eventRow のメモリ上の値は更新していないため、戻り値では明示的に true を立てる
+  return { ...mapEventRow(eventRow), is_deleted: true };
 }
 
 type UpdateEventResponseSheetInfoInput = {
