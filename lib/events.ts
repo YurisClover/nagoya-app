@@ -12,7 +12,7 @@ import {
   type EventPosition,
 } from "@/types/event";
 import { nowJST, parseSheetDate } from "./datetime";
-import { compareByNearestStart } from "./event-order";
+import { compareByNearestStart, isEventFinished } from "./event-order";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID || "";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
@@ -70,6 +70,7 @@ async function getDoc() {
 async function loadSnapshot(): Promise<Snapshot> {
   const doc = await getDoc();
   const eventRows = await doc.sheetsByTitle["Events"].getRows();
+  const todayJst = nowJST().slice(0, 10);
 
   const upcoming = eventRows
     .map((row, index) => ({
@@ -90,8 +91,11 @@ async function loadSnapshot(): Promise<Snapshot> {
         .toLowerCase(),
     }))
     .filter((e) => !["true", "1", "yes"].includes(e._deleted)) // soft delete (is_deleted)
+    // 会員側では終了済みイベントを非表示にする(admin 側は全件表示のまま)。
+    // ここで隠すため、終了済みイベントのフォームページも notFound になる。
+    .filter((e) => !isEventFinished(e, todayJst))
     // 並び順は共通ロジックに集約(lib/event-order.ts 参照)
-    .sort(compareByNearestStart(nowJST().slice(0, 10)));
+    .sort(compareByNearestStart(todayJst));
 
   return {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

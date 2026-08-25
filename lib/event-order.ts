@@ -26,19 +26,31 @@ function timeKey(value: string | null | undefined): number {
 }
 
 /**
+ * 「終了済み」の共通定義: 終了日(なければ開始日)が今日(JST)の0時より前。
+ * 時刻まで見ないのは、当日のイベントを一日中「開催中」扱いにするため。
+ * 並び順(このファイル)と会員側の非表示フィルタ(lib/events.ts)の両方が
+ * この関数を使う。「終了」の定義を変えるときはここだけを直すこと。
+ *
+ * @param todayJst nowJST().slice(0, 10) の "YYYY-MM-DD"(JST基準の今日)
+ */
+export function isEventFinished(
+  event: OrderableEvent,
+  todayJst: string,
+): boolean {
+  const start = timeKey(event.event_date);
+  if (Number.isNaN(start)) return false; // 日付不明は「終了済み」と断定しない
+  const end = timeKey(event.event_end_date);
+  const effectiveEnd = Number.isNaN(end) ? start : end;
+  return effectiveEnd < timeKey(todayJst);
+}
+
+/**
  * @param todayJst nowJST().slice(0, 10) の "YYYY-MM-DD"(JST基準の今日)
  */
 export function compareByNearestStart(todayJst: string) {
-  // 「今日の0時(JST)」より前に終わったものを「終了済み」とみなす。
-  // 時刻まで見ないのは、当日のイベントを一日中「開催中」扱いにするため。
-  const todayStart = timeKey(todayJst);
-
   const bucket = (event: OrderableEvent): number => {
-    const start = timeKey(event.event_date);
-    if (Number.isNaN(start)) return 2; // 日付不明 → 最後尾
-    const end = timeKey(event.event_end_date);
-    const effectiveEnd = Number.isNaN(end) ? start : end;
-    return effectiveEnd >= todayStart ? 0 : 1; // 0: 開催前・開催中 / 1: 終了済み
+    if (Number.isNaN(timeKey(event.event_date))) return 2; // 日付不明 → 最後尾
+    return isEventFinished(event, todayJst) ? 1 : 0; // 0: 開催前・開催中 / 1: 終了済み
   };
 
   return (a: OrderableEvent, b: OrderableEvent): number => {
