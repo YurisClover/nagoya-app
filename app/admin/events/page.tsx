@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getEventsFromSheet } from "@/lib/sheets/events";
+import { isEventFinished } from "@/lib/event-order";
+import { nowJST } from "@/lib/datetime";
 import { getCalendarRecords, type CalendarSyncStatus,} from "@/lib/sheets/calendar";
 import Link from "next/link";
 import { EventList } from "./eventsList";
@@ -20,6 +22,16 @@ export default async function EventsPage() {
   }
 
   const [events, calendarRecords] = await Promise.all([ getEventsFromSheet(), getCalendarRecords(), ]);
+
+  // "Finished" is decided HERE (server, JST via isEventFinished) and passed
+  // down as data. Client-side new Date() runs in the viewer's timezone, so
+  // computing this in the browser would flip cards on the wrong day for
+  // anyone outside Japan. Same definition the member side uses to hide
+  // finished events (lib/event-order.ts).
+  const todayJst = nowJST().slice(0, 10);
+  const finishedEventIds = events
+    .filter((event) => isEventFinished(event, todayJst))
+    .map((event) => event.event_id);
   const calendarSyncStatuses: Record< string, CalendarSyncStatus > = {};
   for (const record of calendarRecords) {
     const hasCalendarEvent = Boolean( record.google_calendar_event_id && record.google_calendar_id, );
@@ -95,7 +107,7 @@ export default async function EventsPage() {
         </div>
 
         {/* イベントカード一覧 */}
-        <EventList events={events} calendarSyncStatuses={calendarSyncStatuses}/>
+        <EventList events={events} calendarSyncStatuses={calendarSyncStatuses} finishedEventIds={finishedEventIds}/>
       </section>
     </main>
   );
