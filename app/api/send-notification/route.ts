@@ -243,7 +243,8 @@ try {
         data: {
           title: bodyData.title || '新着メッセージ',
           body: bodyData.body || '',
-          url: bodyData.url || '/messages',
+          //url: bodyData.url || '/messages',
+          url: '/notification-redirect',
         },
       });
 
