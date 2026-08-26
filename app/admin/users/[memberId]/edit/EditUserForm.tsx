@@ -1,3 +1,9 @@
+/**
+ * Client form for editing whitelisted member fields (name/email/role/
+ * status). Receives the already-bound server action; shows FormState
+ * errors inline. member_id renders read-only for display only - the
+ * server ignores any posted id.
+ */
 "use client";
 
 import Link from "next/link";

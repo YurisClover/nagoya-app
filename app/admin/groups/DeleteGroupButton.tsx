@@ -1,3 +1,8 @@
+/**
+ * Confirm-wrapped submit for group deletion. The destructive action
+ * itself is a bound server action passed in as a prop; this component
+ * only adds the confirm() gate.
+ */
 "use client";
 
 export default function DeleteGroupButton({

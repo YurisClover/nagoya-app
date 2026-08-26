@@ -1,3 +1,13 @@
+/**
+ * Admin compose form. Target types and their send paths:
+ * - all:        one POST, server expands to every active member
+ *               (excluding the sender).
+ * - group:      expands members via /api/group-members, then one POST
+ *               per member, skipping the sender client-side.
+ * - individual: single POST; 8-digit id validated and self-send blocked
+ *               here first, but the server's 400 is the real gate.
+ * Recipient picker data comes from /api/members (self already excluded).
+ */
 //メッセージ作成・送信を行うフォームコンポーネント
 
 'use client';

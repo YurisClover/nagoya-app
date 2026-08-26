@@ -1,3 +1,10 @@
+/**
+ * One message thread card, shared by the member page and the admin
+ * inquiry list. Shows subject/sender/relative time/unread state,
+ * expands to the reply history and an InlineReplyForm.
+ * Exports ReceivedMessage / MessageStatus: the shared display contract
+ * both sides normalize their API data into.
+ */
 'use client';
 
 import React, { useState } from 'react';

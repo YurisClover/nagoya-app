@@ -1,3 +1,10 @@
+/**
+ * Admin member list (/admin/users). Server-rendered table on purpose:
+ * filtering/sorting/paging run on the server via getPaginatedMembers,
+ * driven entirely by URL searchParams (query/role/status/sort/page),
+ * so the URL is shareable state. SearchFilters only rewrites the URL;
+ * no member data crosses into client components here.
+ */
 import Link from "next/link";
 import SearchFilters from "./SearchFilters";
 import { getPaginatedMembers } from "@/lib/sheets";

@@ -1,3 +1,9 @@
+/**
+ * Group list (/admin/groups). Data from getCachedGroupsWithMembers
+ * (already name-sorted at the source, ja collation). Each row links to
+ * edit / send-message (prefills the group in /admin/messages?group=)
+ * and deletes via a per-row bound server action behind a confirm.
+ */
 import Link from "next/link";
 import { getCachedGroupsWithMembers } from "@/lib/sheets";
 import { requireAdmin } from "@/lib/guards";
