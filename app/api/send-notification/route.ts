@@ -185,58 +185,6 @@ export async function POST(request: Request) {
       },
     });
 
-<<<<<<< HEAD
-// ----------------------------------------------------
-// 8. FCMプッシュ通知
-// メッセージ保存とは独立させ、通知失敗で既存の送信処理を失敗させない
-// ----------------------------------------------------
-try {
-  let pushTargetMemberIds: string[];
-  if (rawRecipient === 'admin') {
-    // Messages上は従来どおり recipient_id = "admin" の1件として保存。
-    // Pushだけは active な管理者端末へ送信する。
-    pushTargetMemberIds = Array.from(userMapByMemberId.values())
-      .filter((user) => user.role === 'admin' && user.isActive)
-      .map((user) => user.memberId);
-  } else {
-    pushTargetMemberIds = targetMemberIds;
-  }
-
-  const tokens = Array.from(
-    new Set( pushTargetMemberIds
-        .map((memberId) => fcmTokenByMemberId.get(memberId))
-        .filter((token): token is string => Boolean(token))
-    )
-  );
-
-  if (tokens.length > 0) {
-    const messaging = getFirebaseAdminMessaging();
-    // Firebase Admin SDKでは1回につき最大500件なので分割する
-    for (let i = 0; i < tokens.length; i += 500) {
-      const tokenChunk = tokens.slice(i, i + 500);
-      const response = await messaging.sendEachForMulticast({
-        tokens: tokenChunk,
-        data: {
-          title: bodyData.title || '新着メッセージ',
-          body: bodyData.body || '',
-          url: bodyData.url || '/messages',
-        },
-      });
-
-      if (response.failureCount > 0) {
-        console.warn(
-          `FCM通知: ${response.successCount}件成功 / ${response.failureCount}件失敗`
-        );
-      }
-    }
-  } else {
-    console.log('FCM通知対象のトークンがありません');
-  }
-} catch (notificationError) {
-  // Push通知が失敗してもMessages保存は成功扱いにする
-  console.error('FCM通知送信エラー:', notificationError);
-}
-=======
     // F(is_read)/H(delete_flag)を boolean セルに変換。失敗しても文字列の
     // 'TRUE/'FALSE が残るだけで読み取り側は動くため、警告に留める。
     try {
@@ -261,7 +209,57 @@ try {
       console.warn('is_read/delete_flag の boolean セル化に失敗しました(表示のみの問題):', flagError);
     }
 
->>>>>>> develop
+
+    // ----------------------------------------------------
+    // 8. FCMプッシュ通知
+    // メッセージ保存とは独立させ、通知失敗で既存の送信処理を失敗させない
+    // ----------------------------------------------------
+    try {
+      let pushTargetMemberIds: string[];
+      if (rawRecipient === 'admin') {
+        // Messages上は従来どおり recipient_id = "admin" の1件として保存。
+        // Pushだけは active な管理者端末へ送信する。
+        pushTargetMemberIds = Array.from(userMapByMemberId.values())
+          .filter((user) => user.role === 'admin' && user.isActive)
+          .map((user) => user.memberId);
+      } else {
+        pushTargetMemberIds = targetMemberIds;
+      }
+
+      const tokens = Array.from(
+        new Set( pushTargetMemberIds
+            .map((memberId) => fcmTokenByMemberId.get(memberId))
+            .filter((token): token is string => Boolean(token))
+        )
+      );
+
+      if (tokens.length > 0) {
+        const messaging = getFirebaseAdminMessaging();
+        // Firebase Admin SDKでは1回につき最大500件なので分割する
+        for (let i = 0; i < tokens.length; i += 500) {
+          const tokenChunk = tokens.slice(i, i + 500);
+          const response = await messaging.sendEachForMulticast({
+            tokens: tokenChunk,
+            data: {
+              title: bodyData.title || '新着メッセージ',
+              body: bodyData.body || '',
+              url: bodyData.url || '/messages',
+            },
+          });
+
+          if (response.failureCount > 0) {
+            console.warn(
+              `FCM通知: ${response.successCount}件成功 / ${response.failureCount}件失敗`
+            );
+          }
+        }
+      } else {
+        console.log('FCM通知対象のトークンがありません');
+      }
+    } catch (notificationError) {
+      // Push通知が失敗してもMessages保存は成功扱いにする
+      console.error('FCM通知送信エラー:', notificationError);
+    }
     return NextResponse.json({
       success: true,
       savedCount: rowsToAppend.length,
