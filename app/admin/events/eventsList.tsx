@@ -13,6 +13,8 @@ type CalendarSyncResult = { success: boolean; error?: string;};
 type EventListProps = {
   events: SheetEvent[];
   calendarSyncStatuses: Record<string, CalendarSyncStatus>;
+  /** Ids of events whose date has passed (computed server-side in JST). */
+  finishedEventIds: string[];
 };
 type UpdateStatusResult = {
   success: boolean;
@@ -364,7 +366,8 @@ function EventStatusControl({
   );
 }
 
-export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStatuses, }: EventListProps) {
+export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStatuses, finishedEventIds, }: EventListProps) {
+  const finishedIds = new Set(finishedEventIds);
   const [displayedEvents, setDisplayedEvents] = useState<SheetEvent[]>(events);
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
@@ -455,10 +458,16 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
               : "";
               const isCalendarMissing = (event.status === "published" || event.status === "closed") &&
                  calendarSyncStatuses[event.event_id] !== "synced";
+          const isFinished = finishedIds.has(event.event_id);
           return (
             <article
               key={event.event_id}
-              className="card transition hover:shadow-md"
+              // Finished events stay fully usable but visually recede:
+              // dimmed + desaturated, restored on hover so the admin can
+              // still work with them comfortably.
+              className={`card transition hover:shadow-md ${
+                isFinished ? "opacity-70 saturate-50 hover:opacity-100 hover:saturate-100" : ""
+              }`}
             >
               {/* イベント名・状態 */}
               <div className="border-b border-line pb-4">
@@ -467,6 +476,13 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
                     {event.title}
                   </h2>
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                  {/* 開催終了 = the event date has passed. Distinct from the
+                      受付終了 status chip (reception closed but not yet held). */}
+                  {isFinished && (
+                    <span className="rounded-full bg-slate-700 px-3 py-1 text-xs font-semibold text-white">
+                      開催終了
+                    </span>
+                  )}
                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${  event.status === "published"
                          ? "bg-blue-100 text-blue-800"  : event.status === "closed"
                          ? "bg-slate-200" : "bg-amber-100 text-amber-800"
