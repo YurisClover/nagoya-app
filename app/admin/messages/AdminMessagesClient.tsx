@@ -1,3 +1,11 @@
+/**
+ * Admin message center (client). Two halves:
+ * - MessageForm: compose to all / a group / an individual member.
+ * - InquiryList: member inquiries fetched from /api/admin/inquiries,
+ *   refetched after a successful send or status change.
+ * All API access for this page funnels through here; child components
+ * receive data + callbacks only.
+ */
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';

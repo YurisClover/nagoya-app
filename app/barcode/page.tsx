@@ -1,3 +1,10 @@
+/**
+ * Member card page (/barcode). Shows name, member id and the barcode.
+ *
+ * Identity comes from the JWT session, NOT from the Users sheet - a
+ * deliberate choice so the member card still renders when Sheets is
+ * slow or down. Barcode drawing is client-side (MemberBarcode).
+ */
 import { requireUser } from "@/lib/guards";
 import AppShell from "@/components/AppShell";
 import MemberBarcode from "./MemberBarcode";

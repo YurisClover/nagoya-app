@@ -1,5 +1,9 @@
-// 受信メッセージをまとめるコンポーネント
-
+/**
+ * Admin-side inquiry list: filters out deleted threads, orders by latest
+ * activity, pages 10/thread (PagerControls) and renders InquiryItem per
+ * thread. Pure presentation - fetching and mutations stay in
+ * AdminMessagesClient and are passed down as callbacks.
+ */
 'use client';
 
 import React, { useState } from 'react';

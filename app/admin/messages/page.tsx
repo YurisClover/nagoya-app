@@ -1,3 +1,10 @@
+/**
+ * Admin messages page (/admin/messages). Server wrapper: requireAdmin,
+ * resolves ?group= (preselects a group when arriving from the groups
+ * page "send" link) and the admin's own member id, then renders
+ * AdminMessagesClient. The member id is threaded down so send targets
+ * can exclude the sender.
+ */
 import { requireAdmin } from "@/lib/guards";
 import AdminMessagesClient from "./AdminMessagesClient";
 

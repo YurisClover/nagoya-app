@@ -1,3 +1,12 @@
+/**
+ * Member-side message center (client). Fetches threads from
+ * /api/messages, renders them as InquiryItem cards (newest activity
+ * first, 10/page via PagerControls), lets the member reply inline and
+ * start a new inquiry to the admins through ContactAdminModal.
+ * The Api* types accept both snake_case and camelCase because older
+ * API revisions returned camelCase; normalization happens here so the
+ * rest of the tree sees one shape.
+ */
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -119,7 +128,7 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
 
     const intervalId = setInterval(() => {
       fetchMessages(true);
-    }, 60000);
+    }, 300000); //5 min
 
     return () => {
       clearTimeout(initialId);

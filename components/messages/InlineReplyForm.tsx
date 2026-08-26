@@ -1,5 +1,8 @@
-// 返信フォームコンポーネント
-
+/**
+ * Inline reply box inside an expanded thread (InquiryItem). Pure form:
+ * collects the text and delegates sending to the onSendReply callback
+ * supplied by the page-level client, which owns API calls and refresh.
+ */
 'use client';
 
 import React, { useState } from 'react';

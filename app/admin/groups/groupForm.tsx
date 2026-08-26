@@ -1,3 +1,9 @@
+/**
+ * Shared create/edit group form. Owns the member picker (search filter
+ * + checkbox list) and submits via useActionState to whichever server
+ * action the page passed in. Selected member ids travel as one JSON
+ * hidden field (member_ids); the action validates the payload shape.
+ */
 "use client";
 
 import { useState, useActionState } from "react";

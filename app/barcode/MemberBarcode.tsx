@@ -1,3 +1,9 @@
+/**
+ * Canvas barcode for the member card. Renders the member id as Codabar
+ * via JsBarcode, wrapped as A<id>A (Codabar start/stop guard characters
+ * that library scanners require). Digits-only ids are enforced before
+ * drawing. Also offers a PNG download of the canvas.
+ */
 "use client";
 
 import { useEffect, useRef } from "react";

@@ -4,7 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { HOME, MENU } from "@/lib/menu";
 
-/** nav tab */
+/**
+ * Tab bar of the member-side frame. Tabs are derived from the MENU
+ * registry (lib/menu.ts): only ready items appear, adminOnly items only
+ * for admins. Active state matches the path prefix, so /messages/xxx
+ * still highlights the messages tab.
+ */
 export default function AppNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
 
