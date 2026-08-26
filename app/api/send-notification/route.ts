@@ -144,6 +144,19 @@ export async function POST(request: Request) {
         );
       }
 
+      // Reject explicit self-send. The group flow filters the sender out
+      // client-side before its per-member calls, so this only triggers on
+      // direct individual sends (UI or hand-crafted requests).
+      if (targetUser.memberId === targetSenderId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: '自分自身にはメッセージを送信できません。',
+          },
+          { status: 400 }
+        );
+      }
+
       targetMemberIds = [targetUser.memberId];
     }
 
