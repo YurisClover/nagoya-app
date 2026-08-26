@@ -389,7 +389,9 @@ async function fetchAllMembersFromSheet(): Promise<Member[]> {
     return rows.map((row) => ({
       member_id: String(row.get("member_id") ?? ""),
       user_name: String(row.get("user_name") ?? ""),
-      password_hash: String(row.get("password_hash") ?? ""),
+      // SECURITY: never map password_hash here. This list flows into client
+      // components (e.g. GroupForm), so any extra field ends up in the
+      // browser payload even if the Member type hides it.
       email: String(row.get("email") ?? ""),
       role: String(row.get("role") ?? "general"),
       status: String(row.get("status") ?? "active"),
@@ -491,7 +493,6 @@ export async function addMemberToSheet(newMember: {
       email: newMember.email,
       role: newMember.role,
       status: newMember.status,
-      barcode_data: "",
       created_at: newMember.created_at,
       updated_at: newMember.updated_at,
       deleted_at: "",
