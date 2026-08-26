@@ -128,7 +128,7 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
 
     const intervalId = setInterval(() => {
       fetchMessages(true);
-    }, 60000);
+    }, 300000); //5 min
 
     return () => {
       clearTimeout(initialId);
