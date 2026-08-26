@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import "server-only";
 import type { GoogleSpreadsheetRow } from "google-spreadsheet";
 import { getSpreadsheet } from "@/lib/sheets/client";
@@ -152,34 +153,20 @@ async function getEventsSheet() {
 }
 
 /**
- * Eventsシートへイベントを追加する。
+ * Append a new event to the Events sheet.
  *
- * event_idは既存の数値IDの
- * 最大値+1で発行する。
+ * event_id is issued as a UUID (crypto.randomUUID) per the spec. Legacy
+ * numeric ids (1, 2, 3, ...) may still exist in the sheet; every consumer
+ * compares ids as plain strings, so both formats can coexist safely.
  */
 export async function addEventToSheet(
   event: Omit<SheetEvent, "event_id">,
 ): Promise<SheetEvent> {
   const sheet = await getEventsSheet();
-  const rows = await sheet.getRows();
-  const maximumEventId = rows.reduce((currentMaximum, row) => {
-    const eventId = Number(row.get("event_id"));
-
-    /*
-     * 既存のUUIDなど、
-     * 正の整数ではないIDは
-     * 採番計算から除外する。
-     */
-    if (!Number.isInteger(eventId) || eventId < 1) {
-      return currentMaximum;
-    }
-
-    return Math.max(currentMaximum, eventId);
-  }, 0);
 
   const createdEvent: SheetEvent = {
     ...event,
-    event_id: String(maximumEventId + 1),
+    event_id: randomUUID(),
   };
 
   const createdRow = await sheet.addRow(
