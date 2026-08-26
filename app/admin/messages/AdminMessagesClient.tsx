@@ -178,7 +178,7 @@ export default function AdminMessagesClient({
 
     try {
       await fetch('/api/messages/read', {
-        method: 'POST',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messageId: inquiry.id,

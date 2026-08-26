@@ -14,7 +14,9 @@ interface SheetUpdateItem {
 
 // 既読化: 指定された message_id / reply_id の is_read を true にする。
 // admin 専用の処理ではないため /api/admin ではなく messages 配下に置く。
-export async function POST(req: Request) {
+// PATCH: marking a message read is a partial update of an existing
+// resource, not a creation - so the verb is PATCH, not POST.
+export async function PATCH(req: Request) {
   try {
     const apiUser = await getApiUser();
     if (!apiUser) {

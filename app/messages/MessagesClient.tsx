@@ -128,7 +128,7 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
 
     const intervalId = setInterval(() => {
       fetchMessages(true);
-    }, 300000); //5 min
+    }, 60000);
 
     return () => {
       clearTimeout(initialId);
@@ -146,7 +146,7 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
       try {
         const replyIds = msg.replies?.map((r) => r.id) || [];
         await fetch('/api/messages/read', {
-          method: 'POST',
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messageId: msg.id,
