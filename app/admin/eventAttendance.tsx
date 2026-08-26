@@ -11,14 +11,10 @@ type EventAttendanceProps = {
 export default function EventAttendance({ items }: EventAttendanceProps) {
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
-  const idNum = (v: string) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : -Infinity;
-  };
-  // sort by id (desc)
-  const sorted = [...items].sort((a, b) => idNum(b.eventId) - idNum(a.eventId));
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const pageItems = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Items arrive pre-sorted by event date (see getEventAttendanceList).
+  // Do not sort by eventId here: it is a UUID, not a sequence number.
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const pageItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   return (
     <div className="bg-white rounded-lg shadow-sm p-5 mt-6 w-full">
       <div className="pb-4 mb-4 border-b border-gray-100">
@@ -27,7 +23,7 @@ export default function EventAttendance({ items }: EventAttendanceProps) {
         </h2>
       </div>
 
-      {sorted.length === 0 ? (
+      {items.length === 0 ? (
         <p className="text-sm text-gray-400 py-8 text-center">
           今月のイベントはありません
         </p>
