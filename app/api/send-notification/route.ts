@@ -185,8 +185,32 @@ export async function POST(request: Request) {
       },
     });
 
-<<<<<<< HEAD
-// ----------------------------------------------------
+
+    // F(is_read)/H(delete_flag)を boolean セルに変換。失敗しても文字列の
+    // 'TRUE/'FALSE が残るだけで読み取り側は動くため、警告に留める。
+    try {
+      const updatedRange = appendResult.data.updates?.updatedRange ?? '';
+      const rangeMatch = updatedRange.match(/!([A-Z]+)(\d+):[A-Z]+(\d+)$/);
+      if (rangeMatch) {
+        const startRow = Number(rangeMatch[2]);
+        const endRow = Number(rangeMatch[3]);
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            valueInputOption: 'USER_ENTERED',
+            data: [
+              // 列位置は上の rowsToAppend の並び(A〜I)に対応
+              { range: `Messages!F${startRow}:F${endRow}`, values: rowsToAppend.map((r) => [r[5] ? 'TRUE' : 'FALSE']) },
+              { range: `Messages!H${startRow}:H${endRow}`, values: rowsToAppend.map((r) => [r[7] ? 'TRUE' : 'FALSE']) },
+            ],
+          },
+        });
+      }
+    } catch (flagError) {
+      console.warn('is_read/delete_flag の boolean セル化に失敗しました(表示のみの問題):', flagError);
+    }
+
+    // ----------------------------------------------------
 // 8. FCMプッシュ通知
 // メッセージ保存とは独立させ、通知失敗で既存の送信処理を失敗させない
 // ----------------------------------------------------
@@ -236,32 +260,7 @@ try {
   // Push通知が失敗してもMessages保存は成功扱いにする
   console.error('FCM通知送信エラー:', notificationError);
 }
-=======
-    // F(is_read)/H(delete_flag)を boolean セルに変換。失敗しても文字列の
-    // 'TRUE/'FALSE が残るだけで読み取り側は動くため、警告に留める。
-    try {
-      const updatedRange = appendResult.data.updates?.updatedRange ?? '';
-      const rangeMatch = updatedRange.match(/!([A-Z]+)(\d+):[A-Z]+(\d+)$/);
-      if (rangeMatch) {
-        const startRow = Number(rangeMatch[2]);
-        const endRow = Number(rangeMatch[3]);
-        await sheets.spreadsheets.values.batchUpdate({
-          spreadsheetId,
-          requestBody: {
-            valueInputOption: 'USER_ENTERED',
-            data: [
-              // 列位置は上の rowsToAppend の並び(A〜I)に対応
-              { range: `Messages!F${startRow}:F${endRow}`, values: rowsToAppend.map((r) => [r[5] ? 'TRUE' : 'FALSE']) },
-              { range: `Messages!H${startRow}:H${endRow}`, values: rowsToAppend.map((r) => [r[7] ? 'TRUE' : 'FALSE']) },
-            ],
-          },
-        });
-      }
-    } catch (flagError) {
-      console.warn('is_read/delete_flag の boolean セル化に失敗しました(表示のみの問題):', flagError);
-    }
 
->>>>>>> develop
     return NextResponse.json({
       success: true,
       savedCount: rowsToAppend.length,
