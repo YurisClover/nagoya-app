@@ -18,12 +18,14 @@ type MemberOption = {
 
 interface MessageFormProps {
   groups: Group[];
+  /** Logged-in admin's member id; used to keep self out of send targets. */
+  currentUserId: string;
   onSuccess: () => void;
   /** グループを事前選択した状態でフォームを開く(/admin/groups の送信リンク用) */
   initialGroupId?: string;
 }
 
-export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: MessageFormProps) {
+export default function MessageForm({ groups, currentUserId, onSuccess, initialGroupId = '' }: MessageFormProps) {
   const [targetType, setTargetType] = useState<'all' | 'group' | 'individual'>(
     initialGroupId ? 'group' : 'all'
   );
@@ -167,7 +169,16 @@ export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: 
           return;
         }
 
-        const memberIds: string[] = groupData.memberIds;
+        // Skip the sender: a group send targets everyone *else* in the
+        // group, matching the server's 'all' behavior.
+        const memberIds: string[] = (groupData.memberIds as string[]).filter(
+          (id) => id !== currentUserId,
+        );
+        if (memberIds.length === 0) {
+          alert(`「${selectedGroupName}」には自分以外のメンバーがいません`);
+          setIsSending(false);
+          return;
+        }
         let successCount = 0;
 
         // 2. 抽出された member_id にのみ送信
@@ -195,6 +206,12 @@ export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: 
         // --- 個人指定送信 ---
         if (!isEightDigitMemberId) {
           alert(`【エラー】宛先は半角数字「8桁」の会員IDを入力してください。`);
+          setIsSending(false);
+          return;
+        }
+
+        if (individualInput.trim() === currentUserId) {
+          alert('自分自身にはメッセージを送信できません。');
           setIsSending(false);
           return;
         }

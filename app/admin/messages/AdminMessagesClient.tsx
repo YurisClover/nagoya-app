@@ -254,7 +254,7 @@ export default function AdminMessagesClient({
       <h2 className="text-xl sm:text-2xl font-bold text-slate-900">メッセージ管理</h2>
 
       {/* 送信フォーム */}
-      <MessageForm groups={groups} initialGroupId={initialGroupId} onSuccess={() => fetchInquiries(true)} />
+      <MessageForm groups={groups} currentUserId={currentUserId} initialGroupId={initialGroupId} onSuccess={() => fetchInquiries(true)} />
 
       {/* 受信一覧 */}
       <InquiryList
