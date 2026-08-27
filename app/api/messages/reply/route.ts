@@ -55,6 +55,9 @@ export async function POST(req: Request) {
     let resolvedRecipientId = recipientId;
     let finalTitle = title?.trim();
     const resolvedParentId = parentMessageId || '';
+    // Sheet row number of the parent message (0 = not found). rows[0] is
+    // the header, so data index i corresponds to sheet row i + 1.
+    let parentSheetRow = 0;
 
     if (rows.length > 1) {
       const headers = (rows[0] || []).map((h) => h.toLowerCase().replace(/[_-\s]/g, "").trim());
@@ -69,8 +72,10 @@ export async function POST(req: Request) {
       if (tIdx === -1) tIdx = 3;
 
       if (resolvedParentId) {
-        const parentRow = rows.find((r) => r[mIdIdx]?.toString().trim() === resolvedParentId);
+        const parentRowIndex = rows.findIndex((r) => r[mIdIdx]?.toString().trim() === resolvedParentId);
+        const parentRow = parentRowIndex >= 0 ? rows[parentRowIndex] : undefined;
         if (parentRow) {
+          parentSheetRow = parentRowIndex + 1;
           const pSender = parentRow[sIdIdx]?.toString().trim();
           const pRecipient = parentRow[rIdIdx]?.toString().trim();
           const pTitle = parentRow[tIdx]?.toString().trim();
@@ -168,6 +173,30 @@ export async function POST(req: Request) {
       }
     } catch (flagError) {
       console.warn('is_read/delete_flag の boolean セル化に失敗しました(表示のみの問題):', flagError);
+    }
+
+    // Auto-reopen: a member reply flips the thread status back to 未対応
+    // (column J on the parent row) so a closed or in-progress case never
+    // dies silently after the member writes again. Admin replies leave the
+    // status untouched. Fail-soft: the reply itself is already saved, so a
+    // status write failure only logs a warning.
+    if (apiUser.role !== 'admin' && parentSheetRow > 0) {
+      try {
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            valueInputOption: 'USER_ENTERED',
+            data: [
+              // J = status, K = last_status_updated_by. K is cleared because
+              // this change is system-set (same convention as the automatic
+              // 'unsupported' tag at inquiry creation).
+              { range: `Messages!J${parentSheetRow}:K${parentSheetRow}`, values: [['unsupported', '']] },
+            ],
+          },
+        });
+      } catch (statusError) {
+        console.warn('Failed to auto-reopen thread status after member reply:', statusError);
+      }
     }
 
     return NextResponse.json({ success: true, messageId });
