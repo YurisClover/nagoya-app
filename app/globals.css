@@ -1,3 +1,15 @@
+/*
+ * Global stylesheet (Tailwind v4).
+ *
+ * Structure, top to bottom:
+ * 1. tailwindcss import + inline theme + dark-scheme override.
+ * 2. Design tokens (@theme): brand colors, ink/surface/line palette.
+ *    Change colors HERE, not inside components.
+ * 3. Component classes (@layer components): card / btn-* / field-* /
+ *    app-frame / app-nav etc. Pages compose these instead of repeating
+ *    utility chains.
+ * 4. Themed <select> styling for Chromium 135+, with plain fallback.
+ */
 @import "tailwindcss";
 
 :root {

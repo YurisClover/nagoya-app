@@ -54,9 +54,15 @@ export async function GET(): Promise<NextResponse> {
         role: roleIdx !== -1 && row[roleIdx] != null ? String(row[roleIdx]).trim().toLowerCase() : '',
         status: statusIdx !== -1 && row[statusIdx] != null ? String(row[statusIdx]).trim().toLowerCase() : '',
       }))
-      // 宛先候補は有効な会員のみ。自分自身(admin)は send-notification 側でも
-      // 除外されるが、候補一覧としては残しておく(1対1で admin 同士も送れるように)。
-      .filter((m) => m.member_id !== '' && (m.status === 'active' || m.status === '有効'));
+      // Candidates: active members only, excluding the requesting admin.
+      // Other admins stay in the list so admin-to-admin 1:1 still works;
+      // /api/send-notification also rejects self-send as defense in depth.
+      .filter(
+        (m) =>
+          m.member_id !== '' &&
+          m.member_id !== apiUser.memberId &&
+          (m.status === 'active' || m.status === '有効'),
+      );
 
     return NextResponse.json({ success: true, members });
   } catch (error: unknown) {

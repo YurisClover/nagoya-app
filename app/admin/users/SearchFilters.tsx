@@ -1,3 +1,9 @@
+/**
+ * Filter bar for the member list. Client component whose only job is
+ * translating inputs into router.replace() URL params - the server page
+ * re-renders with the new searchParams. Uses the sync-state-during-
+ * render pattern (not useEffect) to follow browser back/forward.
+ */
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";

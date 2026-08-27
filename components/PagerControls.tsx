@@ -1,3 +1,7 @@
+/**
+ * Shared pagination control (react-paginate) used by both message lists.
+ * Stateless: parent owns currentPage (0-based) and receives onPageChange.
+ */
 "use client";
 
 import ReactPaginate from "react-paginate";

@@ -1,3 +1,8 @@
+/**
+ * Edit group (/admin/groups/<id>/edit). Loads the group (404 on unknown
+ * id) and the member list in parallel, then renders the shared
+ * GroupForm with updateGroupAction bound to this group id.
+ */
 import { notFound } from "next/navigation";
 import { getCachedMembers, getGroupById } from "@/lib/sheets";
 import { updateGroupAction } from "@/lib/groupRegistration";

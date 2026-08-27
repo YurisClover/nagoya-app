@@ -1,3 +1,11 @@
+/**
+ * Admin message center (client). Two halves:
+ * - MessageForm: compose to all / a group / an individual member.
+ * - InquiryList: member inquiries fetched from /api/admin/inquiries,
+ *   refetched after a successful send or status change.
+ * All API access for this page funnels through here; child components
+ * receive data + callbacks only.
+ */
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -170,7 +178,7 @@ export default function AdminMessagesClient({
 
     try {
       await fetch('/api/messages/read', {
-        method: 'POST',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messageId: inquiry.id,
@@ -217,13 +225,14 @@ export default function AdminMessagesClient({
     }
   };
 
-  const handleDeleteMessage = async (messageId: string, replyIds: string[] = []) => {
+  // Only the root id travels: the server walks parent_id itself, so a
+  // client-built reply-id list is unnecessary.
+  const handleDeleteMessage = async (messageId: string) => {
     try {
-      const res = await fetch('/api/messages/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId, replyIds }),
-      });
+      const res = await fetch(
+        `/api/messages/delete?messageId=${encodeURIComponent(messageId)}`,
+        { method: 'DELETE' },
+      );
 
       const data = (await res.json()) as { success: boolean; error?: string };
       if (res.ok && data.success) {
@@ -254,7 +263,7 @@ export default function AdminMessagesClient({
       <h2 className="text-xl sm:text-2xl font-bold text-slate-900">メッセージ管理</h2>
 
       {/* 送信フォーム */}
-      <MessageForm groups={groups} initialGroupId={initialGroupId} onSuccess={() => fetchInquiries(true)} />
+      <MessageForm groups={groups} currentUserId={currentUserId} initialGroupId={initialGroupId} onSuccess={() => fetchInquiries(true)} />
 
       {/* 受信一覧 */}
       <InquiryList

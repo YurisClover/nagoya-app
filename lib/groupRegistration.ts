@@ -13,12 +13,31 @@ import { nowJST } from "@/lib/datetime";
 
 type FormState = { error: string } | null;
 
+/**
+ * member_ids arrives as a JSON string from the client. Parse defensively:
+ * malformed JSON or a non-string[] payload returns null instead of throwing,
+ * so the action can show a form error rather than crash the request.
+ */
+function parseMemberIds(raw: unknown): string[] | null {
+  if (typeof raw !== "string" || !raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    if (!parsed.every((id): id is string => typeof id === "string")) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 // 新規グループ作成
 export async function createGroupAction( prevState: FormState, formData: FormData,) {
   const session = await requireAdmin();
   const group_name = (formData.get("group_name") as string)?.trim();
-  const member_ids_raw = formData.get("member_ids") as string;
-  const member_ids: string[] = member_ids_raw ? JSON.parse(member_ids_raw) : [];
+  const member_ids = parseMemberIds(formData.get("member_ids"));
+  if (member_ids === null) {
+    return { error: "メンバーの選択内容が不正です。ページを再読み込みしてください。" };
+  }
   if (!group_name) {
     return { error: "グループ名は必須です。" };
   }
@@ -49,8 +68,10 @@ export async function updateGroupAction( prevState: FormState, formData: FormDat
   await requireAdmin();
   const group_id = (formData.get("group_id") as string)?.trim();
   const group_name = (formData.get("group_name") as string)?.trim();
-  const member_ids_raw = formData.get("member_ids") as string;
-  const member_ids: string[] = member_ids_raw ? JSON.parse(member_ids_raw) : [];
+  const member_ids = parseMemberIds(formData.get("member_ids"));
+  if (member_ids === null) {
+    return { error: "メンバーの選択内容が不正です。ページを再読み込みしてください。" };
+  }
   if (!group_id) {
     return { error: "グループIDが不正です。" };
   }

@@ -1,3 +1,7 @@
+/**
+ * Top bar of the member-side frame: branch title + logout button.
+ * signOut redirects to /login via callbackUrl.
+ */
 "use client";
 
 import { signOut } from "next-auth/react";

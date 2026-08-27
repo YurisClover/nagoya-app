@@ -1,3 +1,10 @@
+/**
+ * Edit member (/admin/users/<id>/edit). Loads the member from the
+ * server cache, 404 when absent or soft-deleted, then binds member_id
+ * into updateMemberAction - .bind() fixes the id server-side so the
+ * client form cannot tamper with which row is edited.
+ * Passes only whitelisted fields to the client form (never the hash).
+ */
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/guards";
 import { getCachedMembers } from "@/lib/sheets";

@@ -1,3 +1,12 @@
+/**
+ * Member-side message center (client). Fetches threads from
+ * /api/messages, renders them as InquiryItem cards (newest activity
+ * first, 10/page via PagerControls), lets the member reply inline and
+ * start a new inquiry to the admins through ContactAdminModal.
+ * The Api* types accept both snake_case and camelCase because older
+ * API revisions returned camelCase; normalization happens here so the
+ * rest of the tree sees one shape.
+ */
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -65,8 +74,17 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
 
           // status は API からは string で来るため union 型に絞り込む
           const rawStatus = (item.status || '').toLowerCase();
-          const status: MessageStatus =
-            rawStatus === 'pending' || rawStatus === 'closed' ? rawStatus : 'unsupported';
+          // Blank stays blank ('' = no badge); unknown strings are unset.
+          // Legacy strings from before the 2026-08 rename map onto the new
+          // values: unsupported -> open, pending -> in_progress.
+          const canonicalStatus =
+            rawStatus === 'unsupported' ? 'open'
+            : rawStatus === 'pending' ? 'in_progress'
+            : rawStatus;
+          const status: MessageStatus | '' =
+            canonicalStatus === 'open' || canonicalStatus === 'in_progress' || canonicalStatus === 'closed'
+              ? canonicalStatus
+              : '';
           const displayUserName = isMyMessage ? recipientName : '事務局';
 
           return {
@@ -137,7 +155,7 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
       try {
         const replyIds = msg.replies?.map((r) => r.id) || [];
         await fetch('/api/messages/read', {
-          method: 'POST',
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messageId: msg.id,
@@ -199,11 +217,10 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
   };
 
   const handleDelete = async (messageId: string) => {
-    const res = await fetch('/api/messages/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messageId }),
-    });
+    const res = await fetch(
+      `/api/messages/delete?messageId=${encodeURIComponent(messageId)}`,
+      { method: 'DELETE' },
+    );
     const data = await res.json();
     if (data.success) {
       alert('削除が完了しました');

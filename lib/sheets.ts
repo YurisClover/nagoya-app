@@ -326,6 +326,14 @@ export const getEventAttendanceList = unstable_cache(
     .filter((item) => {
         const d = parseSheetDate(item.eventDate, { yearHint: "current" });
         return d !== null && jstYearMonth(d) === thisMonth;
+    })
+    // Sort here (server side) by event date, soonest first. event_id is a
+    // UUID now, so id-based ordering is meaningless; components must not
+    // re-sort by id.
+    .sort((a, b) => {
+        const ta = parseSheetDate(a.eventDate, { yearHint: "current" })?.getTime() ?? Number.POSITIVE_INFINITY;
+        const tb = parseSheetDate(b.eventDate, { yearHint: "current" })?.getTime() ?? Number.POSITIVE_INFINITY;
+        return ta - tb;
     });
   },
   ["event-attendance-list"],
@@ -353,7 +361,7 @@ export async function logActivity( type: ActivityType, description: string,): Pr
     }
     await sheet.addRow(
       {
-        activity_id: `act_${randomUUID()}`,
+        activity_id: randomUUID(),
         type,
         description: normalizedDescription,
         created_at: nowJST(),
@@ -389,7 +397,9 @@ async function fetchAllMembersFromSheet(): Promise<Member[]> {
     return rows.map((row) => ({
       member_id: String(row.get("member_id") ?? ""),
       user_name: String(row.get("user_name") ?? ""),
-      password_hash: String(row.get("password_hash") ?? ""),
+      // SECURITY: never map password_hash here. This list flows into client
+      // components (e.g. GroupForm), so any extra field ends up in the
+      // browser payload even if the Member type hides it.
       email: String(row.get("email") ?? ""),
       role: String(row.get("role") ?? "general"),
       status: String(row.get("status") ?? "active"),
@@ -491,7 +501,6 @@ export async function addMemberToSheet(newMember: {
       email: newMember.email,
       role: newMember.role,
       status: newMember.status,
-      barcode_data: "",
       created_at: newMember.created_at,
       updated_at: newMember.updated_at,
       deleted_at: "",
@@ -605,7 +614,7 @@ export async function getGroupsWithMembers(): Promise<GroupWithMembers[]> {
     groupMembersMap.get(gId)!.push(mId);
   });
 
-  return groupRows.map((row) => {
+  const groups = groupRows.map((row) => {
     const group_id = String(row.get("group_id"));
     const memberIds = groupMembersMap.get(group_id) || [];
     const members = memberIds
@@ -620,6 +629,14 @@ export async function getGroupsWithMembers(): Promise<GroupWithMembers[]> {
       members,
     };
   });
+
+  // Display order: by group name, Japanese collation. numeric:true gives
+  // natural ordering (グループ2 before グループ10). Note: kanji sort by
+  // locale rules, not by reading — proper 読み order would need furigana
+  // data we don't store.
+  return groups.sort((a, b) =>
+    a.group_name.localeCompare(b.group_name, "ja", { numeric: true }),
+  );
 }
 
 // キャッシュ版の関数（画面表示はこちらを使う）
@@ -650,17 +667,15 @@ export async function addGroupToSheet(data: {
     const groupsSheet = doc.sheetsByTitle["Groups"];
     const groupMembersSheet = doc.sheetsByTitle["GroupMembers"];
 
-    // group_id = most value + 1
-    const rows = await groupsSheet.getRows();
-    const maxId = rows.reduce((max, r) => {
-      const n = Number(String(r.get("group_id") ?? "").trim());
-      return Number.isFinite(n) && n > max ? n : max;
-    }, 0);
-    const nextId = String(maxId + 1);
+    // Unified id scheme: every entity id is a bare UUID (matches the
+    // event_id spec). This also drops the full-sheet read that max+1
+    // needed, and with it the duplicate-id race on concurrent creates.
+    // Legacy numeric ids coexist safely; all comparisons are string-based.
+    const groupId = randomUUID();
 
     await groupsSheet.addRow(
       {
-        group_id: nextId,
+        group_id: groupId,
         group_name: data.group_name,
         created_by: data.created_by,
         created_at: data.created_at,
@@ -670,7 +685,7 @@ export async function addGroupToSheet(data: {
 
     if (data.member_ids.length > 0) {
       const newMemberRows = data.member_ids.map((member_id) => ({
-        group_id: nextId,
+        group_id: groupId,
         member_id,
         created_at: data.created_at,
       }));

@@ -6,7 +6,7 @@ import {
 } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
-import { nowJST } from "./datetime";
+import { nowJST, parseSheetDate } from "./datetime";
 import { logActivity } from "./sheets";
 
 const MAIN_SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID?.trim() ?? "";
@@ -64,18 +64,6 @@ export type EventResponseSyncResult = {
   }>;
 };
 
-function parseBoolean(value: unknown): boolean {
-  if (typeof value === "boolean") {
-    return value;
-  }
-
-  return ["true", "1", "yes"].includes(
-    String(value ?? "")
-      .trim()
-      .toLowerCase(),
-  );
-}
-
 function getEventIdFromSheetName(sheetName: string): string | null {
   /*
    * 対応例：
@@ -86,10 +74,17 @@ function getEventIdFromSheetName(sheetName: string): string | null {
   return match?.[1]?.trim() || null;
 }
 
-// iso + 9:00
+/**
+ * Convert a form timestamp (e.g. "2026/08/26 14:30:12", written in JST by
+ * Google Forms) to our JST ISO format. `new Date(string)` must not be used
+ * here: it parses in the SERVER timezone, which shifts values by +9h when
+ * the server runs in UTC. parseSheetDate anchors parsing to JST instead.
+ */
 function toJstIsoOrRaw(value: unknown): string {
-  const d = new Date(String(value));
-  return Number.isNaN(d.getTime()) ? String(value ?? "") : nowJST(d);
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const d = parseSheetDate(raw, { yearHint: "past" });
+  return d ? nowJST(d) : raw;
 }
 
 async function createSpreadsheetDoc(
@@ -119,7 +114,9 @@ async function loadActiveMemberIds(
   }
   const rows = await usersSheet.getRows();
   const memberIds = rows
-    .filter((row) => !parseBoolean(row.get("is_deleted")))
+    // Users has no is_deleted column; a member is deleted when
+    // deleted_at holds a timestamp.
+    .filter((row) => !String(row.get("deleted_at") ?? "").trim())
     .map((row) => normalizeId(row.get("member_id")))
     .filter(Boolean);
   if (memberIds.length === 0) {

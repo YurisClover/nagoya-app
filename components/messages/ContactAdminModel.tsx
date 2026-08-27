@@ -1,3 +1,11 @@
+/**
+ * "Contact the admins" modal on the member messages page. Sends one
+ * message with recipient 'admin' via /api/send-notification; the server
+ * stores it as a single admin-inbox thread (not fanned out per admin).
+ * NOTE: file name says Model but the component is ContactAdminModal -
+ * a typo kept as-is to avoid breaking imports; rename in its own commit
+ * if it bothers you.
+ */
 'use client';
 
 import React, { useState } from 'react';

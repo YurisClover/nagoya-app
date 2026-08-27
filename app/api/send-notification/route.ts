@@ -17,6 +17,7 @@ interface SendNotificationBody {
   recipientId?: string;
   title?: string;
   body?: string;
+  status?: string;
   url?: string;
   parent_id?: string;
   parentId?: string;
@@ -144,6 +145,19 @@ export async function POST(request: Request) {
         );
       }
 
+      // Reject explicit self-send. The group flow filters the sender out
+      // client-side before its per-member calls, so this only triggers on
+      // direct individual sends (UI or hand-crafted requests).
+      if (targetUser.memberId === targetSenderId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: '自分自身にはメッセージを送信できません。',
+          },
+          { status: 400 }
+        );
+      }
+
       targetMemberIds = [targetUser.memberId];
     }
 
@@ -154,7 +168,25 @@ export async function POST(request: Request) {
     const createdAt = nowJST();
     const parentId = bodyData.parent_id || bodyData.parentId || '';
 
-    // 6. 対象メンバーそれぞれに対して1件ずつメッセージ行を作成（A〜I列の完全対応）
+    // Message status (Messages column J):
+    // - member -> admin inquiries are auto-tagged 'open' so every new
+    //   inquiry surfaces with the 未対応 badge without any admin action.
+    // - admin sends may carry an optional badge picked in the form; blank
+    //   means "no badge" and the cell stays empty.
+    const VALID_STATUSES = ['open', 'in_progress', 'closed'] as const;
+    const requestedStatus = String(bodyData.status ?? '').trim().toLowerCase();
+    const messageStatus =
+      rawRecipient === 'admin'
+        ? 'open'
+        : (VALID_STATUSES as readonly string[]).includes(requestedStatus)
+          ? requestedStatus
+          : '';
+    // K (last_status_updated_by) only records a human choice; the automatic
+    // 'open' tag is system-set, so K stays empty for it.
+    const statusUpdatedBy =
+      messageStatus && rawRecipient !== 'admin' ? targetSenderId : '';
+
+    // 6. One message row per target member (columns A-K, in sheet order).
     const rowsToAppend = targetMemberIds.map((recipientMemberId) => {
       // boolean のまま渡す(RAW + boolean = 素の TRUE/FALSE セル。文字列だと 'true 表示になる)
       const isRead = String(targetSenderId).trim() === String(recipientMemberId).trim();
@@ -169,6 +201,8 @@ export async function POST(request: Request) {
         createdAt,                    // G: created_at (nowJST())
         false,                        // H: delete_flag(直後に boolean セル化する — 下記参照)
         parentId,                     // I: parent_id
+        messageStatus,                // J: status ('' = no badge)
+        statusUpdatedBy,              // K: last_status_updated_by
       ];
     });
 
@@ -178,13 +212,12 @@ export async function POST(request: Request) {
     // 追加直後に F/H 列だけ USER_ENTERED で上書きして boolean セル化する。
     const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Messages!A:I',
+      range: 'Messages!A:K',
       valueInputOption: 'RAW', 
       requestBody: {
         values: rowsToAppend,
       },
     });
-
 
     // F(is_read)/H(delete_flag)を boolean セルに変換。失敗しても文字列の
     // 'TRUE/'FALSE が残るだけで読み取り側は動くため、警告に留める。

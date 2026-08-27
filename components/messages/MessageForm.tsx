@@ -1,3 +1,13 @@
+/**
+ * Admin compose form. Target types and their send paths:
+ * - all:        one POST, server expands to every active member
+ *               (excluding the sender).
+ * - group:      expands members via /api/group-members, then one POST
+ *               per member, skipping the sender client-side.
+ * - individual: single POST; 8-digit id validated and self-send blocked
+ *               here first, but the server's 400 is the real gate.
+ * Recipient picker data comes from /api/members (self already excluded).
+ */
 //メッセージ作成・送信を行うフォームコンポーネント
 
 'use client';
@@ -18,12 +28,14 @@ type MemberOption = {
 
 interface MessageFormProps {
   groups: Group[];
+  /** Logged-in admin's member id; used to keep self out of send targets. */
+  currentUserId: string;
   onSuccess: () => void;
   /** グループを事前選択した状態でフォームを開く(/admin/groups の送信リンク用) */
   initialGroupId?: string;
 }
 
-export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: MessageFormProps) {
+export default function MessageForm({ groups, currentUserId, onSuccess, initialGroupId = '' }: MessageFormProps) {
   const [targetType, setTargetType] = useState<'all' | 'group' | 'individual'>(
     initialGroupId ? 'group' : 'all'
   );
@@ -100,6 +112,10 @@ export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: 
     return prefix ? `${prefix} ${rawTitle}` : rawTitle;
   };
 
+  // Optional status badge for the outgoing message. '' = no badge (the
+  // status cell stays empty and nothing renders on the recipient side).
+  const [badgeStatus, setBadgeStatus] = useState('');
+
   const resetForm = () => {
     setRawTitle('');
     setBody('');
@@ -107,6 +123,7 @@ export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: 
     setMemberQuery('');
     setShowResults(false);
     setSelectedGroupId('');
+    setBadgeStatus('');
     onSuccess();
   };
 
@@ -128,6 +145,7 @@ export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipient_id: 'all',
+            status: badgeStatus,
             title: getFormattedTitle(),
             body: body,
             url: '/messages',
@@ -167,7 +185,16 @@ export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: 
           return;
         }
 
-        const memberIds: string[] = groupData.memberIds;
+        // Skip the sender: a group send targets everyone *else* in the
+        // group, matching the server's 'all' behavior.
+        const memberIds: string[] = (groupData.memberIds as string[]).filter(
+          (id) => id !== currentUserId,
+        );
+        if (memberIds.length === 0) {
+          alert(`「${selectedGroupName}」には自分以外のメンバーがいません`);
+          setIsSending(false);
+          return;
+        }
         let successCount = 0;
 
         // 2. 抽出された member_id にのみ送信
@@ -177,6 +204,7 @@ export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               recipient_id: memberId, // 確実に抽出されたmember_idのみ送る
+              status: badgeStatus,
               title: getFormattedTitle(),
               body: body,
               url: '/messages',
@@ -199,11 +227,18 @@ export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: 
           return;
         }
 
+        if (individualInput.trim() === currentUserId) {
+          alert('自分自身にはメッセージを送信できません。');
+          setIsSending(false);
+          return;
+        }
+
         const res = await fetch('/api/send-notification', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipient_id: individualInput.trim(),
+            status: badgeStatus,
             title: getFormattedTitle(),
             body: body,
             url: '/messages',
@@ -354,6 +389,22 @@ export default function MessageForm({ groups, onSuccess, initialGroupId = '' }: 
             onChange={(e) => setBody(e.target.value)}
             className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 resize-y"
           />
+        </div>
+
+        {/* Optional status badge. No default on purpose: blank = the
+            status cell stays empty and no badge is shown anywhere. */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">ステータスバッジ(任意)</label>
+          <select
+            value={badgeStatus}
+            onChange={(e) => setBadgeStatus(e.target.value)}
+            className="w-full flex-1 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+          >
+            <option value="">バッジなし</option>
+            <option value="open">未対応</option>
+            <option value="in_progress">対応中</option>
+            <option value="closed">対応完了</option>
+          </select>
         </div>
 
         <div className="flex items-center justify-end space-x-3 pt-2">

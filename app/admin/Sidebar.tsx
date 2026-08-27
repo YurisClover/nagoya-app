@@ -1,3 +1,9 @@
+/**
+ * Admin sidebar: nav links, the logged-in admin's identity, logout, and
+ * an unread badge for member inquiries (polls /api/admin/unread-count).
+ * Active link = pathname prefix match. Rendered inside AdminShell on
+ * both the fixed (desktop) and drawer (mobile) layouts.
+ */
 "use client";
 
 import { useState, useEffect } from "react";

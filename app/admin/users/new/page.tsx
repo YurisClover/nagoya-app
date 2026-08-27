@@ -1,3 +1,9 @@
+/**
+ * New member form (/admin/users/new). useActionState around the
+ * createMemberAction server action; validation, id numbering and the
+ * activity log all live in lib/memberRegistration.ts. The action
+ * redirects back to /admin/users on success.
+ */
 "use client";
 
 import Link from "next/link";

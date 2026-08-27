@@ -1,3 +1,10 @@
+/**
+ * Unread-count badge on the dashboard messages tile.
+ *
+ * Receives the server-fetched initial count as a prop (no flash of 0),
+ * then polls /api/messages/unread-count every 5 mins to stay current.
+ * Renders nothing at count <= 0; caps the display at "99+".
+ */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -6,7 +13,7 @@ export default function UnreadBadge({ initialCount }: { initialCount: number }) 
   const [count, setCount] = useState(initialCount);
 
   useEffect(() => {
-    // 30秒ごとにAPIを叩く
+    // Refresh the unread count periodically (interval below).
     const interval = setInterval(async () => {
       try {
         const res = await fetch("/api/messages/unread-count");
@@ -19,7 +26,7 @@ export default function UnreadBadge({ initialCount }: { initialCount: number }) 
       } catch (error) {
         console.error("未読数の自動更新に失敗しました:", error);
       }
-    }, 60000); // 60000ms = 60秒
+    }, 300000); // 5 mins
 
     // クリーンアップ処理
     return () => clearInterval(interval);

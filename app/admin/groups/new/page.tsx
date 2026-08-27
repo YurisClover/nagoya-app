@@ -1,3 +1,8 @@
+/**
+ * New group (/admin/groups/new). Thin server wrapper: loads the member
+ * list for the picker and renders the shared GroupForm with
+ * createGroupAction.
+ */
 import { getCachedMembers } from "@/lib/sheets";
 import { createGroupAction } from "@/lib/groupRegistration";
 import GroupForm from "../groupForm";

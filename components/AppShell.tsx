@@ -3,7 +3,13 @@ import AppHeader from "./AppHeader";
 import AppNav from "./AppNav";
 import NotificationInitializer from "@/app/notification/NotificationInitializer";
 
-/** user frame = theme bg + header + nav tab + content */
+/**
+ * Frame for every member-side page: theme background + AppHeader +
+ * AppNav tabs + content. Server component: reads the session once and
+ * passes isAdmin down so the nav can show admin-only tabs.
+ * Also mounts NotificationInitializer, which registers the FCM service
+ * worker - this is why it must never throw (see lib/firebase.ts).
+ */
 export default async function AppShell({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const isAdmin = session?.user?.role === "admin";

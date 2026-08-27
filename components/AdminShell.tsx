@@ -1,3 +1,10 @@
+/**
+ * Responsive layout for /admin pages. Receives the sidebar as a prop
+ * (composition keeps this file layout-only, no nav knowledge):
+ * - >= lg: fixed sidebar on the left.
+ * - < lg: hamburger topbar + slide-in drawer; clicking the overlay or
+ *   any link closes the drawer.
+ */
 "use client";
 
 import { useState } from "react";

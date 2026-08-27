@@ -1,3 +1,12 @@
+/**
+ * Login page (/login). Client credentials form.
+ *
+ * Calls next-auth signIn("credentials") with redirect:false so errors can
+ * be shown inline (Japanese UI strings). On success it pushes "/" - the
+ * root router decides the landing page per role - and router.refresh()
+ * re-renders server components with the new session.
+ * Auth logic itself lives in auth.ts (authorize checks the Users sheet).
+ */
 "use client";
 
 import { useState } from "react";

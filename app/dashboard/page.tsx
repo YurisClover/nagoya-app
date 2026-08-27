@@ -1,3 +1,11 @@
+/**
+ * Member home (/dashboard). Card-grid menu for the user side.
+ *
+ * Cards come from the MENU registry in lib/menu.ts (single source shared
+ * with AppNav); items with ready:false render as disabled "準備中".
+ * The messages tile shows UnreadBadge: the initial count is fetched
+ * server-side here, then the badge keeps itself fresh client-side.
+ */
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { MENU, type MenuItem } from "@/lib/menu";

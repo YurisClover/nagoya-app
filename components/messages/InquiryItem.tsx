@@ -1,3 +1,10 @@
+/**
+ * One message thread card, shared by the member page and the admin
+ * inquiry list. Shows subject/sender/relative time/unread state,
+ * expands to the reply history and an InlineReplyForm.
+ * Exports ReceivedMessage / MessageStatus: the shared display contract
+ * both sides normalize their API data into.
+ */
 'use client';
 
 import React, { useState } from 'react';
@@ -18,7 +25,11 @@ export type ReplyMessage = {
   createdAt: string;
 };
 
-export type MessageStatus = 'unsupported' | 'pending' | 'closed';
+// Thread lifecycle status, standard ticketing terms:
+// open = 未対応, in_progress = 対応中, closed = 対応完了.
+// (Renamed 2026-08 from unsupported/pending. The sheet may still hold the
+// old strings; every read path maps them onto these values.)
+export type MessageStatus = 'open' | 'in_progress' | 'closed';
 
 export type ReceivedMessage = {
   id: string;
@@ -31,7 +42,7 @@ export type ReceivedMessage = {
   body: string;
   isRead: boolean;
   createdAt: string;
-  status: MessageStatus;
+  status: MessageStatus | '';
   lastStatusUpdatedBy?: string | null;
   deleteFlag?: boolean | string;
   replies?: ReplyMessage[];
@@ -64,13 +75,15 @@ export default function InquiryItem({
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
 
   const statusConfig: Record<MessageStatus, { label: string; className: string }> = {
-    unsupported: { label: '未対応', className: 'bg-red-100 text-red-700' },
-    pending: { label: '対応中', className: 'bg-yellow-100 text-yellow-700' },
+    open: { label: '未対応', className: 'bg-red-100 text-red-700' },
+    in_progress: { label: '対応中', className: 'bg-yellow-100 text-yellow-700' },
     closed: { label: '対応完了', className: 'bg-green-100 text-green-700' },
   };
 
-  const currentStatus: MessageStatus = inquiry.status || 'unsupported';
-  const config = statusConfig[currentStatus];
+  // Badge only for an explicitly set status: a blank cell means "no badge".
+  // 未対応 is written explicitly when a member opens an inquiry, so blank no
+  // longer implies it.
+  const config = inquiry.status ? statusConfig[inquiry.status] : null;
 
   const handleStatusChange = async (newStatus: MessageStatus): Promise<void> => {
     if (!onStatusChange) return;
@@ -148,9 +161,11 @@ export default function InquiryItem({
                 ({inquiry.lastStatusUpdatedBy})
               </span>
             )}
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${config.className}`}>
-              {config.label}
-            </span>
+            {config && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${config.className}`}>
+                {config.label}
+              </span>
+            )}
             <button
               type="button"
               onClick={handleDelete}
@@ -184,13 +199,13 @@ export default function InquiryItem({
           {isAdmin && (
             <div className="flex items-center space-x-2 pt-2">
               <span className="text-xs font-bold text-slate-500">ステータス変更:</span>
-              {(['unsupported', 'pending', 'closed'] as MessageStatus[]).map((s) => (
+              {(['open', 'in_progress', 'closed'] as MessageStatus[]).map((s) => (
                 <button
                   key={s}
-                  disabled={isUpdatingStatus || currentStatus === s}
+                  disabled={isUpdatingStatus || inquiry.status === s}
                   onClick={() => handleStatusChange(s)}
                   className={`px-3 py-1 text-[11px] font-bold rounded-lg border transition ${
-                    currentStatus === s 
+                    inquiry.status === s 
                       ? 'bg-slate-800 text-white border-slate-800' 
                       : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
                   }`}
@@ -223,12 +238,10 @@ export default function InquiryItem({
             </div>
           )}
 
-          {currentStatus === 'closed' ? (
-            <div className="p-4 bg-slate-100 rounded-lg text-center text-sm text-slate-500">
-              この問い合わせは「対応完了」に設定されているため、返信できません。
-            </div>
-          ) : (
-            (() => {
+          {/* Replies stay open even on closed threads: a member reply
+              auto-reopens the case server-side (status flips back to
+              未対応), so the old "closed = locked" rule is obsolete. */}
+          {(() => {
               const isMyMessage = String(inquiry.senderId).trim() === String(currentUserId).trim();
               const opponentId = isMyMessage ? inquiry.recipientId : inquiry.senderId;
               const targetUserName = isMyMessage ? (inquiry.recipientName || '宛先') : (inquiry.userName || '差出人');
@@ -243,8 +256,7 @@ export default function InquiryItem({
                   }
                 />
               );
-            })()
-          )}
+            })()}
         </div>
       )}
     </div>
