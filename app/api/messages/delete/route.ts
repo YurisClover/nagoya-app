@@ -2,13 +2,7 @@ import { NextResponse } from 'next/server';
 import { getApiUser } from '@/lib/guards';
 import { getSheetsClient } from "@/lib/sheets/googleapis";
 
-// 1. リクエストボディの型を定義
-interface DeleteRequestBody {
-  messageId?: string;
-  replyIds?: string[];
-}
-
-export async function POST(request: Request) {
+export async function DELETE(request: Request) {
   try {
     const apiUser = await getApiUser();
     if (!apiUser) {
@@ -17,9 +11,12 @@ export async function POST(request: Request) {
 
     const { memberId, role } = apiUser;
 
-    // 2. request.json() に型を適用
-    const bodyData = (await request.json()) as DeleteRequestBody;
-    const { messageId, replyIds } = bodyData;
+    // DELETE carries the id in the query string: DELETE request bodies
+    // have no defined semantics in HTTP and some proxies drop them.
+    // Callers name only the root message - the parent_id walk below pulls
+    // in every reply, so a client-supplied reply list is unnecessary
+    // (each row is ownership-checked regardless).
+    const messageId = new URL(request.url).searchParams.get('messageId')?.trim() ?? '';
     
     if (!messageId) {
       return NextResponse.json({ success: false, error: 'messageId が指定されていません' }, { status: 400 });
@@ -59,11 +56,7 @@ export async function POST(request: Request) {
 
     const colLetter = String.fromCharCode(65 + deleteFlagIdx);
 
-    // 削除対象のIDセット初期化（明示的に指定されたID群）
-    const targetIds = new Set<string>([
-      messageId,
-      ...(Array.isArray(replyIds) ? replyIds : []),
-    ]);
+    const targetIds = new Set<string>([messageId]);
 
     // ★ スプレッドシート内を走査し、削除対象のメッセージを親（parent_id）に持つ子メッセージも自動で巻き込む
     let added = true;

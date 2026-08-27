@@ -217,11 +217,10 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
   };
 
   const handleDelete = async (messageId: string) => {
-    const res = await fetch('/api/messages/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messageId }),
-    });
+    const res = await fetch(
+      `/api/messages/delete?messageId=${encodeURIComponent(messageId)}`,
+      { method: 'DELETE' },
+    );
     const data = await res.json();
     if (data.success) {
       alert('削除が完了しました');
