@@ -401,8 +401,8 @@ export default function MessageForm({ groups, currentUserId, onSuccess, initialG
             className="w-full flex-1 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
             <option value="">バッジなし</option>
-            <option value="unsupported">未対応</option>
-            <option value="pending">対応中</option>
+            <option value="open">未対応</option>
+            <option value="in_progress">対応中</option>
             <option value="closed">対応完了</option>
           </select>
         </div>
