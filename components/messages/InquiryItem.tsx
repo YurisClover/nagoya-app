@@ -234,12 +234,10 @@ export default function InquiryItem({
             </div>
           )}
 
-          {inquiry.status === 'closed' ? (
-            <div className="p-4 bg-slate-100 rounded-lg text-center text-sm text-slate-500">
-              この問い合わせは「対応完了」に設定されているため、返信できません。
-            </div>
-          ) : (
-            (() => {
+          {/* Replies stay open even on closed threads: a member reply
+              auto-reopens the case server-side (status flips back to
+              未対応), so the old "closed = locked" rule is obsolete. */}
+          {(() => {
               const isMyMessage = String(inquiry.senderId).trim() === String(currentUserId).trim();
               const opponentId = isMyMessage ? inquiry.recipientId : inquiry.senderId;
               const targetUserName = isMyMessage ? (inquiry.recipientName || '宛先') : (inquiry.userName || '差出人');
@@ -254,8 +252,7 @@ export default function InquiryItem({
                   }
                 />
               );
-            })()
-          )}
+            })()}
         </div>
       )}
     </div>
