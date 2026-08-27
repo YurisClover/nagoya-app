@@ -74,8 +74,12 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
 
           // status は API からは string で来るため union 型に絞り込む
           const rawStatus = (item.status || '').toLowerCase();
-          const status: MessageStatus =
-            rawStatus === 'pending' || rawStatus === 'closed' ? rawStatus : 'unsupported';
+          // Blank stays blank ('' = no badge). Only explicit values map to
+          // a badge; unknown strings are treated as unset, not 未対応.
+          const status: MessageStatus | '' =
+            rawStatus === 'pending' || rawStatus === 'closed' || rawStatus === 'unsupported'
+              ? rawStatus
+              : '';
           const displayUserName = isMyMessage ? recipientName : '事務局';
 
           return {
@@ -128,7 +132,7 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
 
     const intervalId = setInterval(() => {
       fetchMessages(true);
-    }, 300000); //5 min
+    }, 60000);
 
     return () => {
       clearTimeout(initialId);

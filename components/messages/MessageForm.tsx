@@ -112,6 +112,10 @@ export default function MessageForm({ groups, currentUserId, onSuccess, initialG
     return prefix ? `${prefix} ${rawTitle}` : rawTitle;
   };
 
+  // Optional status badge for the outgoing message. '' = no badge (the
+  // status cell stays empty and nothing renders on the recipient side).
+  const [badgeStatus, setBadgeStatus] = useState('');
+
   const resetForm = () => {
     setRawTitle('');
     setBody('');
@@ -119,6 +123,7 @@ export default function MessageForm({ groups, currentUserId, onSuccess, initialG
     setMemberQuery('');
     setShowResults(false);
     setSelectedGroupId('');
+    setBadgeStatus('');
     onSuccess();
   };
 
@@ -140,6 +145,7 @@ export default function MessageForm({ groups, currentUserId, onSuccess, initialG
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipient_id: 'all',
+            status: badgeStatus,
             title: getFormattedTitle(),
             body: body,
             url: '/messages',
@@ -198,6 +204,7 @@ export default function MessageForm({ groups, currentUserId, onSuccess, initialG
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               recipient_id: memberId, // 確実に抽出されたmember_idのみ送る
+              status: badgeStatus,
               title: getFormattedTitle(),
               body: body,
               url: '/messages',
@@ -231,6 +238,7 @@ export default function MessageForm({ groups, currentUserId, onSuccess, initialG
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipient_id: individualInput.trim(),
+            status: badgeStatus,
             title: getFormattedTitle(),
             body: body,
             url: '/messages',
@@ -381,6 +389,22 @@ export default function MessageForm({ groups, currentUserId, onSuccess, initialG
             onChange={(e) => setBody(e.target.value)}
             className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500 resize-y"
           />
+        </div>
+
+        {/* Optional status badge. No default on purpose: blank = the
+            status cell stays empty and no badge is shown anywhere. */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">ステータスバッジ(任意)</label>
+          <select
+            value={badgeStatus}
+            onChange={(e) => setBadgeStatus(e.target.value)}
+            className="w-full flex-1 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
+          >
+            <option value="">バッジなし</option>
+            <option value="unsupported">未対応</option>
+            <option value="pending">対応中</option>
+            <option value="closed">対応完了</option>
+          </select>
         </div>
 
         <div className="flex items-center justify-end space-x-3 pt-2">

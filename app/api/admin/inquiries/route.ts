@@ -20,7 +20,7 @@ interface ParsedMessage {
   body: string;
   isRead: boolean;
   createdAt: string;
-  status: MessageStatus;
+  status: MessageStatus | '';
   lastStatusUpdatedBy?: string | null;
 }
 
@@ -171,10 +171,12 @@ export async function GET(): Promise<NextResponse> {
       if (senderId.toLowerCase() === myAdminId.toLowerCase()) isRead = true;
 
       const rawStatus = row[statusIdx] != null ? String(row[statusIdx]).trim().toLowerCase() : '';
-      const status: MessageStatus = 
+      // Blank stays blank: 未対応 must mean an explicit 'unsupported' value,
+      // not "nobody has set a status yet".
+      const status: MessageStatus | '' = 
         rawStatus === 'pending' || rawStatus === 'closed' || rawStatus === 'unsupported' 
           ? (rawStatus as MessageStatus)
-          : 'unsupported';
+          : '';
 
       const rawUpdaterId = row[lastStatusUpdatedByIdx] != null ? String(row[lastStatusUpdatedByIdx]).trim() : null;
       let lastStatusUpdatedBy = rawUpdaterId;

@@ -145,7 +145,7 @@ export async function GET() {
         }
 
         // ★追加: ステータスと更新者の取得（デフォルトは unsupported / 未対応）
-        const status = statusIdx !== -1 && row[statusIdx] ? row[statusIdx].toString().trim() : "unsupported";
+        const status = statusIdx !== -1 && row[statusIdx] ? row[statusIdx].toString().trim() : "";
         const lastStatusUpdatedBy = lastStatusUpdatedByIdx !== -1 && row[lastStatusUpdatedByIdx] ? row[lastStatusUpdatedByIdx].toString().trim() : "";
 
         return {

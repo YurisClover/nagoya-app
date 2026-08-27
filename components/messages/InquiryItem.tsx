@@ -38,7 +38,7 @@ export type ReceivedMessage = {
   body: string;
   isRead: boolean;
   createdAt: string;
-  status: MessageStatus;
+  status: MessageStatus | '';
   lastStatusUpdatedBy?: string | null;
   deleteFlag?: boolean | string;
   replies?: ReplyMessage[];
@@ -76,8 +76,10 @@ export default function InquiryItem({
     closed: { label: '対応完了', className: 'bg-green-100 text-green-700' },
   };
 
-  const currentStatus: MessageStatus = inquiry.status || 'unsupported';
-  const config = statusConfig[currentStatus];
+  // Badge only for an explicitly set status: a blank cell means "no badge".
+  // 未対応 is written explicitly when a member opens an inquiry, so blank no
+  // longer implies it.
+  const config = inquiry.status ? statusConfig[inquiry.status] : null;
 
   const handleStatusChange = async (newStatus: MessageStatus): Promise<void> => {
     if (!onStatusChange) return;
@@ -155,9 +157,11 @@ export default function InquiryItem({
                 ({inquiry.lastStatusUpdatedBy})
               </span>
             )}
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${config.className}`}>
-              {config.label}
-            </span>
+            {config && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${config.className}`}>
+                {config.label}
+              </span>
+            )}
             <button
               type="button"
               onClick={handleDelete}
@@ -194,10 +198,10 @@ export default function InquiryItem({
               {(['unsupported', 'pending', 'closed'] as MessageStatus[]).map((s) => (
                 <button
                   key={s}
-                  disabled={isUpdatingStatus || currentStatus === s}
+                  disabled={isUpdatingStatus || inquiry.status === s}
                   onClick={() => handleStatusChange(s)}
                   className={`px-3 py-1 text-[11px] font-bold rounded-lg border transition ${
-                    currentStatus === s 
+                    inquiry.status === s 
                       ? 'bg-slate-800 text-white border-slate-800' 
                       : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
                   }`}
@@ -230,7 +234,7 @@ export default function InquiryItem({
             </div>
           )}
 
-          {currentStatus === 'closed' ? (
+          {inquiry.status === 'closed' ? (
             <div className="p-4 bg-slate-100 rounded-lg text-center text-sm text-slate-500">
               この問い合わせは「対応完了」に設定されているため、返信できません。
             </div>
