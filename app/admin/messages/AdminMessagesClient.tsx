@@ -225,13 +225,14 @@ export default function AdminMessagesClient({
     }
   };
 
-  const handleDeleteMessage = async (messageId: string, replyIds: string[] = []) => {
+  // Only the root id travels: the server walks parent_id itself, so a
+  // client-built reply-id list is unnecessary.
+  const handleDeleteMessage = async (messageId: string) => {
     try {
-      const res = await fetch('/api/messages/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId, replyIds }),
-      });
+      const res = await fetch(
+        `/api/messages/delete?messageId=${encodeURIComponent(messageId)}`,
+        { method: 'DELETE' },
+      );
 
       const data = (await res.json()) as { success: boolean; error?: string };
       if (res.ok && data.success) {
