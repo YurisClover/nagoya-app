@@ -57,7 +57,9 @@ export async function sendEventPublishedNotification(
     const tokenChunk = uniqueTokens.slice(i, i + 500);
     const response = await messaging.sendEachForMulticast({
       tokens: tokenChunk,
-      data: { title: "イベントが公開されました", body: event.title, url: "/events", },
+      data: { title: "イベントが公開されました",
+              body: event.title,
+              url: '/notification-redirect', },
     });
 
     if (response.failureCount > 0) {
