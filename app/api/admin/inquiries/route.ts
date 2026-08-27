@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { getApiUser } from '@/lib/guards';
 import { getSheetsClient } from "@/lib/sheets/googleapis";
 
-type MessageStatus = 'unsupported' | 'pending' | 'closed';
+type MessageStatus = 'open' | 'in_progress' | 'closed';
 
 interface ParsedMessage {
   id: string;
@@ -171,11 +171,17 @@ export async function GET(): Promise<NextResponse> {
       if (senderId.toLowerCase() === myAdminId.toLowerCase()) isRead = true;
 
       const rawStatus = row[statusIdx] != null ? String(row[statusIdx]).trim().toLowerCase() : '';
-      // Blank stays blank: 未対応 must mean an explicit 'unsupported' value,
-      // not "nobody has set a status yet".
+      // Blank stays blank: 未対応 must mean an explicit open status, not
+      // "nobody has set one yet". Legacy strings from before the 2026-08
+      // rename map onto the new values so old rows keep displaying:
+      // unsupported -> open, pending -> in_progress.
+      const canonicalStatus =
+        rawStatus === 'unsupported' ? 'open'
+        : rawStatus === 'pending' ? 'in_progress'
+        : rawStatus;
       const status: MessageStatus | '' = 
-        rawStatus === 'pending' || rawStatus === 'closed' || rawStatus === 'unsupported' 
-          ? (rawStatus as MessageStatus)
+        canonicalStatus === 'open' || canonicalStatus === 'in_progress' || canonicalStatus === 'closed' 
+          ? (canonicalStatus as MessageStatus)
           : '';
 
       const rawUpdaterId = row[lastStatusUpdatedByIdx] != null ? String(row[lastStatusUpdatedByIdx]).trim() : null;

@@ -189,8 +189,8 @@ export async function POST(req: Request) {
             data: [
               // J = status, K = last_status_updated_by. K is cleared because
               // this change is system-set (same convention as the automatic
-              // 'unsupported' tag at inquiry creation).
-              { range: `Messages!J${parentSheetRow}:K${parentSheetRow}`, values: [['unsupported', '']] },
+              // 'open' tag at inquiry creation).
+              { range: `Messages!J${parentSheetRow}:K${parentSheetRow}`, values: [['open', '']] },
             ],
           },
         });

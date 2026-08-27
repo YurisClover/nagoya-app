@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getApiUser } from '@/lib/guards';
 import { getSheetsClient } from "@/lib/sheets/googleapis";
 
-type MessageStatus = 'unsupported' | 'pending' | 'closed';
+type MessageStatus = 'open' | 'in_progress' | 'closed';
 
 interface RequestBody {
   messageId: string;
@@ -25,7 +25,9 @@ export async function PATCH(req: Request) {
     const body = (await req.json()) as RequestBody;
     const { messageId, status } = body;
 
-    const validStatuses: MessageStatus[] = ['unsupported', 'pending', 'closed'];
+    // Writes accept the new values only; legacy strings exist just as
+    // read-side aliases.
+    const validStatuses: MessageStatus[] = ['open', 'in_progress', 'closed'];
     if (!messageId || !validStatuses.includes(status)) {
       return NextResponse.json({ success: false, error: '無効なパラメータです' }, { status: 400 });
     }

@@ -169,20 +169,20 @@ export async function POST(request: Request) {
     const parentId = bodyData.parent_id || bodyData.parentId || '';
 
     // Message status (Messages column J):
-    // - member -> admin inquiries are auto-tagged 'unsupported' so every new
+    // - member -> admin inquiries are auto-tagged 'open' so every new
     //   inquiry surfaces with the 未対応 badge without any admin action.
     // - admin sends may carry an optional badge picked in the form; blank
     //   means "no badge" and the cell stays empty.
-    const VALID_STATUSES = ['unsupported', 'pending', 'closed'] as const;
+    const VALID_STATUSES = ['open', 'in_progress', 'closed'] as const;
     const requestedStatus = String(bodyData.status ?? '').trim().toLowerCase();
     const messageStatus =
       rawRecipient === 'admin'
-        ? 'unsupported'
+        ? 'open'
         : (VALID_STATUSES as readonly string[]).includes(requestedStatus)
           ? requestedStatus
           : '';
     // K (last_status_updated_by) only records a human choice; the automatic
-    // 'unsupported' tag is system-set, so K stays empty for it.
+    // 'open' tag is system-set, so K stays empty for it.
     const statusUpdatedBy =
       messageStatus && rawRecipient !== 'admin' ? targetSenderId : '';
 

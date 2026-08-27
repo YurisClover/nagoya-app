@@ -74,11 +74,16 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
 
           // status は API からは string で来るため union 型に絞り込む
           const rawStatus = (item.status || '').toLowerCase();
-          // Blank stays blank ('' = no badge). Only explicit values map to
-          // a badge; unknown strings are treated as unset, not 未対応.
+          // Blank stays blank ('' = no badge); unknown strings are unset.
+          // Legacy strings from before the 2026-08 rename map onto the new
+          // values: unsupported -> open, pending -> in_progress.
+          const canonicalStatus =
+            rawStatus === 'unsupported' ? 'open'
+            : rawStatus === 'pending' ? 'in_progress'
+            : rawStatus;
           const status: MessageStatus | '' =
-            rawStatus === 'pending' || rawStatus === 'closed' || rawStatus === 'unsupported'
-              ? rawStatus
+            canonicalStatus === 'open' || canonicalStatus === 'in_progress' || canonicalStatus === 'closed'
+              ? canonicalStatus
               : '';
           const displayUserName = isMyMessage ? recipientName : '事務局';
 

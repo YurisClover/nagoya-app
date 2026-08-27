@@ -25,7 +25,11 @@ export type ReplyMessage = {
   createdAt: string;
 };
 
-export type MessageStatus = 'unsupported' | 'pending' | 'closed';
+// Thread lifecycle status, standard ticketing terms:
+// open = 未対応, in_progress = 対応中, closed = 対応完了.
+// (Renamed 2026-08 from unsupported/pending. The sheet may still hold the
+// old strings; every read path maps them onto these values.)
+export type MessageStatus = 'open' | 'in_progress' | 'closed';
 
 export type ReceivedMessage = {
   id: string;
@@ -71,8 +75,8 @@ export default function InquiryItem({
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
 
   const statusConfig: Record<MessageStatus, { label: string; className: string }> = {
-    unsupported: { label: '未対応', className: 'bg-red-100 text-red-700' },
-    pending: { label: '対応中', className: 'bg-yellow-100 text-yellow-700' },
+    open: { label: '未対応', className: 'bg-red-100 text-red-700' },
+    in_progress: { label: '対応中', className: 'bg-yellow-100 text-yellow-700' },
     closed: { label: '対応完了', className: 'bg-green-100 text-green-700' },
   };
 
@@ -195,7 +199,7 @@ export default function InquiryItem({
           {isAdmin && (
             <div className="flex items-center space-x-2 pt-2">
               <span className="text-xs font-bold text-slate-500">ステータス変更:</span>
-              {(['unsupported', 'pending', 'closed'] as MessageStatus[]).map((s) => (
+              {(['open', 'in_progress', 'closed'] as MessageStatus[]).map((s) => (
                 <button
                   key={s}
                   disabled={isUpdatingStatus || inquiry.status === s}
