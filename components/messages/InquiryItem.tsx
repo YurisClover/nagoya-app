@@ -25,11 +25,10 @@ export type ReplyMessage = {
   createdAt: string;
 };
 
-// Thread lifecycle status, standard ticketing terms:
-// open = 未対応, in_progress = 対応中, closed = 対応完了.
-// (Renamed 2026-08 from unsupported/pending. The sheet may still hold the
-// old strings; every read path maps them onto these values.)
-export type MessageStatus = 'open' | 'in_progress' | 'closed';
+// Canonical definition lives in types/message.ts; re-exported here because
+// both message clients already import it from this component.
+export type { MessageStatus } from '@/types/message';
+import type { MessageStatus } from '@/types/message';
 
 export type ReceivedMessage = {
   id: string;

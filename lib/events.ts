@@ -73,8 +73,7 @@ async function loadSnapshot(): Promise<Snapshot> {
   const todayJst = nowJST().slice(0, 10);
 
   const upcoming = eventRows
-    .map((row, index) => ({
-      id: index,
+    .map((row) => ({
       event_id: String(row.get("event_id") ?? "").trim(),
       title: (row.get("title") || "タイトル未設定") as string,
       event_date: (row.get("event_date") || "") as string,

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getApiUser } from '@/lib/guards';
 import { getSheetsClient } from "@/lib/sheets/googleapis";
 
-type MessageStatus = 'open' | 'in_progress' | 'closed';
+import type { MessageStatus } from '@/types/message';
 
 interface RequestBody {
   messageId: string;

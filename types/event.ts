@@ -3,7 +3,6 @@ export type EventPosition = "general" | "executive";
 export type VisibleEventStatus = "published" | "closed";
 
 export type EventWithStatus = {
-  id: number;
   event_id: string;
   title: string;
   event_date: string;
