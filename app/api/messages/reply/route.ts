@@ -80,6 +80,19 @@ export async function POST(req: Request) {
           const pRecipient = parentRow[rIdIdx]?.toString().trim();
           const pTitle = parentRow[tIdx]?.toString().trim();
 
+          // Only thread participants may reply. Admins pass regardless:
+          // inquiry threads are addressed to the literal recipient 'admin',
+          // so an admin's own member id never appears on the parent row.
+          // Unguessable UUIDs alone are not an authorization mechanism.
+          const isParticipant =
+            apiUser.role === 'admin' || pSender === senderId || pRecipient === senderId;
+          if (!isParticipant) {
+            return NextResponse.json(
+              { success: false, error: 'このスレッドに返信する権限がありません。' },
+              { status: 403 },
+            );
+          }
+
           if (!resolvedRecipientId || resolvedRecipientId === senderId) {
             resolvedRecipientId = pSender === senderId ? pRecipient : pSender;
           }

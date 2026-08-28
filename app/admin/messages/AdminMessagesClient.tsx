@@ -197,13 +197,16 @@ export default function AdminMessagesClient({
     replyText: string
   ): Promise<boolean> => {
     try {
-      const res = await fetch('/api/admin/inquiries/reply', {
+      // Shared reply endpoint (same as the member side): it derives the
+      // recipient and title from the parent when omitted, writes real
+      // boolean cells, and auto-reopens the thread only for member replies.
+      const res = await fetch('/api/messages/reply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           parentMessageId,
           recipientId,
-          subject: replyTitle,
+          title: replyTitle,
           body: replyText,
         }),
       });

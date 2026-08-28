@@ -1,3 +1,4 @@
+import { getApiUser } from "@/lib/guards";
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { createGoogleFormsOAuthClient } from "@/lib/google-auth";
@@ -9,6 +10,16 @@ const FORMS_SCOPES = [
 
 export async function GET() {
   try {
+    // One-time setup utility for obtaining GOOGLE_FORMS_REFRESH_TOKEN.
+    // Kept admin-only in production so the OAuth surface stays closed;
+    // local development remains open for convenience.
+    if (process.env.NODE_ENV === "production") {
+      const apiUser = await getApiUser();
+      if (!apiUser || apiUser.role !== "admin") {
+        return NextResponse.json({ success: false }, { status: 404 });
+      }
+    }
+
     const oauth2Client = createGoogleFormsOAuthClient();
 
     // 推測されにくい一時的なstateを生成

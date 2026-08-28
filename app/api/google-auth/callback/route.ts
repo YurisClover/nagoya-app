@@ -1,8 +1,19 @@
+import { getApiUser } from "@/lib/guards";
 import { NextRequest, NextResponse } from "next/server";
 import { createGoogleFormsOAuthClient } from "@/lib/google-auth";
 
 export async function GET(request: NextRequest) {
   try {
+    // One-time setup utility for obtaining GOOGLE_FORMS_REFRESH_TOKEN.
+    // Kept admin-only in production so the OAuth surface stays closed;
+    // local development remains open for convenience.
+    if (process.env.NODE_ENV === "production") {
+      const apiUser = await getApiUser();
+      if (!apiUser || apiUser.role !== "admin") {
+        return NextResponse.json({ success: false }, { status: 404 });
+      }
+    }
+
     const searchParams = request.nextUrl.searchParams;
 
     const code = searchParams.get("code");
