@@ -1,3 +1,15 @@
+/*
+ * Global stylesheet (Tailwind v4).
+ *
+ * Structure, top to bottom:
+ * 1. tailwindcss import + inline theme + dark-scheme override.
+ * 2. Design tokens (@theme): brand colors, ink/surface/line palette.
+ *    Change colors HERE, not inside components.
+ * 3. Component classes (@layer components): card / btn-* / field-* /
+ *    app-frame / app-nav etc. Pages compose these instead of repeating
+ *    utility chains.
+ * 4. Themed <select> styling for Chromium 135+, with plain fallback.
+ */
 @import "tailwindcss";
 
 :root {
@@ -23,4 +35,284 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.attendance-wrapper {
+  --bg-color: #f0f4f8;
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --text-main: #1b3a5c;
+  --text-sub: #8ca3a6;
+  --accent-green: #e8f1dd;
+  --btn-color: #1b3a5c;
+  background: var(--bg-color);
+  color: var(--text-main);
+  padding: 30px 16px;
+  box-sizing: border-box;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.attendance-wrapper h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 30px;
+  letter-spacing: 1.5px;
+  position: relative;
+}
+
+.attendance-wrapper h2::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 35px;
+  height: 3px;
+  background: var(--text-main);
+  border-radius: 2px;
+}
+
+.form-btn {
+  background: var(--btn-color);
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 14px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(27, 58, 92, 0.12);
+  letter-spacing: 0.5px;
+  display: block;
+  margin-top: auto;
+}
+
+.form-btn:hover {
+  background: #244d7a;
+}
+
+.form-btn:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+.disabled-btn {
+  background: #e2e8f0;
+  color: var(--text-sub);
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.no-events,
+.error-msg {
+  text-align: center;
+  color: var(--text-sub);
+  font-weight: 500;
+  font-size: 14px;
+}
+.error-msg {
+  color: #d9383a;
+}
+
+/* ══════════════════════════════════════════════════════════
+   DESIGN TOKENS
+   ══════════════════════════════════════════════════════════ */
+@theme {
+  /* brand color */
+  --color-brand: #1a3a5c;
+  --color-brand-light: #244d7a;
+  --color-danger: #e24b4a;
+
+  /* surface / outline / font-color */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f7f9;
+  --color-line: #e3e5e8;
+  --color-ink: #1c1e21;
+  --color-ink-muted: #6b7280;
+
+  /* menu icon tone */
+  --color-tone-blue: #e6f1fb;
+  --color-tone-blue-ink: #185fa5;
+  --color-tone-green: #eaf3de;
+  --color-tone-green-ink: #3b6d11;
+  --color-tone-amber: #faeeda;
+  --color-tone-amber-ink: #854f0b;
+  --color-tone-teal: #e1f5ee;
+  --color-tone-teal-ink: #0f6e56;
+  --color-tone-purple: #eeedfe;
+  --color-tone-purple-ink: #534ab7;
+  --color-tone-copper: #faece7;
+  --color-tone-copper-ink: #993c1d;
+  --color-tone-navy: #d6e8f7;
+  --color-tone-navy-ink: #1a3a5c;
+  --color-tone-gray: #e8e8ea;
+  --color-tone-gray-ink: #44444a;
+
+  /* admin chrome */
+  --color-chrome: #0f1b2d;
+  --color-chrome-line: #22334a;
+
+  /* radius */
+  --radius-card: 12px;
+  --radius-control: 8px;
+}
+
+.theme-body {
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+}
+
+/* ══════════════════════════════════════════════════════════
+   COMPONENT CLASSES
+   ex) <button className="btn btn-primary">
+   ══════════════════════════════════════════════════════════ */
+@layer components {
+  /* ── mainframe ── */
+  .app-frame {
+    @apply mx-auto min-h-screen w-full max-w-5xl bg-surface shadow-sm;
+  }
+  .app-header {
+    @apply flex items-center justify-between bg-brand px-4 py-3 text-white;
+  }
+  .app-main {
+    @apply p-3 sm:p-5 lg:p-6;
+  }
+
+  /* ── nav-tab ── */
+  .app-nav {
+    @apply flex overflow-x-auto border-b border-line bg-surface-muted;
+  }
+  .nav-tab {
+    @apply flex min-w-[52px] flex-1 flex-col items-center gap-[2px] whitespace-nowrap border-b-2 border-transparent px-1 py-2 text-[9px] text-ink-muted transition hover:text-ink sm:text-[11px];
+  }
+  .nav-tab-on {
+    @apply border-brand font-medium text-brand;
+  }
+
+  /* ── card ── */
+  .card {
+    @apply rounded-card border border-line bg-surface p-3 sm:p-4;
+  }
+  .card-tap {
+    @apply rounded-card border border-line bg-surface p-3 transition hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand sm:p-4;
+  }
+  .card-disabled {
+    @apply relative rounded-card border border-line bg-surface-muted p-3 opacity-60 sm:p-4;
+  }
+  .card-brand {
+    @apply rounded-card bg-brand p-4 text-white sm:p-6;
+  }
+
+  /* page layout */
+  .page-container {
+    @apply mx-auto w-full max-w-md p-6;
+  }
+  .page-container-admin {
+    @apply mx-auto w-full max-w-6xl p-4 sm:p-6;
+  }
+
+  /* ── menu card square icon ── */
+  .icon-tile {
+    @apply mb-2 flex h-9 w-9 items-center justify-center rounded-lg sm:h-11 sm:w-11;
+  }
+  .tone-blue {
+    @apply bg-tone-blue text-tone-blue-ink;
+  }
+  .tone-green {
+    @apply bg-tone-green text-tone-green-ink;
+  }
+  .tone-amber {
+    @apply bg-tone-amber text-tone-amber-ink;
+  }
+  .tone-teal {
+    @apply bg-tone-teal text-tone-teal-ink;
+  }
+  .tone-purple {
+    @apply bg-tone-purple text-tone-purple-ink;
+  }
+  .tone-copper {
+    @apply bg-tone-copper text-tone-copper-ink;
+  }
+  .tone-navy {
+    @apply bg-tone-navy text-tone-navy-ink;
+  }
+  .tone-gray {
+    @apply bg-tone-gray text-tone-gray-ink;
+  }
+
+  /* ── button ── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-control px-4 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-brand text-white hover:bg-brand-light;
+  }
+  .btn-secondary {
+    @apply border border-line bg-surface-muted text-ink hover:bg-line;
+  }
+  .btn-ghost {
+    @apply text-white/90 hover:bg-white/15;
+  }
+  .btn-block {
+    @apply w-full;
+  }
+  .btn-danger {
+    @apply border border-danger bg-surface text-danger hover:bg-danger hover:text-white;
+  }
+
+  /* ── badge ── */
+  .badge {
+    @apply rounded-full bg-danger px-[6px] py-[1px] text-[9px] font-medium text-white;
+  }
+  .badge-muted {
+    @apply rounded-full bg-line px-[6px] py-[1px] text-[9px] font-medium text-ink-muted;
+  }
+  .chip {
+    @apply inline-block rounded-full bg-white/20 px-3 py-1 text-[11px] sm:text-sm;
+  }
+
+  /* ── text ── */
+  .section-title {
+    @apply mb-2 text-xs font-medium text-ink sm:text-sm;
+  }
+  .text-meta {
+    @apply text-[11px] text-ink-muted sm:text-xs;
+  }
+
+  /* ── form ── */
+  .field-label {
+    @apply mb-1 block text-xs font-medium text-ink-muted;
+  }
+  .field-input {
+    @apply w-full rounded-control border border-line bg-surface px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-1 focus:ring-brand;
+  }
+  .field-error {
+    @apply mt-2 text-xs text-danger;
+  }
+}
+
+/* ── themed select dropdown (Chromium 135+; other browser -> fallback) ── */
+select,
+::picker(select) {
+  appearance: base-select;
+}
+::picker(select) {
+  @apply mt-1 rounded-card border border-line bg-surface p-1 shadow-lg;
+}
+select option {
+  @apply rounded-control px-3 py-2 text-sm;
+}
+select option:hover,
+select option:focus {
+  @apply bg-surface-muted;
+}
+select option:checked {
+  @apply bg-brand text-white;
 }

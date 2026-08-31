@@ -1,0 +1,686 @@
+"use client";
+import { useRef, useState } from "react";
+import { CalendarDays, MapPin } from "lucide-react";
+import { formatEventPeriod } from "@/lib/datetime";
+import type {
+  EventPosition,
+  EventStatus,
+  SheetEvent,
+} from "@/lib/sheets/events";
+
+type CalendarSyncStatus = "" | "synced" | "error";
+type CalendarSyncResult = { success: boolean; error?: string };
+type EventListProps = {
+  events: SheetEvent[];
+  calendarSyncStatuses: Record<string, CalendarSyncStatus>;
+  /** Ids of events whose date has passed (computed server-side in JST). */
+  finishedEventIds: string[];
+};
+type UpdateStatusResult = {
+  success: boolean;
+  error?: string;
+  detail?: string;
+  event?: SheetEvent;
+  calendarSync?: CalendarSyncResult | null;
+};
+type UpdatePositionResult = {
+  success: boolean;
+  error?: string;
+  detail?: string;
+  event?: SheetEvent;
+  calendarSync?: CalendarSyncResult | null;
+};
+type DeleteEventResult = {
+  success: boolean;
+  error?: string;
+  detail?: string;
+  event?: SheetEvent;
+};
+
+const STATUS_LABELS: Record<EventStatus, string> = {
+  draft: "準備中",
+  published: "公開",
+  closed: "受付終了",
+};
+
+const POSITION_LABELS: Record<EventPosition, string> = {
+  general: "一般会員",
+  executive: "執行部",
+};
+
+type EventDeleteControlProps = {
+  event: SheetEvent;
+  updatingEventId: string | null;
+  tryStartUpdate: (eventId: string) => boolean;
+  finishUpdate: () => void;
+  onDeleted: (eventId: string) => void;
+};
+
+function EventDeleteControl({
+  event,
+  updatingEventId,
+  tryStartUpdate,
+  finishUpdate,
+  onDeleted,
+}: EventDeleteControlProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const isAnyUpdating = updatingEventId !== null;
+
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      `「${event.title}」を削除しますか？\nGoogleフォームも非公開・受付停止になります。`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    const started = tryStartUpdate(event.event_id);
+    if (!started) {
+      return;
+    }
+    setIsDeleting(true);
+    setErrorMessage("");
+    try {
+      const response = await fetch("/api/events/delete", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId: event.event_id }),
+      });
+      const result = (await response.json()) as DeleteEventResult;
+      if (!response.ok || !result.success) {
+        const errorText = [
+          result.error ?? "イベントの削除に失敗しました。",
+          result.detail ? `詳細: ${result.detail}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+        setErrorMessage(errorText);
+        return;
+      }
+      //削除成功時だけ一覧stateから対象イベントを除外する
+      onDeleted(event.event_id);
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : "不明な通信エラー";
+      setErrorMessage(
+        `イベント削除中に通信エラーが発生しました。\n詳細: ${detail}`,
+      );
+    } finally {
+      setIsDeleting(false);
+      finishUpdate();
+    }
+  }
+
+  return (
+    <div>
+      <button
+        className="btn btn-danger px-3 py-1.5 text-xs disabled:opacity-50"
+        type="button"
+        disabled={isAnyUpdating}
+        onClick={handleDelete}
+      >
+        {isDeleting ? "削除しています..." : "削除"}
+      </button>
+
+      {errorMessage && (
+        <p
+          role="alert"
+          style={{
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
+}
+
+type EventPositionControlProps = {
+  event: SheetEvent;
+  updatingEventId: string | null;
+  tryStartUpdate: (eventId: string) => boolean;
+  finishUpdate: () => void;
+  onUpdated: (event: SheetEvent) => void;
+  onCalendarSyncChanged: (eventId: string, status: CalendarSyncStatus) => void;
+};
+
+function EventPositionControl({
+  event,
+  updatingEventId,
+  tryStartUpdate,
+  finishUpdate,
+  onUpdated,
+  onCalendarSyncChanged,
+}: EventPositionControlProps) {
+  const [message, setMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const isUpdating = updatingEventId === event.event_id;
+  const isAnyUpdating = updatingEventId !== null;
+
+  async function handleUpdate(nextPosition: EventPosition) {
+    if (nextPosition === event.position) {
+      setMessage("対象者は変更されていません。");
+      setErrorMessage("");
+      return;
+    }
+
+    const started = tryStartUpdate(event.event_id);
+
+    if (!started) {
+      return;
+    }
+
+    setMessage("");
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/events/position", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: event.event_id,
+          position: nextPosition,
+        }),
+      });
+
+      const result = (await response.json()) as UpdatePositionResult;
+
+      if (!response.ok || !result.success) {
+        const errorText = [
+          result.error ?? "対象者の変更に失敗しました。",
+          result.detail ? `詳細: ${result.detail}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        setErrorMessage(errorText);
+
+        return;
+      }
+
+      const updatedEvent = result.event ?? {
+        ...event,
+        position: nextPosition,
+      };
+
+      onUpdated(updatedEvent);
+      if (result.calendarSync) {
+        onCalendarSyncChanged(
+          event.event_id,
+          result.calendarSync.success ? "synced" : "error",
+        );
+      }
+      setMessage("イベント対象者を変更しました。");
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : "不明な通信エラー";
+      setErrorMessage(
+        `対象者の変更中に通信エラーが発生しました。\n詳細: ${detail}`,
+      );
+    } finally {
+      finishUpdate();
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <div
+          className="flex gap-1.5"
+          role="group"
+          aria-label={`${event.title}の対象者`}
+        >
+          {(["general", "executive"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              disabled={isAnyUpdating || value === event.position}
+              onClick={() => handleUpdate(value)}
+              aria-pressed={value === event.position}
+              className={`truncate rounded-control px-3 py-1.5 text-xs font-bold transition ${
+                value === event.position
+                  ? "bg-brand text-white"
+                  : "bg-surface-muted text-ink-muted hover:bg-line disabled:opacity-50"
+              }`}
+            >
+              {POSITION_LABELS[value]}
+            </button>
+          ))}
+        </div>
+        {isUpdating && <span className="text-meta">反映中...</span>}
+      </div>
+
+      {message && (
+        <p role="status" className="mt-2 text-xs text-ink-muted">
+          {message}
+        </p>
+      )}
+      {errorMessage && (
+        <p
+          role="alert"
+          className="mt-2 whitespace-pre-wrap text-xs text-danger"
+        >
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
+}
+
+type EventStatusControlProps = {
+  event: SheetEvent;
+  updatingEventId: string | null;
+  tryStartUpdate: (eventId: string) => boolean;
+  finishUpdate: () => void;
+  onUpdated: (event: SheetEvent) => void;
+  onCalendarSyncChanged: (eventId: string, status: CalendarSyncStatus) => void;
+};
+
+function EventStatusControl({
+  event,
+  updatingEventId,
+  tryStartUpdate,
+  finishUpdate,
+  onUpdated,
+  onCalendarSyncChanged,
+}: EventStatusControlProps) {
+  const [message, setMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const isUpdating = updatingEventId === event.event_id;
+  const isAnyUpdating = updatingEventId !== null;
+
+  async function handleUpdate(nextStatus: EventStatus) {
+    const started = tryStartUpdate(event.event_id);
+
+    if (!started) {
+      return;
+    }
+
+    setMessage("");
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/events/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: event.event_id,
+          status: nextStatus,
+        }),
+      });
+
+      const result = (await response.json()) as UpdateStatusResult;
+
+      if (!response.ok || !result.success) {
+        console.error("状態変更APIエラー:", result);
+        const errorText = [
+          result.error ?? "公開状態の変更に失敗しました。",
+          result.detail ? `詳細: ${result.detail}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        setErrorMessage(errorText);
+
+        return;
+      }
+
+      const updatedEvent: SheetEvent = result.event ?? {
+        ...event,
+        status: nextStatus,
+      };
+
+      onUpdated(updatedEvent);
+      if (result.calendarSync) {
+        const nextCalendarStatus: CalendarSyncStatus =
+          updatedEvent.status === "draft"
+            ? ""
+            : result.calendarSync.success
+              ? "synced"
+              : "error";
+        onCalendarSyncChanged(event.event_id, nextCalendarStatus);
+      }
+
+      setMessage("GoogleフォームとEventsシートへ反映しました。");
+    } catch (error) {
+      console.error("Event status update error:", error);
+
+      const detail =
+        error instanceof Error ? error.message : "不明な通信エラー";
+      setErrorMessage(
+        `公開状態の変更中に通信エラーが発生しました。\n詳細: ${detail}`,
+      );
+    } finally {
+      finishUpdate();
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <div
+          className="flex gap-1.5"
+          role="group"
+          aria-label={`${event.title}のステータス`}
+        >
+          {(["published", "closed", "draft"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              disabled={isAnyUpdating || value === event.status}
+              onClick={() => handleUpdate(value)}
+              aria-pressed={value === event.status}
+              className={`rounded-control px-3 py-1.5 text-xs font-bold transition ${
+                value === event.status
+                  ? "bg-brand text-white"
+                  : "bg-surface-muted text-ink-muted hover:bg-line disabled:opacity-50"
+              }`}
+            >
+              {STATUS_LABELS[value]}
+            </button>
+          ))}
+        </div>
+        {isUpdating && <span className="text-meta">反映中...</span>}
+      </div>
+      {message && (
+        <p role="status" className="mt-2 text-xs text-ink-muted">
+          {message}
+        </p>
+      )}
+      {errorMessage && (
+        <p
+          role="alert"
+          className="mt-2 whitespace-pre-wrap text-xs text-danger"
+        >
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function EventList({
+  events,
+  calendarSyncStatuses: initialCalendarSyncStatuses,
+  finishedEventIds,
+}: EventListProps) {
+  const finishedIds = new Set(finishedEventIds);
+  const [displayedEvents, setDisplayedEvents] = useState<SheetEvent[]>(events);
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const [updatingEventId, setUpdatingEventId] = useState<string | null>(null);
+  const [calendarSyncStatuses, setCalendarSyncStatuses] = useState<
+    Record<string, CalendarSyncStatus>
+  >(initialCalendarSyncStatuses);
+  /*
+   * stateの反映前に別のボタンを
+   * 素早く押された場合にも、
+   * 二重実行を防ぐための即時ロック。
+   */
+  const updateLockRef = useRef(false);
+  /*
+   * イベント作成後などに、
+   * page.tsxから新しい一覧が届いたら同期する。
+   */
+  const [prevEvents, setPrevEvents] = useState(events);
+  if (prevEvents !== events) {
+    setPrevEvents(events);
+    setDisplayedEvents(events);
+  }
+
+  function tryStartUpdate(eventId: string): boolean {
+    if (updateLockRef.current) {
+      return false;
+    }
+    updateLockRef.current = true;
+    setUpdatingEventId(eventId);
+
+    return true;
+  }
+
+  function finishUpdate() {
+    updateLockRef.current = false;
+    setUpdatingEventId(null);
+  }
+
+  function handleEventUpdated(updatedEvent: SheetEvent) {
+    setDisplayedEvents((currentEvents) =>
+      currentEvents.map((currentEvent) =>
+        currentEvent.event_id === updatedEvent.event_id
+          ? updatedEvent
+          : currentEvent,
+      ),
+    );
+  }
+
+  function handleEventDeleted(eventId: string) {
+    setDisplayedEvents((currentEvents) =>
+      currentEvents.filter((currentEvent) => currentEvent.event_id !== eventId),
+    );
+  }
+
+  const totalPages = Math.max(1, Math.ceil(displayedEvents.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = displayedEvents.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
+
+  function handleCalendarSyncChanged(
+    eventId: string,
+    status: CalendarSyncStatus,
+  ) {
+    setCalendarSyncStatuses((currentStatuses) => ({
+      ...currentStatuses,
+      [eventId]: status,
+    }));
+  }
+
+  if (displayedEvents.length === 0) {
+    return (
+      <section>
+        <h2>作成済みイベント</h2>
+
+        <p>作成済みのイベントはありません。</p>
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {pageItems.map((event) => {
+          const formEditUrl = `https://docs.google.com/forms/d/${event.form_id}/edit`;
+
+          const responseSpreadsheetId =
+            process.env.NEXT_PUBLIC_EVENT_RESPONSE_SPREADSHEET_ID ?? "";
+
+          const responseSheetUrl =
+            responseSpreadsheetId && event.response_sheet_id
+              ? `https://docs.google.com/spreadsheets/d/${responseSpreadsheetId}/edit#gid=${event.response_sheet_id}`
+              : "";
+          const isCalendarMissing =
+            (event.status === "published" || event.status === "closed") &&
+            calendarSyncStatuses[event.event_id] !== "synced";
+          const isFinished = finishedIds.has(event.event_id);
+          return (
+            <article
+              key={event.event_id}
+              // Finished events stay fully usable but visually recede:
+              // dimmed + desaturated, restored on hover so the admin can
+              // still work with them comfortably.
+              className={`card transition hover:shadow-md ${
+                isFinished
+                  ? "opacity-70 saturate-50 hover:opacity-100 hover:saturate-100"
+                  : ""
+              }`}
+            >
+              {/* イベント名・状態 */}
+              <div className="border-b border-line pb-4">
+                <div className="flex items-start justify-between gap-4">
+                  <h2 className="text-lg font-bold truncate">{event.title}</h2>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    {/* 開催終了 = the event date has passed. Distinct from the
+                      受付終了 status chip (reception closed but not yet held). */}
+                    {isFinished && (
+                      <span className="rounded-full bg-slate-700 px-3 py-1 text-xs font-semibold text-white">
+                        開催終了
+                      </span>
+                    )}
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        event.status === "published"
+                          ? "bg-blue-100 text-blue-800"
+                          : event.status === "closed"
+                            ? "bg-slate-200"
+                            : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {STATUS_LABELS[event.status]}
+                    </span>
+
+                    {isCalendarMissing && (
+                      <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                        カレンダー未表示
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-2 flex items-center gap-1.5 truncate text-sm text-ink-muted">
+                  <CalendarDays size={14} className="shrink-0" />
+                  {formatEventPeriod(event.event_date, event.event_end_date)}
+                </p>
+
+                <p className="mt-1 flex items-center gap-1.5 truncate text-sm text-ink-muted">
+                  <MapPin size={14} className="shrink-0" />
+                  <span className="truncate font-medium">
+                    {event.location || "未設定"}
+                  </span>
+                </p>
+              </div>
+
+              {/* 対象者・申込数 */}
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-surface-muted p-3">
+                  <p className="mb-2 text-xs font-medium text-ink-muted truncate">
+                    対象者
+                  </p>
+
+                  <EventPositionControl
+                    event={event}
+                    updatingEventId={updatingEventId}
+                    tryStartUpdate={tryStartUpdate}
+                    finishUpdate={finishUpdate}
+                    onUpdated={handleEventUpdated}
+                    onCalendarSyncChanged={handleCalendarSyncChanged}
+                  />
+                </div>
+
+                <div className="rounded-lg bg-surface-muted p-3">
+                  <p className="text-xs font-medium text-ink-muted">申込数</p>
+
+                  <p className="mt-1 text-xl font-bold truncate">
+                    {event.registration_count}
+                    <span className="ml-1 text-sm font-normal text-ink-muted">
+                      名
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Googleフォーム・回答一覧 */}
+              <div className="mt-4 border-t border-line pt-4">
+                <p className="mb-2 text-xs font-medium text-ink-muted">
+                  フォーム・回答
+                </p>
+
+                <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                  <a
+                    href={formEditUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-brand hover:underline"
+                  >
+                    フォーム編集
+                  </a>
+
+                  <a
+                    href={event.form_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-brand hover:underline"
+                  >
+                    回答画面
+                  </a>
+
+                  {responseSheetUrl ? (
+                    <a
+                      href={responseSheetUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-brand hover:underline"
+                    >
+                      回答一覧を開く
+                    </a>
+                  ) : (
+                    <span className="text-ink-muted">回答一覧なし</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 状態変更・削除 */}
+              <div className="mt-4 flex flex-wrap items-end justify-between gap-4 border-t border-line pt-4">
+                <div>
+                  <p className="mb-2 text-xs font-medium text-ink-muted">
+                    公開状態
+                  </p>
+
+                  <EventStatusControl
+                    event={event}
+                    updatingEventId={updatingEventId}
+                    tryStartUpdate={tryStartUpdate}
+                    finishUpdate={finishUpdate}
+                    onUpdated={handleEventUpdated}
+                    onCalendarSyncChanged={handleCalendarSyncChanged}
+                  />
+                </div>
+
+                <EventDeleteControl
+                  event={event}
+                  updatingEventId={updatingEventId}
+                  tryStartUpdate={tryStartUpdate}
+                  finishUpdate={finishUpdate}
+                  onDeleted={handleEventDeleted}
+                />
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-end gap-3 text-xs">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setPage(currentPage - 1)}
+            className="btn btn-secondary px-3 py-1 text-xs disabled:opacity-50"
+          >
+            前へ
+          </button>
+          <span className="text-ink-muted">
+            {currentPage} / {totalPages} ページ
+          </span>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage(currentPage + 1)}
+            className="btn btn-secondary px-3 py-1 text-xs disabled:opacity-50"
+          >
+            次へ
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
