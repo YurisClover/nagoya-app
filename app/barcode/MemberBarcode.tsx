@@ -61,7 +61,11 @@ export default function MemberBarcode({ memberId }: { memberId: string }) {
   return (
     <div className="flex flex-col items-center">
       <canvas ref={canvasRef} className="max-w-full" />
-      <button type="button" onClick={handleSave} className="mt-6 text-sm text-gray-700 underline">
+      <button
+        type="button"
+        onClick={handleSave}
+        className="mt-6 text-sm text-gray-700 underline"
+      >
         画像を保存
       </button>
     </div>

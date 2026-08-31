@@ -469,14 +469,14 @@ export default function ScheduleClient({ role }: ScheduleClientProps) {
                             <div className="flex items-start justify-between gap-3">
                               <p className="font-bold">
                                 {event.eventId ? (
-                                <Link
-                                  href={`/events/form/${event.eventId}`}
-                                  className="font-bold hover:text-brand hover:underline"
-                                >
-                                  { event.title }
-                                </Link>
+                                  <Link
+                                    href={`/events/form/${event.eventId}`}
+                                    className="font-bold hover:text-brand hover:underline"
+                                  >
+                                    {event.title}
+                                  </Link>
                                 ) : (
-                                  <p className="font-bold">{ event.title }</p>
+                                  <p className="font-bold">{event.title}</p>
                                 )}
                               </p>
 
@@ -529,16 +529,16 @@ export default function ScheduleClient({ role }: ScheduleClientProps) {
 
                       <div className="min-w-0">
                         <p className="font-bold">
-                            {event.eventId ? (
-                                <Link
-                                  href={`/events/form/${event.eventId}`}
-                                  className="font-bold hover:text-brand hover:underline"
-                                >
-                                  { event.title }
-                                </Link>
-                                ) : (
-                                  <p className="font-bold">{ event.title }</p>
-                                )}
+                          {event.eventId ? (
+                            <Link
+                              href={`/events/form/${event.eventId}`}
+                              className="font-bold hover:text-brand hover:underline"
+                            >
+                              {event.title}
+                            </Link>
+                          ) : (
+                            <p className="font-bold">{event.title}</p>
+                          )}
                         </p>
 
                         <p className="mt-1 text-sm">

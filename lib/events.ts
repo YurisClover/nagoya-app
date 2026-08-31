@@ -1,7 +1,5 @@
 import "server-only";
-import {
-  GoogleSpreadsheet,
-} from "google-spreadsheet";
+import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { getServiceAccountCredentials } from "@/lib/google-auth";
 import {
@@ -142,7 +140,11 @@ function buildResult(
   const now = new Date();
   const jstNow = new Date(now.getTime() + 9 * 3600_000);
   const today = new Date(
-    Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate()) -
+    Date.UTC(
+      jstNow.getUTCFullYear(),
+      jstNow.getUTCMonth(),
+      jstNow.getUTCDate(),
+    ) -
       9 * 3600_000,
   );
   // if not end show (until end)

@@ -48,9 +48,7 @@ export default function Metrics({ data }: MetricsProps) {
           {unreadMessagesCount.toLocaleString("ja-JP")}{" "}
           <span className="text-sm font-normal text-gray-500">件</span>
         </p>
-        <p className="text-xs text-gray-500 font-medium mt-2">
-          会員からの受信
-        </p>
+        <p className="text-xs text-gray-500 font-medium mt-2">会員からの受信</p>
       </div>
     </div>
   );

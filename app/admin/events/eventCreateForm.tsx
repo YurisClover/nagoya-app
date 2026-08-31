@@ -226,7 +226,9 @@ export function EventCreateForm() {
 
       <form onSubmit={handleSubmit} className="card space-y-4 p-5 sm:p-6">
         <div>
-          <label className="field-label" htmlFor="title">イベント名</label>
+          <label className="field-label" htmlFor="title">
+            イベント名
+          </label>
 
           <input
             className="field-input"
@@ -239,7 +241,9 @@ export function EventCreateForm() {
         </div>
 
         <div>
-          <label className="field-label" htmlFor="eventDate">開始日時</label>
+          <label className="field-label" htmlFor="eventDate">
+            開始日時
+          </label>
 
           <input
             className="field-input"
@@ -252,7 +256,9 @@ export function EventCreateForm() {
         </div>
 
         <div>
-          <label className="field-label" htmlFor="eventEndDate">終了日時</label>
+          <label className="field-label" htmlFor="eventEndDate">
+            終了日時
+          </label>
 
           <input
             className="field-input"
@@ -265,7 +271,9 @@ export function EventCreateForm() {
         </div>
 
         <div>
-          <label className="field-label" htmlFor="location">開催場所</label>
+          <label className="field-label" htmlFor="location">
+            開催場所
+          </label>
 
           <input
             className="field-input"
@@ -277,7 +285,9 @@ export function EventCreateForm() {
         </div>
 
         <div>
-          <label className="field-label" htmlFor="position">イベント対象者</label>
+          <label className="field-label" htmlFor="position">
+            イベント対象者
+          </label>
 
           <select
             className="field-input bg-surface"
@@ -292,12 +302,20 @@ export function EventCreateForm() {
           </select>
         </div>
 
-        <button type="submit" disabled={isSubmitting} className="btn btn-primary">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="btn btn-primary"
+        >
           {isSubmitting ? "作成しています..." : "作成してGoogleフォームを編集"}
         </button>
       </form>
 
-      {message && <p role="status" className="text-xs text-ink-muted">{message}</p>}
+      {message && (
+        <p role="status" className="text-xs text-ink-muted">
+          {message}
+        </p>
+      )}
 
       {errorMessage && (
         <p role="alert" className="whitespace-pre-wrap text-xs text-danger">
@@ -308,7 +326,12 @@ export function EventCreateForm() {
       {formEditUrl && (
         <p className="text-xs text-ink-muted">
           編集画面が開かなかった場合：{" "}
-          <a href={formEditUrl} target="_blank" rel="noopener noreferrer" className="text-brand underline-offset-2 hover:underline">
+          <a
+            href={formEditUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-brand underline-offset-2 hover:underline"
+          >
             Googleフォームを編集
           </a>
         </p>

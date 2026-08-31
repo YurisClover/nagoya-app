@@ -1,0 +1,5 @@
+.next
+package-lock.json
+public/firebase-messaging-sw.js
+public/workbox-*.js
+public/worker-*.js

@@ -7,12 +7,15 @@
  * API revisions returned camelCase; normalization happens here so the
  * rest of the tree sees one shape.
  */
-'use client';
+"use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
-import ContactAdminModal from '@/components/messages/ContactAdminModel';
-import InquiryItem, { ReceivedMessage, MessageStatus } from '@/components/messages/InquiryItem';
-import PagerControls from '@/components/PagerControls';
+import React, { useState, useEffect, useCallback } from "react";
+import ContactAdminModal from "@/components/messages/ContactAdminModel";
+import InquiryItem, {
+  ReceivedMessage,
+  MessageStatus,
+} from "@/components/messages/InquiryItem";
+import PagerControls from "@/components/PagerControls";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -59,76 +62,99 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
 
-  const fetchMessages = useCallback(async (isBackground = false) => {
-    try {
-      const res = await fetch('/api/messages');
-      const data = (await res.json()) as { success: boolean; messages?: ApiMessage[] };
+  const fetchMessages = useCallback(
+    async (isBackground = false) => {
+      try {
+        const res = await fetch("/api/messages");
+        const data = (await res.json()) as {
+          success: boolean;
+          messages?: ApiMessage[];
+        };
 
-      if (data.success && Array.isArray(data.messages)) {
-        const formattedMessages: ReceivedMessage[] = data.messages.map((item: ApiMessage, idx: number) => {
-          const senderId = item.senderId || item.sender_id || '';
-          const recipientName = item.recipientName || item.recipient_name || '事務局';
+        if (data.success && Array.isArray(data.messages)) {
+          const formattedMessages: ReceivedMessage[] = data.messages.map(
+            (item: ApiMessage, idx: number) => {
+              const senderId = item.senderId || item.sender_id || "";
+              const recipientName =
+                item.recipientName || item.recipient_name || "事務局";
 
-          // 自分が送信者の場合は宛先（事務局）、それ以外（管理者からの受信など）は「事務局」にする
-          const isMyMessage = String(senderId).trim() === String(currentUserId).trim();
+              // 自分が送信者の場合は宛先（事務局）、それ以外（管理者からの受信など）は「事務局」にする
+              const isMyMessage =
+                String(senderId).trim() === String(currentUserId).trim();
 
-          // status は API からは string で来るため union 型に絞り込む
-          const rawStatus = (item.status || '').toLowerCase();
-          // Blank stays blank ('' = no badge); unknown strings are unset.
-          // Legacy strings from before the 2026-08 rename map onto the new
-          // values: unsupported -> open, pending -> in_progress.
-          const canonicalStatus =
-            rawStatus === 'unsupported' ? 'open'
-            : rawStatus === 'pending' ? 'in_progress'
-            : rawStatus;
-          const status: MessageStatus | '' =
-            canonicalStatus === 'open' || canonicalStatus === 'in_progress' || canonicalStatus === 'closed'
-              ? canonicalStatus
-              : '';
-          const displayUserName = isMyMessage ? recipientName : '事務局';
-
-          return {
-            id: String(item.id || item.message_id || `msg-${idx}`),
-            senderId: senderId,
-            recipientId: item.recipientId || item.recipient_id || '',
-            userName: displayUserName, // 宛先または「事務局」を表示
-            recipientName: recipientName,
-            memberId: item.memberId || item.member_id || '',
-            subject: item.subject || item.title || '(件名なし)',
-            body: item.body || '',
-            isRead: Boolean(item.isRead ?? item.is_read),
-            createdAt: item.createdAt || item.created_at || new Date().toISOString(),
-            status,
-            lastStatusUpdatedBy: item.lastStatusUpdatedBy || item.last_status_updated_by || '',
-            replies: (item.replies || []).map((r: ApiReply, rIdx: number) => {
-              const rSenderId = String(r.senderId || r.sender_id || '').trim();
-              const isMyReply = rSenderId === String(currentUserId).trim();
+              // status は API からは string で来るため union 型に絞り込む
+              const rawStatus = (item.status || "").toLowerCase();
+              // Blank stays blank ('' = no badge); unknown strings are unset.
+              // Legacy strings from before the 2026-08 rename map onto the new
+              // values: unsupported -> open, pending -> in_progress.
+              const canonicalStatus =
+                rawStatus === "unsupported"
+                  ? "open"
+                  : rawStatus === "pending"
+                    ? "in_progress"
+                    : rawStatus;
+              const status: MessageStatus | "" =
+                canonicalStatus === "open" ||
+                canonicalStatus === "in_progress" ||
+                canonicalStatus === "closed"
+                  ? canonicalStatus
+                  : "";
+              const displayUserName = isMyMessage ? recipientName : "事務局";
 
               return {
-                id: String(r.id || r.reply_id || `reply-${idx}-${rIdx}`),
-                senderId: rSenderId,
-                recipientId: r.recipientId || r.recipient_id || '',
-                // 自分が送った返信でなければ「事務局」にする
-                userName: isMyReply ? (r.userName || r.sender_name || '自分') : '事務局',
-                recipientName: r.recipientName || r.recipient_name || '',
-                memberId: r.memberId || r.member_id || '',
-                subject: r.subject || r.title || '',
-                body: r.body || '',
-                isRead: Boolean(r.isRead ?? r.is_read),
-                createdAt: r.createdAt || r.created_at || '',
-              };
-            }),
-          };
-        });
+                id: String(item.id || item.message_id || `msg-${idx}`),
+                senderId: senderId,
+                recipientId: item.recipientId || item.recipient_id || "",
+                userName: displayUserName, // 宛先または「事務局」を表示
+                recipientName: recipientName,
+                memberId: item.memberId || item.member_id || "",
+                subject: item.subject || item.title || "(件名なし)",
+                body: item.body || "",
+                isRead: Boolean(item.isRead ?? item.is_read),
+                createdAt:
+                  item.createdAt || item.created_at || new Date().toISOString(),
+                status,
+                lastStatusUpdatedBy:
+                  item.lastStatusUpdatedBy || item.last_status_updated_by || "",
+                replies: (item.replies || []).map(
+                  (r: ApiReply, rIdx: number) => {
+                    const rSenderId = String(
+                      r.senderId || r.sender_id || "",
+                    ).trim();
+                    const isMyReply =
+                      rSenderId === String(currentUserId).trim();
 
-        setMessages(formattedMessages);
+                    return {
+                      id: String(r.id || r.reply_id || `reply-${idx}-${rIdx}`),
+                      senderId: rSenderId,
+                      recipientId: r.recipientId || r.recipient_id || "",
+                      // 自分が送った返信でなければ「事務局」にする
+                      userName: isMyReply
+                        ? r.userName || r.sender_name || "自分"
+                        : "事務局",
+                      recipientName: r.recipientName || r.recipient_name || "",
+                      memberId: r.memberId || r.member_id || "",
+                      subject: r.subject || r.title || "",
+                      body: r.body || "",
+                      isRead: Boolean(r.isRead ?? r.is_read),
+                      createdAt: r.createdAt || r.created_at || "",
+                    };
+                  },
+                ),
+              };
+            },
+          );
+
+          setMessages(formattedMessages);
+        }
+      } catch (err) {
+        console.error("メッセージ取得エラー:", err);
+      } finally {
+        if (!isBackground) setLoading(false);
       }
-    } catch (err) {
-      console.error('メッセージ取得エラー:', err);
-    } finally {
-      if (!isBackground) setLoading(false);
-    }
-  }, [currentUserId]);
+    },
+    [currentUserId],
+  );
 
   useEffect(() => {
     // ルール(react-hooks/set-state-in-effect)対応:
@@ -154,9 +180,9 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
     if (!isTargetExpanded && hasUnread) {
       try {
         const replyIds = msg.replies?.map((r) => r.id) || [];
-        await fetch('/api/messages/read', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+        await fetch("/api/messages/read", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             messageId: msg.id,
             replyIds: replyIds,
@@ -171,11 +197,11 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
                   isRead: true,
                   replies: m.replies?.map((r) => ({ ...r, isRead: true })),
                 }
-              : m
-          )
+              : m,
+          ),
         );
       } catch (err) {
-        console.error('既読処理エラー:', err);
+        console.error("既読処理エラー:", err);
       }
     }
   };
@@ -184,14 +210,14 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
     parentMessageId: string,
     recipientId: string,
     replyTitle: string,
-    replyText: string
+    replyText: string,
   ): Promise<boolean> => {
     try {
       const targetParentId = parentMessageId || expandedId || undefined;
 
-      const res = await fetch('/api/messages/reply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/messages/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           parentMessageId: targetParentId,
           recipientId,
@@ -202,7 +228,7 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
 
       const data = await res.json();
       if (data.success) {
-        alert('返信を送信しました');
+        alert("返信を送信しました");
         fetchMessages(true);
         return true;
       } else {
@@ -210,8 +236,8 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
         return false;
       }
     } catch (err) {
-      console.error('返信送信エラー:', err);
-      alert('返信処理中にエラーが発生しました');
+      console.error("返信送信エラー:", err);
+      alert("返信処理中にエラーが発生しました");
       return false;
     }
   };
@@ -219,11 +245,11 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
   const handleDelete = async (messageId: string) => {
     const res = await fetch(
       `/api/messages/delete?messageId=${encodeURIComponent(messageId)}`,
-      { method: 'DELETE' },
+      { method: "DELETE" },
     );
     const data = await res.json();
     if (data.success) {
-      alert('削除が完了しました');
+      alert("削除が完了しました");
       setMessages((prev) => prev.filter((m) => m.id !== messageId));
     } else {
       alert(`削除失敗: ${data.error}`);
@@ -232,7 +258,7 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
 
   // 最新の動きがあった順(親と全返信の中で一番新しい日時)に並べ替え
   const getLatestTime = (item: ReceivedMessage) => {
-    let latest = item.createdAt || '';
+    let latest = item.createdAt || "";
     if (item.replies && Array.isArray(item.replies)) {
       item.replies.forEach((reply) => {
         if (reply.createdAt && reply.createdAt > latest) {
@@ -242,14 +268,16 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
     }
     return latest ? new Date(latest).getTime() : 0;
   };
-  const sortedMessages = [...messages].sort((a, b) => getLatestTime(b) - getLatestTime(a));
+  const sortedMessages = [...messages].sort(
+    (a, b) => getLatestTime(b) - getLatestTime(a),
+  );
 
   // ページング: ポーリングで件数が減っても範囲外にならないよう描画時にクランプ
   const pageCount = Math.ceil(sortedMessages.length / ITEMS_PER_PAGE);
   const safePage = Math.min(currentPage, Math.max(pageCount - 1, 0));
   const pagedMessages = sortedMessages.slice(
     safePage * ITEMS_PER_PAGE,
-    (safePage + 1) * ITEMS_PER_PAGE
+    (safePage + 1) * ITEMS_PER_PAGE,
   );
 
   return (
@@ -270,7 +298,9 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
       />
 
       <div className="space-y-3">
-        <h2 className="text-lg font-bold text-slate-900 pt-2 pb-1">受信トレイ</h2>
+        <h2 className="text-lg font-bold text-slate-900 pt-2 pb-1">
+          受信トレイ
+        </h2>
 
         {loading ? (
           <div className="text-center py-8 text-slate-400">読み込み中...</div>
@@ -287,7 +317,9 @@ export default function MessagesClient({ currentUserId }: MessagesClientProps) {
                   inquiry={inquiry}
                   isExpanded={expandedId === inquiry.id}
                   onToggle={() => handleToggle(inquiry)}
-                  onSendReply={(pId, recId, title, body) => handleSendReply(pId, recId, title, body)}
+                  onSendReply={(pId, recId, title, body) =>
+                    handleSendReply(pId, recId, title, body)
+                  }
                   onDelete={handleDelete}
                   currentUserId={currentUserId}
                 />

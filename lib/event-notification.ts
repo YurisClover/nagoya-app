@@ -10,25 +10,36 @@ type EventNotificationTarget = {
 };
 
 export async function sendEventPublishedNotification(
-    event: EventNotificationTarget,): Promise<void> {
+  event: EventNotificationTarget,
+): Promise<void> {
   const { sheets, spreadsheetId } = getSheetsClient(true);
-  const usersRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Users!A1:Z", });
+  const usersRes = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: "Users!A1:Z",
+  });
   const rows = (usersRes.data.values || []) as string[][];
   if (rows.length <= 1) {
     return;
   }
-  const headers = rows[0].map((header) => String(header).toLowerCase().trim(), );
+  const headers = rows[0].map((header) => String(header).toLowerCase().trim());
   const roleIdx = headers.findIndex((header) => header === "role");
   const statusIdx = headers.findIndex((header) => header === "status");
-  const fcmTokenIdx = headers.findIndex( (header) => header === "fcm_token", );
+  const fcmTokenIdx = headers.findIndex((header) => header === "fcm_token");
 
   if (fcmTokenIdx === -1) {
-    console.warn( "イベント通知: Usersシートに fcm_token 列が見つかりません",);
+    console.warn("イベント通知: Usersシートに fcm_token 列が見つかりません");
     return;
   }
 
-  const tokens = rows .slice(1) .filter((row) => {
-      const status = statusIdx !== -1  ? String(row[statusIdx] ?? "").trim().toLowerCase() : "";
+  const tokens = rows
+    .slice(1)
+    .filter((row) => {
+      const status =
+        statusIdx !== -1
+          ? String(row[statusIdx] ?? "")
+              .trim()
+              .toLowerCase()
+          : "";
       const isActive = status === "active" || status === "有効";
       if (!isActive) {
         return false;
@@ -40,7 +51,12 @@ export async function sendEventPublishedNotification(
       }
 
       // 執行部向けイベントは executive / admin のみ
-      const role = roleIdx !== -1 ? String(row[roleIdx] ?? "").trim().toLowerCase() : "";
+      const role =
+        roleIdx !== -1
+          ? String(row[roleIdx] ?? "")
+              .trim()
+              .toLowerCase()
+          : "";
       return role === "executive" || role === "admin";
     })
     .map((row) => String(row[fcmTokenIdx] ?? "").trim())
@@ -59,9 +75,11 @@ export async function sendEventPublishedNotification(
     const tokenChunk = uniqueTokens.slice(i, i + 500);
     const response = await messaging.sendEachForMulticast({
       tokens: tokenChunk,
-      data: { title: "イベントが公開されました",
-              body: event.title,
-              url: '/notification-redirect', },
+      data: {
+        title: "イベントが公開されました",
+        body: event.title,
+        url: "/notification-redirect",
+      },
     });
 
     if (response.failureCount > 0) {

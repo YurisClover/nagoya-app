@@ -16,15 +16,16 @@ export default function DeleteGroupButton({
     <form
       action={action}
       onSubmit={(e) => {
-        if (!confirm(`グループ「${groupName}」を削除しますか？\nメンバー設定も一緒に削除されます。`)) {
+        if (
+          !confirm(
+            `グループ「${groupName}」を削除しますか？\nメンバー設定も一緒に削除されます。`,
+          )
+        ) {
           e.preventDefault();
         }
       }}
     >
-      <button
-        type="submit"
-        className="btn btn-danger px-3 py-1.5 text-xs"
-      >
+      <button type="submit" className="btn btn-danger px-3 py-1.5 text-xs">
         削除
       </button>
     </form>

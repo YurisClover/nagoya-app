@@ -12,10 +12,10 @@ export default async function AdminLayout({
 
   return (
     <>
-    <NotificationInitializer />
-    <AdminShell sidebar={<Sidebar user={session.user} />}>
-      {children}
-    </AdminShell>
+      <NotificationInitializer />
+      <AdminShell sidebar={<Sidebar user={session.user} />}>
+        {children}
+      </AdminShell>
     </>
   );
 }

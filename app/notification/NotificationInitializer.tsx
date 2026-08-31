@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { getToken, onMessage } from 'firebase/messaging';
-import { messaging } from '@/lib/firebase'; 
+import { useEffect, useRef, useState } from "react";
+import { getToken, onMessage } from "firebase/messaging";
+import { messaging } from "@/lib/firebase";
 
 // ==========================================
 // 型定義
@@ -29,7 +29,7 @@ type ToastData = {
 export default function NotificationInitializer() {
   // React 18のStrict Mode（開発環境）でuseEffectが2回実行されるのを防ぐためのフラグ
   const initialized = useRef(false);
-  
+
   // アプリ起動中のポップアップ（トースト）を表示・非表示するためのステート
   const [toast, setToast] = useState<ToastData | null>(null);
 
@@ -45,8 +45,10 @@ export default function NotificationInitializer() {
         // --------------------------------------------------
         // [Step 1] ブラウザの環境チェック
         // --------------------------------------------------
-        if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
-          console.warn('ℹ️ このブラウザはプッシュ通知（Service Worker）をサポートしていません。');
+        if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+          console.warn(
+            "ℹ️ このブラウザはプッシュ通知（Service Worker）をサポートしていません。",
+          );
           return;
         }
 
@@ -54,8 +56,10 @@ export default function NotificationInitializer() {
         // [Step 2] ユーザーへ通知の許可を求める
         // --------------------------------------------------
         const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          console.warn('⚠️ ユーザーからプッシュ通知の許可が得られませんでした。');
+        if (permission !== "granted") {
+          console.warn(
+            "⚠️ ユーザーからプッシュ通知の許可が得られませんでした。",
+          );
           return;
         }
 
@@ -64,7 +68,9 @@ export default function NotificationInitializer() {
         // --------------------------------------------------
         const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
         if (!vapidKey) {
-          console.warn('⚠️ VAPIDキーが見つかりません。.env.local などを確認してください。');
+          console.warn(
+            "⚠️ VAPIDキーが見つかりません。.env.local などを確認してください。",
+          );
           return;
         }
 
@@ -72,17 +78,21 @@ export default function NotificationInitializer() {
         // [Step 4] Service Worker の登録と Messaging の確認
         // --------------------------------------------------
         //const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        const serviceWorkerUrl = process.env.NODE_ENV === "development"
-         ? "/api/firebase-messaging-sw-dev"
-         : "/firebase-messaging-sw.js";
-        const registration = await navigator.serviceWorker.register( serviceWorkerUrl,{ scope: "/",
-            },
-           );
+        const serviceWorkerUrl =
+          process.env.NODE_ENV === "development"
+            ? "/api/firebase-messaging-sw-dev"
+            : "/firebase-messaging-sw.js";
+        const registration = await navigator.serviceWorker.register(
+          serviceWorkerUrl,
+          { scope: "/" },
+        );
         await navigator.serviceWorker.ready;
 
         // ★ 修正: インポートした messaging が null じゃないか（ブラウザ対応しているか）チェック
         if (!messaging) {
-          console.warn('⚠️ Firebase Messagingの初期化に失敗したか、ブラウザが非対応です。');
+          console.warn(
+            "⚠️ Firebase Messagingの初期化に失敗したか、ブラウザが非対応です。",
+          );
           return;
         }
 
@@ -90,13 +100,16 @@ export default function NotificationInitializer() {
         // [Step 5] アプリを開いている時（フォアグラウンド）の通知受信設定
         // --------------------------------------------------
         onMessage(messaging, (payload) => {
-          console.log('🔔 アプリ起動中に新しい通知を受信しました:', payload);
+          console.log("🔔 アプリ起動中に新しい通知を受信しました:", payload);
 
           // const title = payload.notification?.title || '新着メッセージ';
           // const body = payload.notification?.body || '';
-          const title = payload.data?.title || payload.notification?.title || '新着メッセージ';
-          const body = payload.data?.body || payload.notification?.body || '';
-          const url = payload.data?.url || '/';
+          const title =
+            payload.data?.title ||
+            payload.notification?.title ||
+            "新着メッセージ";
+          const body = payload.data?.body || payload.notification?.body || "";
+          const url = payload.data?.url || "/";
 
           // 画面にトースト（ポップアップ）を表示し、5秒後に自動で消す
           setToast({ title, body, url });
@@ -112,7 +125,7 @@ export default function NotificationInitializer() {
         });
 
         if (!token) {
-          console.warn('⚠️ プッシュ通知用のトークンが取得できませんでした。');
+          console.warn("⚠️ プッシュ通知用のトークンが取得できませんでした。");
           return;
         }
 
@@ -145,24 +158,29 @@ export default function NotificationInitializer() {
         // --------------------------------------------------
         // [Step 7] 取得したトークンをサーバーへ保存
         // --------------------------------------------------
-        const savedToken = localStorage.getItem('fcm_token');
+        const savedToken = localStorage.getItem("fcm_token");
         if (savedToken === token) {
-        console.log(':インフォメーション: トークンは既に保存されているため、サーバーへの送信をスキップします。');
-          }else {
-           console.log(':鍵: 新しいデバイストークンを取得しました:', token);}
+          console.log(
+            ":インフォメーション: トークンは既に保存されているため、サーバーへの送信をスキップします。",
+          );
+        } else {
+          console.log(":鍵: 新しいデバイストークンを取得しました:", token);
+        }
 
-        const res = await fetch('/api/save-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const res = await fetch("/api/save-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
         });
 
         if (res.ok) {
-          localStorage.setItem('fcm_token', token);
+          localStorage.setItem("fcm_token", token);
         }
-
       } catch (error) {
-        console.error('❌ プッシュ通知の初期化中に重大なエラーが発生しました:', error);
+        console.error(
+          "❌ プッシュ通知の初期化中に重大なエラーが発生しました:",
+          error,
+        );
       }
     };
 

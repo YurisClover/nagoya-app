@@ -1,4 +1,8 @@
-import { getDashboardMetrics, getRecentActivities, getEventAttendanceList } from "@/lib/sheets";
+import {
+  getDashboardMetrics,
+  getRecentActivities,
+  getEventAttendanceList,
+} from "@/lib/sheets";
 import Metrics from "./metrics";
 import Activity from "./activity";
 import QuickAction from "./quickAction";
@@ -13,7 +17,7 @@ export default async function AdminHomePage() {
 
   // ③ 取得したIDを getDashboardMetrics に渡す
   const [metricsData, activityData, eventAttendanceData] = await Promise.all([
-    getDashboardMetrics(currentMemberId), 
+    getDashboardMetrics(currentMemberId),
     getRecentActivities(),
     getEventAttendanceList(),
   ]);

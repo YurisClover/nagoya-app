@@ -10,7 +10,11 @@ import NotificationInitializer from "@/app/notification/NotificationInitializer"
  * Also mounts NotificationInitializer, which registers the FCM service
  * worker - this is why it must never throw (see lib/firebase.ts).
  */
-export default async function AppShell({ children }: { children: React.ReactNode }) {
+export default async function AppShell({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const session = await auth();
   const isAdmin = session?.user?.role === "admin";
 

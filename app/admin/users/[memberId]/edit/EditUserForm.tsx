@@ -32,7 +32,10 @@ export default function EditUserForm({
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex justify-between items-center pb-4 border-b">
         <h1 className="text-2xl font-bold">会員情報の編集</h1>
-        <Link href="/admin/users" className="px-4 py-2 border rounded text-sm hover:bg-gray-100">
+        <Link
+          href="/admin/users"
+          className="px-4 py-2 border rounded text-sm hover:bg-gray-100"
+        >
           一覧に戻る
         </Link>
       </div>
@@ -82,7 +85,9 @@ export default function EditUserForm({
 
         {/* password === null -> no change */}
         <div>
-          <label className="block text-sm font-medium mb-1">新しいパスワード</label>
+          <label className="block text-sm font-medium mb-1">
+            新しいパスワード
+          </label>
           <input
             type="password"
             name="password"
@@ -125,10 +130,7 @@ export default function EditUserForm({
           >
             {isPending ? "更新中..." : "更新する"}
           </button>
-          <Link
-            href="/admin/users"
-            className="btn btn-secondary"
-          >
+          <Link href="/admin/users" className="btn btn-secondary">
             キャンセル
           </Link>
         </div>

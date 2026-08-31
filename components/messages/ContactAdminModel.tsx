@@ -6,9 +6,9 @@
  * a typo kept as-is to avoid breaking imports; rename in its own commit
  * if it bothers you.
  */
-'use client';
+"use client";
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 interface ContactAdminModalProps {
   isOpen: boolean;
@@ -21,8 +21,8 @@ export default function ContactAdminModal({
   onClose,
   onSuccess,
 }: ContactAdminModalProps) {
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
   const [isSending, setIsSending] = useState(false);
 
   if (!isOpen) return null;
@@ -31,29 +31,29 @@ export default function ContactAdminModal({
     e.preventDefault();
 
     if (!title.trim() || !body.trim()) {
-      alert('件名と本文を入力してください。');
+      alert("件名と本文を入力してください。");
       return;
     }
 
     try {
       setIsSending(true);
 
-      const res = await fetch('/api/send-notification', {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({
-         recipient_id: 'admin', // 'admin' と指定すると、API側で role: admin & status: active な人を全自動抽出します
-         title,
-         body,
-       }),
-     });
+      const res = await fetch("/api/send-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipient_id: "admin", // 'admin' と指定すると、API側で role: admin & status: active な人を全自動抽出します
+          title,
+          body,
+        }),
+      });
 
       const data = await res.json();
 
       if (data.success) {
-        alert('管理者へメッセージを送信しました。');
-        setTitle('');
-        setBody('');
+        alert("管理者へメッセージを送信しました。");
+        setTitle("");
+        setBody("");
         onClose();
         if (onSuccess) onSuccess();
       } else {
@@ -61,7 +61,7 @@ export default function ContactAdminModal({
       }
     } catch (err) {
       console.error(err);
-      alert('送信処理中にエラーが発生しました。');
+      alert("送信処理中にエラーが発生しました。");
     } finally {
       setIsSending(false);
     }
@@ -76,7 +76,9 @@ export default function ContactAdminModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">件名</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">
+              件名
+            </label>
             <input
               type="text"
               className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1b365d]"
@@ -87,7 +89,9 @@ export default function ContactAdminModal({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">本文</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1">
+              本文
+            </label>
             <textarea
               rows={5}
               className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1b365d]"
@@ -111,7 +115,7 @@ export default function ContactAdminModal({
               disabled={isSending}
               className="px-5 py-2 text-sm bg-[#1b365d] text-white font-bold rounded-lg hover:bg-[#152a48] transition disabled:opacity-50"
             >
-              {isSending ? '送信中...' : '送信する'}
+              {isSending ? "送信中..." : "送信する"}
             </button>
           </div>
         </form>

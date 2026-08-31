@@ -36,13 +36,13 @@ export default function SearchFilters({
   // URLパラメータを更新する関数
   const updateParams = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    
+
     if (value && value !== "all") {
       params.set(key, value);
     } else {
       params.delete(key);
     }
-    
+
     // 検索条件変更時は1ページ目に戻す
     if (key !== "page") {
       params.set("page", "1");
@@ -68,7 +68,9 @@ export default function SearchFilters({
   }, [searchTerm]);
 
   return (
-    <div className={`flex flex-wrap gap-4 items-center ${isPending ? "opacity-60" : ""}`}>
+    <div
+      className={`flex flex-wrap gap-4 items-center ${isPending ? "opacity-60" : ""}`}
+    >
       {/* 検索窓 */}
       <div className="flex gap-2 flex-1 min-w-[280px]">
         <input

@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { getApiUser } from "@/lib/guards";
 import { getSheetsClient } from "@/lib/sheets/googleapis";
 
-interface SaveTokenRequestBody { token?: string;}
+interface SaveTokenRequestBody {
+  token?: string;
+}
 function columnIndexToLetter(index: number): string {
   let n = index + 1;
   let result = "";
@@ -21,7 +23,7 @@ export async function POST(request: Request) {
     if (!apiUser) {
       return NextResponse.json(
         { success: false, error: "認証されていません" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
     if (!token) {
       return NextResponse.json(
         { success: false, error: "Token is missing" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -44,33 +46,40 @@ export async function POST(request: Request) {
     if (rows.length === 0) {
       return NextResponse.json(
         { success: false, error: "Users sheet data is empty" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    const headers = rows[0].map((header) => String(header).toLowerCase().trim() );
+    const headers = rows[0].map((header) =>
+      String(header).toLowerCase().trim(),
+    );
     const memberIdIdx = headers.findIndex(
-      (header) => header === "member_id" || header === "id" || header === "memberid"
+      (header) =>
+        header === "member_id" || header === "id" || header === "memberid",
     );
 
-    const fcmTokenIdx = headers.findIndex( (header) => header === "fcm_token" );
+    const fcmTokenIdx = headers.findIndex((header) => header === "fcm_token");
     if (memberIdIdx === -1 || fcmTokenIdx === -1) {
       return NextResponse.json(
         {
           success: false,
           error: "Usersシートに member_id または fcm_token 列が見つかりません",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const rowIndex = rows.findIndex(
-      (row, index) => index > 0 && String(row[memberIdIdx] ?? "").trim() === apiUser.memberId
+      (row, index) =>
+        index > 0 && String(row[memberIdIdx] ?? "").trim() === apiUser.memberId,
     );
     if (rowIndex === -1) {
       return NextResponse.json(
-        { success: false, error: "ログインユーザーがUsersシートに見つかりません" },
-        { status: 404 }
+        {
+          success: false,
+          error: "ログインユーザーがUsersシートに見つかりません",
+        },
+        { status: 404 },
       );
     }
 
@@ -87,29 +96,33 @@ export async function POST(request: Request) {
     // });
     const fcmTokenColumn = columnIndexToLetter(fcmTokenIdx);
     const cellRange = `Users!${fcmTokenColumn}${rowIndex + 1}`;
-    const duplicateTokenRows = rows .map((row, index) => ({ row, index })) .filter(
-    ({ row, index }) =>
-      index > 0 &&
-      index !== rowIndex &&
-      String(row[fcmTokenIdx] ?? "").trim() === token
-  );
+    const duplicateTokenRows = rows
+      .map((row, index) => ({ row, index }))
+      .filter(
+        ({ row, index }) =>
+          index > 0 &&
+          index !== rowIndex &&
+          String(row[fcmTokenIdx] ?? "").trim() === token,
+      );
 
-const updateData = [
-  ...duplicateTokenRows.map(({ index }) => ({
-    range: `Users!${fcmTokenColumn}${index + 1}`,
-    values: [[""]],
-  })),
-  {
-    range: cellRange,
-    values: [[token]],
-  },
-];
+    const updateData = [
+      ...duplicateTokenRows.map(({ index }) => ({
+        range: `Users!${fcmTokenColumn}${index + 1}`,
+        values: [[""]],
+      })),
+      {
+        range: cellRange,
+        values: [[token]],
+      },
+    ];
 
-await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: {
-    valueInputOption: "RAW",
-    data: updateData,
-  },
-});
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        valueInputOption: "RAW",
+        data: updateData,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -120,7 +133,7 @@ await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: {
     console.error("=== SAVE TOKEN ERROR ===", errorMessage);
     return NextResponse.json(
       { success: false, error: errorMessage },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

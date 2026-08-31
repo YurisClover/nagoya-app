@@ -21,7 +21,7 @@ export default async function EditUserPage({
 
   const members = await getCachedMembers();
   const member = members.find(
-    (m) => String(m.member_id).trim() === memberId.trim() && !m.deleted_at
+    (m) => String(m.member_id).trim() === memberId.trim() && !m.deleted_at,
   );
   if (!member) notFound();
 

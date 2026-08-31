@@ -16,20 +16,26 @@ const fetcher = async (url: string): Promise<EventWithStatus[]> => {
 export default function EventsClient({ role }: { role?: string }) {
   // executive/admin switch event page
   const canSwitchPosition = role === "executive" || role === "admin";
-  const [selectedPosition, setSelectedPosition] = useState<EventPosition>("general");
+  const [selectedPosition, setSelectedPosition] =
+    useState<EventPosition>("general");
   const [page, setPage] = useState(1);
   const position = canSwitchPosition ? selectedPosition : "general";
 
-  const { data: events, error, isLoading } = useSWR<EventWithStatus[]>(
-    `/api/events?position=${position}`,
-    fetcher,
-    { revalidateOnFocus: true }
-  );
+  const {
+    data: events,
+    error,
+    isLoading,
+  } = useSWR<EventWithStatus[]>(`/api/events?position=${position}`, fetcher, {
+    revalidateOnFocus: true,
+  });
 
   const list = events ?? [];
   const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages); // shorter list (SWR refresh)
-  const pageItems = list.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageItems = list.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
 
   return (
     <div className="page-container">
@@ -65,13 +71,17 @@ export default function EventsClient({ role }: { role?: string }) {
 
       {error ? (
         <div className="card text-center">
-          <p className="text-sm text-danger">イベント情報を取得できませんでした。</p>
+          <p className="text-sm text-danger">
+            イベント情報を取得できませんでした。
+          </p>
           <p className="text-meta mt-1">時間をおいて再度お試しください。</p>
         </div>
       ) : isLoading ? (
         <p className="text-meta py-6 text-center">読み込み中...</p>
       ) : list.length === 0 ? (
-        <p className="text-meta py-6 text-center">予定されているイベントはありません。</p>
+        <p className="text-meta py-6 text-center">
+          予定されているイベントはありません。
+        </p>
       ) : (
         <>
           <div className="space-y-3">

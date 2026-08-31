@@ -46,7 +46,10 @@ function createMessaging(): Messaging | null {
     .filter(([, value]) => !value)
     .map(([key]) => key);
   if (missingKeys.length > 0) {
-    console.warn("Firebase config missing; notifications disabled:", missingKeys);
+    console.warn(
+      "Firebase config missing; notifications disabled:",
+      missingKeys,
+    );
     return null;
   }
 

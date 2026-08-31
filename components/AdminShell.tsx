@@ -11,15 +11,15 @@ import { useState } from "react";
 import { Menu } from "lucide-react";
 
 export default function AdminShell({
-    sidebar,
-    children,
+  sidebar,
+  children,
 }: {
-    sidebar: React.ReactNode;
-    children: React.ReactNode;
+  sidebar: React.ReactNode;
+  children: React.ReactNode;
 }) {
-    const [ open, setOpen ] = useState(false);
+  const [open, setOpen] = useState(false);
 
-    return (
+  return (
     <div className="theme-body flex min-h-screen">
       {/* big screen -> left sidebar */}
       <div className="hidden lg:block">{sidebar}</div>
@@ -27,8 +27,14 @@ export default function AdminShell({
       {/* small screen: drawer open/close — after click (sidebar or bg) -> auto-hide */}
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 left-0 z-50" onClick={() => setOpen(false)}>
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            className="absolute inset-y-0 left-0 z-50"
+            onClick={() => setOpen(false)}
+          >
             {sidebar}
           </div>
         </div>
@@ -52,7 +58,9 @@ export default function AdminShell({
             余白(インセット)はここ1か所で管理する — 各ページ側では p-* や max-w-* を
             重ねないこと(二重インセットの原因になる) */}
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-6xl p-6 sm:p-10 lg:p-12">{children}</div>
+          <div className="mx-auto w-full max-w-6xl p-6 sm:p-10 lg:p-12">
+            {children}
+          </div>
         </main>
       </div>
     </div>

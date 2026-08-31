@@ -11,10 +11,12 @@ export async function GET() {
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   };
 
-  const missingKeys = Object.entries(firebaseConfig) .filter(([, value]) => !value) .map(([key]) => key);
+  const missingKeys = Object.entries(firebaseConfig)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
 
   if (missingKeys.length > 0) {
-    console.error( "dev用FCM Service Worker: Firebase設定不足:", missingKeys, );
+    console.error("dev用FCM Service Worker: Firebase設定不足:", missingKeys);
     return new Response(
       `console.error("Firebase config is missing: ${missingKeys.join(", ")}");`,
       {

@@ -5,7 +5,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
+  import.meta.url,
 ).toString();
 
 export default function PdfViewer({ fileUrl }: { fileUrl: string }) {
@@ -34,7 +34,9 @@ export default function PdfViewer({ fileUrl }: { fileUrl: string }) {
           file={fileUrl}
           onLoadSuccess={({ numPages }) => setNumPages(numPages)}
           onLoadError={() => setError(true)}
-          loading={<p className="p-8 text-center text-sm text-gray-500">読み込み中…</p>}
+          loading={
+            <p className="p-8 text-center text-sm text-gray-500">読み込み中…</p>
+          }
         >
           {width > 0 &&
             Array.from({ length: numPages }, (_, i) => (
