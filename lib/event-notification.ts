@@ -2,6 +2,7 @@ import "server-only";
 
 import { getFirebaseAdminMessaging } from "@/lib/firebase-admin";
 import { getSheetsClient } from "@/lib/sheets/googleapis";
+import { collectDeadTokens, removeDeadFcmTokens } from "@/lib/fcm-cleanup";
 
 type EventNotificationTarget = {
   title: string;
@@ -52,6 +53,7 @@ export async function sendEventPublishedNotification(
   }
 
   const messaging = getFirebaseAdminMessaging();
+  const deadTokens: string[] = [];
   // Firebase Admin SDKは1回最大500トークン
   for (let i = 0; i < uniqueTokens.length; i += 500) {
     const tokenChunk = uniqueTokens.slice(i, i + 500);
@@ -67,5 +69,9 @@ export async function sendEventPublishedNotification(
         `イベントFCM通知: ${response.successCount}件成功 / ${response.failureCount}件失敗`,
       );
     }
+    deadTokens.push(...collectDeadTokens(tokenChunk, response.responses));
   }
+
+  // Permanently-invalid tokens get cleared so future sends skip them.
+  await removeDeadFcmTokens(deadTokens);
 }
