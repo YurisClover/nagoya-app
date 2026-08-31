@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getApiUser } from '@/lib/guards';
+import { collectDeadTokens, removeDeadFcmTokens } from '@/lib/fcm-cleanup';
 import dns from 'node:dns';
 import { nowJST } from '@/lib/datetime';
 import crypto from 'crypto';
@@ -268,6 +269,7 @@ try {
 
   if (tokens.length > 0) {
     const messaging = getFirebaseAdminMessaging();
+    const deadTokens: string[] = [];
     // Firebase Admin SDKでは1回につき最大500件なので分割する
     for (let i = 0; i < tokens.length; i += 500) {
       const tokenChunk = tokens.slice(i, i + 500);
@@ -286,7 +288,12 @@ try {
           `FCM通知: ${response.successCount}件成功 / ${response.failureCount}件失敗`
         );
       }
+      deadTokens.push(...collectDeadTokens(tokenChunk, response.responses));
     }
+
+    // Permanently-invalid tokens (uninstalled app, revoked permission) get
+    // cleared from the sheet so future sends stop targeting them.
+    await removeDeadFcmTokens(deadTokens);
   } else {
     console.log('FCM通知対象のトークンがありません');
   }

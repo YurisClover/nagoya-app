@@ -114,9 +114,15 @@ async function loadActiveMemberIds(
   }
   const rows = await usersSheet.getRows();
   const memberIds = rows
-    // Users has no is_deleted column; a member is deleted when
-    // deleted_at holds a timestamp.
-    .filter((row) => !String(row.get("deleted_at") ?? "").trim())
+    // Users has no is_deleted column; a member is deleted when deleted_at
+    // holds a timestamp. Inactive members are excluded too: invitations
+    // only go to active members, so an answer from an inactive member is
+    // out-of-band and should surface as 無効 for the admin to inspect.
+    .filter((row) => {
+      if (String(row.get("deleted_at") ?? "").trim()) return false;
+      const status = String(row.get("status") ?? "").trim().toLowerCase();
+      return status === "active" || status === "有効";
+    })
     .map((row) => normalizeId(row.get("member_id")))
     .filter(Boolean);
   if (memberIds.length === 0) {
