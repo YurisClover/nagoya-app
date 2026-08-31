@@ -9,59 +9,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
-import { deleteToken } from "firebase/messaging";
-import { messaging } from "@/lib/firebase";
+import { logoutWithFcmCleanup } from "@/lib/logout";
 
 type SidebarProps = {
   user?: {
     name?: string | null;
     email?: string | null;
   };
-};
-
-const handleLogout = async () => {
-  try {
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("fcm_token")
-        : null;
-
-    // UsersシートのFCMトークンを削除
-    const response = await fetch("/api/remove-fcm-token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ token }),
-    });
-
-    if (!response.ok) {
-      console.warn("UsersシートのFCMトークン削除に失敗しました");
-    }
-
-    // Firebase側の現在のブラウザトークンを無効化
-    if (typeof window !== "undefined" && messaging) {
-      try {
-        await deleteToken(messaging);
-        console.log("Firebase FCMトークンを削除しました");
-      } catch (error) {
-        console.warn(
-          "Firebase FCMトークンの削除に失敗しました:",
-          error
-        );
-      }
-    }
-
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("fcm_token");
-      localStorage.removeItem("fcm_token_sent");
-    }
-  } catch (error) {
-    console.error("ログアウトクリーンアップ中のエラー:", error);
-  } finally {
-    await signOut({ callbackUrl: "/login" });
-  }
 };
 
 export default function Sidebar({ user }: SidebarProps) {
@@ -183,7 +137,7 @@ export default function Sidebar({ user }: SidebarProps) {
           <button
             type="button"
            //onClick={() => signOut({ callbackUrl: "/login" })}
-            onClick={handleLogout}
+            onClick={logoutWithFcmCleanup}
             className="shrink-0 rounded-control border border-white px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 hover:border-red-500"
             >
             ログアウト
