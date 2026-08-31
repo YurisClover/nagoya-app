@@ -19,7 +19,11 @@ type Props = {
 // app/site/pagination.tsx と同じ見た目のページ送りUI。
 // あちらは PdfList と密結合しているため、リスト本体を持たない
 // 汎用版としてここに切り出した(メッセージ一覧の user/admin 両方で使う)。
-export default function PagerControls({ pageCount, currentPage, onPageChange }: Props) {
+export default function PagerControls({
+  pageCount,
+  currentPage,
+  onPageChange,
+}: Props) {
   if (pageCount <= 1) return null;
 
   return (

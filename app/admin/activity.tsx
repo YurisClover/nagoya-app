@@ -1,7 +1,7 @@
 import type { ActivityItem } from "@/lib/sheets";
 
 // Props の型定義を追加
-type ActivityProps = {items: ActivityItem[];};
+type ActivityProps = { items: ActivityItem[] };
 
 // 親から { items } を受け取る
 export default function Activity({ items }: ActivityProps) {

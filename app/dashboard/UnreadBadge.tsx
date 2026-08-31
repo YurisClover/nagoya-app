@@ -9,7 +9,11 @@
 
 import { useState, useEffect } from "react";
 
-export default function UnreadBadge({ initialCount }: { initialCount: number }) {
+export default function UnreadBadge({
+  initialCount,
+}: {
+  initialCount: number;
+}) {
   const [count, setCount] = useState(initialCount);
 
   useEffect(() => {

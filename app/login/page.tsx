@@ -32,7 +32,11 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    const res = await signIn("credentials", { email, password, redirect: false });
+    const res = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
     setLoading(false);
     if (res?.error) {
       setError("メールアドレスまたはパスワードが正しくありません");
@@ -75,7 +79,11 @@ export default function LoginPage() {
 
           {error && <p className="field-error">{error}</p>}
 
-          <button type="submit" disabled={loading} className="btn btn-primary btn-block mt-6">
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary btn-block mt-6"
+          >
             {loading ? "..." : "ログイン"}
           </button>
         </form>

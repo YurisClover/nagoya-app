@@ -197,9 +197,17 @@ export async function addEventToSheet(
   // is_deleted セルだけ boolean 型で上書きし、他シートと同じ素の FALSE 表示に揃える。
   // 失敗しても "false" 文字列が既に入っており読み取りは壊れないため握りつぶす。
   try {
-    await setBooleanCell(sheet, createdRow.rowNumber, "is_deleted", createdEvent.is_deleted);
+    await setBooleanCell(
+      sheet,
+      createdRow.rowNumber,
+      "is_deleted",
+      createdEvent.is_deleted,
+    );
   } catch (error) {
-    console.warn("is_deleted セルの boolean 化に失敗しました(表示のみの問題):", error);
+    console.warn(
+      "is_deleted セルの boolean 化に失敗しました(表示のみの問題):",
+      error,
+    );
   }
 
   return createdEvent;
@@ -214,7 +222,7 @@ export async function getEventsFromSheet(): Promise<SheetEvent[]> {
   const events = rows
     .map(mapEventRow)
     .filter((event) => Boolean(event.event_id) && !event.is_deleted);
-// 並び順は共通ロジックに集約(lib/event-order.ts 参照)
+  // 並び順は共通ロジックに集約(lib/event-order.ts 参照)
   events.sort(compareByNearestStart(nowJST().slice(0, 10)));
 
   return events;

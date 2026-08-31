@@ -20,7 +20,7 @@ type SidebarProps = {
 
 export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
-  
+
   // ★ 初期値にサーバーから受け取った件数をセット（これで初回からバッジが表示されます）
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
@@ -48,7 +48,10 @@ export default function Sidebar({ user }: SidebarProps) {
 
     const handleUnreadUpdate = (event: Event) => {
       const customEvent = event as CustomEvent<{ unreadCount: number }>;
-      if (customEvent.detail && typeof customEvent.detail.unreadCount === "number") {
+      if (
+        customEvent.detail &&
+        typeof customEvent.detail.unreadCount === "number"
+      ) {
         setUnreadCount(customEvent.detail.unreadCount);
       }
     };
@@ -103,9 +106,7 @@ export default function Sidebar({ user }: SidebarProps) {
                 <span>{item.label}</span>
 
                 {item.badge !== null && item.badge !== undefined && (
-                  <span className="badge">
-                    {item.badge}
-                  </span>
+                  <span className="badge">{item.badge}</span>
                 )}
               </Link>
             );
@@ -125,23 +126,23 @@ export default function Sidebar({ user }: SidebarProps) {
 
       {/* フッター：ログイン中のユーザー情報 */}
       <div className="flex items-center justify-between gap-2 px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-xs text-slate-400">ログイン中</p>
-            <p className="text-sm font-semibold text-slate-200 truncate mt-0.5">
-              {user?.name || "管理者ユーザー"}
-            </p>
-            {user?.email && (
-              <p className="text-xs text-slate-500 truncate">{user.email}</p>
-            )}
-          </div>
-          <button
-            type="button"
-           //onClick={() => signOut({ callbackUrl: "/login" })}
-            onClick={logoutWithFcmCleanup}
-            className="shrink-0 rounded-control border border-white px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 hover:border-red-500"
-            >
-            ログアウト
-          </button>
+        <div className="min-w-0">
+          <p className="text-xs text-slate-400">ログイン中</p>
+          <p className="text-sm font-semibold text-slate-200 truncate mt-0.5">
+            {user?.name || "管理者ユーザー"}
+          </p>
+          {user?.email && (
+            <p className="text-xs text-slate-500 truncate">{user.email}</p>
+          )}
+        </div>
+        <button
+          type="button"
+          //onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={logoutWithFcmCleanup}
+          className="shrink-0 rounded-control border border-white px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 hover:border-red-500"
+        >
+          ログアウト
+        </button>
       </div>
     </aside>
   );

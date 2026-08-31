@@ -1,12 +1,23 @@
 const pad = (n: number) => String(n).padStart(2, "0");
 
-function jstInstant(y: number, month1to12: number, d: number, hh = 0, mm = 0): Date {
-  return new Date(`${y}-${pad(month1to12)}-${pad(d)}T${pad(hh)}:${pad(mm)}:00+09:00`);
+function jstInstant(
+  y: number,
+  month1to12: number,
+  d: number,
+  hh = 0,
+  mm = 0,
+): Date {
+  return new Date(
+    `${y}-${pad(month1to12)}-${pad(d)}T${pad(hh)}:${pad(mm)}:00+09:00`,
+  );
 }
 
 function todayInJST(): { y: number; m: number; d: number } {
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).formatToParts(new Date());
   const g = (t: string) => parseInt(parts.find((p) => p.type === t)!.value, 10);
   return { y: g("year"), m: g("month"), d: g("day") };
@@ -16,8 +27,13 @@ function todayInJST(): { y: number; m: number; d: number } {
 export function nowJST(date = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Tokyo",
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
   }).formatToParts(date);
   const g = (t: string) => parts.find((p) => p.type === t)!.value;
   let hour = g("hour");
@@ -33,7 +49,7 @@ parse date from sheet
  */
 export function parseSheetDate(
   value: string,
-  opts: { yearHint?: "current" | "future" | "past" } = {}
+  opts: { yearHint?: "current" | "future" | "past" } = {},
 ): Date | null {
   if (!value) return null;
   const raw = String(value).trim();
@@ -42,7 +58,9 @@ export function parseSheetDate(
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return new Date(`${raw}T00:00:00+09:00`);
   if (/^\d{4}-\d{2}-\d{2}[T ]/.test(raw)) {
     const hasZone = /(Z|[+-]\d{2}:?\d{2})$/.test(raw);
-    const d = new Date(hasZone ? raw.replace(" ", "T") : `${raw.replace(" ", "T")}+09:00`);
+    const d = new Date(
+      hasZone ? raw.replace(" ", "T") : `${raw.replace(" ", "T")}+09:00`,
+    );
     if (!isNaN(d.getTime())) return d;
   }
 
@@ -51,16 +69,20 @@ export function parseSheetDate(
   const minute = t ? parseInt(t[2], 10) : 0;
 
   const withYear = raw.match(/(20\d{2})\/(\d{1,2})\/(\d{1,2})/);
-  if (withYear) return jstInstant(+withYear[1], +withYear[2], +withYear[3], hour, minute);
+  if (withYear)
+    return jstInstant(+withYear[1], +withYear[2], +withYear[3], hour, minute);
 
   const md = raw.match(/(\d{1,2})\/(\d{1,2})/);
   if (!md) return null;
-  const month = +md[1], day = +md[2];
+  const month = +md[1],
+    day = +md[2];
   const today = todayInJST();
   const startOfToday = jstInstant(today.y, today.m, today.d, 0, 0);
   let d = jstInstant(today.y, month, day, hour, minute);
-  if (hint === "future" && d < startOfToday) d = jstInstant(today.y + 1, month, day, hour, minute);
-  if (hint === "past" && d > startOfToday) d = jstInstant(today.y - 1, month, day, hour, minute);
+  if (hint === "future" && d < startOfToday)
+    d = jstInstant(today.y + 1, month, day, hour, minute);
+  if (hint === "past" && d > startOfToday)
+    d = jstInstant(today.y - 1, month, day, hour, minute);
   return d;
 }
 
@@ -68,7 +90,7 @@ export function parseSheetDate(
 export function formatEventSchedule(
   startRaw: string,
   endRaw?: string,
-  opts: { yearHint?: "current" | "future" | "past" } = {}
+  opts: { yearHint?: "current" | "future" | "past" } = {},
 ): string {
   if (!startRaw) return "";
 
@@ -83,15 +105,26 @@ export function formatEventSchedule(
   }
 
   // 開始日時をパース
-  const start = parseSheetDate(startStr, { yearHint: opts.yearHint ?? "future" });
+  const start = parseSheetDate(startStr, {
+    yearHint: opts.yearHint ?? "future",
+  });
   if (!start) return startRaw;
 
   const fp = (d: Date, o: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", ...o }).formatToParts(d);
-  const g = (p: Intl.DateTimeFormatPart[], t: string) => p.find((x) => x.type === t)?.value ?? "";
+    new Intl.DateTimeFormat("ja-JP", {
+      timeZone: "Asia/Tokyo",
+      ...o,
+    }).formatToParts(d);
+  const g = (p: Intl.DateTimeFormatPart[], t: string) =>
+    p.find((x) => x.type === t)?.value ?? "";
 
   // 開始日の日付パーツ取得（例：2026年8月10日 (月)） ※カッコを半角 () に変更
-  const dp = fp(start, { year: "numeric", month: "numeric", day: "numeric", weekday: "short" });
+  const dp = fp(start, {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  });
   const datePart = `${g(dp, "year")}年${g(dp, "month")}月${g(dp, "day")}日 (${g(dp, "weekday")})`;
 
   // 時間がない場合は日付のみ返す
@@ -105,14 +138,23 @@ export function formatEventSchedule(
   if (endStr) {
     const hm = endStr.match(/^(\d{1,2}):(\d{2})$/);
     if (hm) {
-      end = jstInstant(+g(dp, "year"), +g(dp, "month"), +g(dp, "day"), +hm[1], +hm[2]);
+      end = jstInstant(
+        +g(dp, "year"),
+        +g(dp, "month"),
+        +g(dp, "day"),
+        +hm[1],
+        +hm[2],
+      );
     } else {
       end = parseSheetDate(endStr, { yearHint: opts.yearHint ?? "future" });
     }
   }
 
   if (end && !isNaN(end.getTime())) {
-    const key = (d: Date) => fp(d, { year: "numeric", month: "2-digit", day: "2-digit" }).map((p) => p.value).join("");
+    const key = (d: Date) =>
+      fp(d, { year: "numeric", month: "2-digit", day: "2-digit" })
+        .map((p) => p.value)
+        .join("");
     const ep = fp(end, { hour: "2-digit", minute: "2-digit", hour12: false });
 
     // 同一日の場合：2026年8月10日 (月) 15:00～20:00
@@ -120,7 +162,12 @@ export function formatEventSchedule(
       out += `～${g(ep, "hour")}:${g(ep, "minute")}`;
     } else {
       // 日をまたぐ場合：2026年8月10日 (月) 9:00～2026年8月11日 (火) 20:00 ※カッコを半角 () に変更
-      const edp = fp(end, { year: "numeric", month: "numeric", day: "numeric", weekday: "short" });
+      const edp = fp(end, {
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        weekday: "short",
+      });
       const endDatePart = `${g(edp, "year")}年${g(edp, "month")}月${g(edp, "day")}日 (${g(edp, "weekday")})`;
       out += `～${endDatePart} ${g(ep, "hour")}:${g(ep, "minute")}`;
     }
@@ -134,7 +181,9 @@ export function formatEventSchedule(
 /** "YYYY-MM" */
 export function jstYearMonth(date: Date): string {
   const p = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit",
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
   }).formatToParts(date);
   const g = (t: string) => p.find((x) => x.type === t)!.value;
   return `${g("year")}-${g("month")}`;
@@ -144,7 +193,7 @@ export function jstYearMonth(date: Date): string {
  * ISO形式等の日付文字列を「本日 HH:mm」または「MM月DD日 HH:mm」にフォーマットします
  */
 export function formatRelativeDateTime(dateStr: string): string {
-  if (!dateStr) return '';
+  if (!dateStr) return "";
   const date = parseSheetDate(dateStr);
   if (!date || isNaN(date.getTime())) return dateStr;
 
@@ -152,15 +201,19 @@ export function formatRelativeDateTime(dateStr: string): string {
 
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Tokyo",
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   }).formatToParts(date);
 
   const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
   const y = parseInt(g("year"), 10);
   const m = parseInt(g("month"), 10);
   const d = parseInt(g("day"), 10);
-  
+
   let hour = g("hour");
   if (hour === "24") hour = "00";
   const minute = g("minute");
@@ -176,10 +229,10 @@ export function formatRelativeDateTime(dateStr: string): string {
 
   if (y === today.y) {
     return `${mm}月${dd}日 ${hour}:${minute}`;
-   } else {
+  } else {
     return `${y}年${mm}月${dd}日 ${hour}:${minute}`;
-   }
   }
+}
 /**
  * 管理者イベント一覧用の日時表示。
  *
@@ -189,140 +242,94 @@ export function formatRelativeDateTime(dateStr: string): string {
  * 日またぎ：
  * 2026年8月15日(土) 22:00〜8月16日(日) 02:00
  */
-export function formatEventPeriod(
-  startRaw: string,
-  endRaw: string,
-): string {
+export function formatEventPeriod(startRaw: string, endRaw: string): string {
   if (!startRaw) {
     return "";
   }
 
-  const startDate =
-    parseSheetDate(startRaw);
+  const startDate = parseSheetDate(startRaw);
 
   if (!startDate) {
-    return endRaw
-      ? `${startRaw}〜${endRaw}`
-      : startRaw;
+    return endRaw ? `${startRaw}〜${endRaw}` : startRaw;
   }
 
-  const fullDateTimeFormatter =
-    new Intl.DateTimeFormat(
-      "ja-JP",
-      {
-        timeZone: "Asia/Tokyo",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        weekday: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      },
-    );
+  const fullDateTimeFormatter = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 
   if (!endRaw) {
-    return fullDateTimeFormatter.format(
-      startDate,
-    );
+    return fullDateTimeFormatter.format(startDate);
   }
 
-  const endDate =
-    parseSheetDate(endRaw);
+  const endDate = parseSheetDate(endRaw);
 
   if (!endDate) {
     return `${startRaw}〜${endRaw}`;
   }
 
-  const fullDateFormatter =
-    new Intl.DateTimeFormat(
-      "ja-JP",
-      {
-        timeZone: "Asia/Tokyo",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        weekday: "short",
-      },
-    );
+  const fullDateFormatter = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  });
 
-  const shortDateFormatter =
-    new Intl.DateTimeFormat(
-      "ja-JP",
-      {
-        timeZone: "Asia/Tokyo",
-        month: "long",
-        day: "numeric",
-        weekday: "short",
-      },
-    );
+  const shortDateFormatter = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  });
 
-  const timeFormatter =
-    new Intl.DateTimeFormat(
-      "ja-JP",
-      {
-        timeZone: "Asia/Tokyo",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      },
-    );
+  const timeFormatter = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 
-  const dateKeyFormatter =
-    new Intl.DateTimeFormat(
-      "en-CA",
-      {
-        timeZone: "Asia/Tokyo",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      },
-    );
+  const dateKeyFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 
-  const startDateText =
-    fullDateFormatter.format(
-      startDate,
-    );
+  const startDateText = fullDateFormatter.format(startDate);
 
-  const startTimeText =
-    timeFormatter.format(
-      startDate,
-    );
+  const startTimeText = timeFormatter.format(startDate);
 
-  const endTimeText =
-    timeFormatter.format(
-      endDate,
-    );
+  const endTimeText = timeFormatter.format(endDate);
 
   const isSameDay =
-    dateKeyFormatter.format(
-      startDate,
-    ) ===
-    dateKeyFormatter.format(
-      endDate,
-    );
+    dateKeyFormatter.format(startDate) === dateKeyFormatter.format(endDate);
 
   if (isSameDay) {
     return `${startDateText} ${startTimeText} 〜 ${endTimeText}`;
   }
 
-  const endDateText =
-    shortDateFormatter.format(
-      endDate,
-    );
+  const endDateText = shortDateFormatter.format(endDate);
 
   return `${startDateText} ${startTimeText} 〜 ${endDateText} ${endTimeText}`;
 }
 
 export function formatDateJP(iso: string | null | undefined): string {
-    if(!iso) return "ー";
-    const d = new Date(iso);
-    if(Number.isNaN(d.getTime())) return iso;
+  if (!iso) return "ー";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
 
-    return d.toLocaleDateString("ja-JP", {
-        timeZone: "Asia/Tokyo",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    });
+  return d.toLocaleDateString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 }

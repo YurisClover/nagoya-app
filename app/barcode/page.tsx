@@ -44,7 +44,9 @@ export default async function BarcodePage() {
             {memberId ? (
               <MemberBarcode memberId={memberId} />
             ) : (
-              <p className="text-center text-sm text-ink-muted">会員IDが登録されていません</p>
+              <p className="text-center text-sm text-ink-muted">
+                会員IDが登録されていません
+              </p>
             )}
           </div>
 

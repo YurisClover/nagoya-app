@@ -34,14 +34,11 @@ export async function GET() {
     if (!apiUser) {
       return NextResponse.json(
         { success: false, error: "認証されていません。" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     const { sheets, spreadsheetId } = getSheetsClient(true);
-
-
-
 
     // Messages シート と Users シートを並行取得
     const [messagesRes, usersRes] = await Promise.all([
@@ -64,8 +61,12 @@ export async function GET() {
 
     // Users のマップ作成 (member_id -> user_name, および管理者判定用)
     const uHeaders = (userRows[0] || []).map((h) => h.toLowerCase().trim());
-    let uMemberIdIdx = uHeaders.findIndex((h) => h === "member_id" || h === "id" || h === "memberid");
-    let uNameIdx = uHeaders.findIndex((h) => h === "user_name" || h === "username" || h === "name");
+    let uMemberIdIdx = uHeaders.findIndex(
+      (h) => h === "member_id" || h === "id" || h === "memberid",
+    );
+    let uNameIdx = uHeaders.findIndex(
+      (h) => h === "user_name" || h === "username" || h === "name",
+    );
     const uRoleIdx = uHeaders.findIndex((h) => h === "role");
 
     if (uMemberIdIdx === -1) uMemberIdIdx = 0;
@@ -78,7 +79,8 @@ export async function GET() {
     userRows.slice(1).forEach((row) => {
       const mId = row[uMemberIdIdx]?.toString().trim();
       const uName = row[uNameIdx]?.toString().trim();
-      const role = uRoleIdx !== -1 ? row[uRoleIdx]?.toString().trim().toLowerCase() : "";
+      const role =
+        uRoleIdx !== -1 ? row[uRoleIdx]?.toString().trim().toLowerCase() : "";
 
       if (mId) {
         userNameMap.set(mId, uName || mId);
@@ -94,19 +96,38 @@ export async function GET() {
       apiUser.role === "admin" || adminMemberIds.has(myUserId.toLowerCase());
 
     // Messages ヘッダーの列位置を取得
-    const msgHeaders = messageRows[0].map((h) => h.toLowerCase().replace(/[_-\s]/g, "").trim());
+    const msgHeaders = messageRows[0].map((h) =>
+      h
+        .toLowerCase()
+        .replace(/[_-\s]/g, "")
+        .trim(),
+    );
     let idIdx = msgHeaders.findIndex((h) => h === "messageid" || h === "id");
-    let senderIdIdx = msgHeaders.findIndex((h) => h === "senderid" || h === "sender");
-    let recipientIdIdx = msgHeaders.findIndex((h) => h === "recipientid" || h === "recipient");
-    let titleIdx = msgHeaders.findIndex((h) => h === "title" || h === "subject");
+    let senderIdIdx = msgHeaders.findIndex(
+      (h) => h === "senderid" || h === "sender",
+    );
+    let recipientIdIdx = msgHeaders.findIndex(
+      (h) => h === "recipientid" || h === "recipient",
+    );
+    let titleIdx = msgHeaders.findIndex(
+      (h) => h === "title" || h === "subject",
+    );
     let bodyIdx = msgHeaders.findIndex((h) => h === "body" || h === "content");
     let isReadIdx = msgHeaders.findIndex((h) => h === "isread" || h === "read");
-    let createdAtIdx = msgHeaders.findIndex((h) => h === "createdat" || h === "date");
-    let deleteFlagIdx = msgHeaders.findIndex((h) => h === "deleteflag" || h === "deleted");
-    let parentIdIdx = msgHeaders.findIndex((h) => h === "parentid" || h === "parent");
+    let createdAtIdx = msgHeaders.findIndex(
+      (h) => h === "createdat" || h === "date",
+    );
+    let deleteFlagIdx = msgHeaders.findIndex(
+      (h) => h === "deleteflag" || h === "deleted",
+    );
+    let parentIdIdx = msgHeaders.findIndex(
+      (h) => h === "parentid" || h === "parent",
+    );
     // ★追加: ステータスと更新者の列インデックス検出
     const statusIdx = msgHeaders.findIndex((h) => h === "status");
-    const lastStatusUpdatedByIdx = msgHeaders.findIndex((h) => h === "laststatusupdatedby" || h === "statusupdatedby");
+    const lastStatusUpdatedByIdx = msgHeaders.findIndex(
+      (h) => h === "laststatusupdatedby" || h === "statusupdatedby",
+    );
 
     if (idIdx === -1) idIdx = 0;
     if (senderIdIdx === -1) senderIdIdx = 1;
@@ -122,10 +143,13 @@ export async function GET() {
     const allMessages: ParsedMessage[] = messageRows
       .slice(1)
       .map((row, index) => {
-        const isReadRaw = row[isReadIdx]?.toString().trim().toLowerCase() || "false";
-        const isRead = isReadRaw === "true" || isReadRaw === "1" || isReadRaw === "既読";
+        const isReadRaw =
+          row[isReadIdx]?.toString().trim().toLowerCase() || "false";
+        const isRead =
+          isReadRaw === "true" || isReadRaw === "1" || isReadRaw === "既読";
 
-        const deleteFlagRaw = row[deleteFlagIdx]?.toString().trim().toLowerCase() || "false";
+        const deleteFlagRaw =
+          row[deleteFlagIdx]?.toString().trim().toLowerCase() || "false";
         const isDeleted = deleteFlagRaw === "true" || deleteFlagRaw === "1";
 
         const senderId = row[senderIdIdx]?.toString().trim() || "";
@@ -133,7 +157,7 @@ export async function GET() {
         const parentId = row[parentIdIdx]?.toString().trim() || "";
 
         const senderName = userNameMap.get(senderId) || senderId;
-        
+
         let recipientName = "不明";
         const rIdLower = recipientId.toLowerCase();
         if (rIdLower === "all" || recipientId === "全体") {
@@ -145,8 +169,14 @@ export async function GET() {
         }
 
         // ★追加: ステータスと更新者の取得（デフォルトは unsupported / 未対応）
-        const status = statusIdx !== -1 && row[statusIdx] ? row[statusIdx].toString().trim() : "";
-        const lastStatusUpdatedBy = lastStatusUpdatedByIdx !== -1 && row[lastStatusUpdatedByIdx] ? row[lastStatusUpdatedByIdx].toString().trim() : "";
+        const status =
+          statusIdx !== -1 && row[statusIdx]
+            ? row[statusIdx].toString().trim()
+            : "";
+        const lastStatusUpdatedBy =
+          lastStatusUpdatedByIdx !== -1 && row[lastStatusUpdatedByIdx]
+            ? row[lastStatusUpdatedByIdx].toString().trim()
+            : "";
 
         return {
           id: row[idIdx]?.toString().trim() || `msg-${index}`,
@@ -193,8 +223,14 @@ export async function GET() {
       } else {
         const fallbackParent = threadList.find(
           (t) =>
-            t.title.replace(/^Re:\s*/i, "").trim().toLowerCase() ===
-            msg.title.replace(/^Re:\s*/i, "").trim().toLowerCase()
+            t.title
+              .replace(/^Re:\s*/i, "")
+              .trim()
+              .toLowerCase() ===
+            msg.title
+              .replace(/^Re:\s*/i, "")
+              .trim()
+              .toLowerCase(),
         );
         if (fallbackParent) {
           fallbackParent.replies.push(msg);
@@ -233,7 +269,9 @@ export async function GET() {
     };
 
     const formattedThreads = myRelatedThreads.map((parent) => {
-      parent.replies.sort((a, b) => parseTime(a.created_at) - parseTime(b.created_at));
+      parent.replies.sort(
+        (a, b) => parseTime(a.created_at) - parseTime(b.created_at),
+      );
 
       let latestTime = parseTime(parent.created_at);
       parent.replies.forEach((r) => {
@@ -242,7 +280,8 @@ export async function GET() {
       });
       parent._latestTimestamp = latestTime;
 
-      const parentIsRead = parent.sender_id === myUserId ? true : parent.is_read;
+      const parentIsRead =
+        parent.sender_id === myUserId ? true : parent.is_read;
 
       return {
         message_id: parent.id,
@@ -274,7 +313,9 @@ export async function GET() {
       };
     });
 
-    formattedThreads.sort((a, b) => (b._latestTimestamp || 0) - (a._latestTimestamp || 0));
+    formattedThreads.sort(
+      (a, b) => (b._latestTimestamp || 0) - (a._latestTimestamp || 0),
+    );
 
     return NextResponse.json({
       success: true,
@@ -283,11 +324,11 @@ export async function GET() {
   } catch (error: unknown) {
     console.error(
       "メッセージ取得エラー:",
-      error instanceof Error ? error.message : String(error)
+      error instanceof Error ? error.message : String(error),
     );
     return NextResponse.json(
       { success: false, error: "メッセージの取得に失敗しました。" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

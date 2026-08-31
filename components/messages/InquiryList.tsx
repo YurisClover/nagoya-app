@@ -4,11 +4,11 @@
  * thread. Pure presentation - fetching and mutations stay in
  * AdminMessagesClient and are passed down as callbacks.
  */
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import InquiryItem, { ReceivedMessage, MessageStatus } from './InquiryItem';
-import PagerControls from '@/components/PagerControls';
+import React, { useState } from "react";
+import InquiryItem, { ReceivedMessage, MessageStatus } from "./InquiryItem";
+import PagerControls from "@/components/PagerControls";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -31,10 +31,13 @@ interface InquiryListProps {
     parentMessageId: string,
     recipientId: string,
     replyTitle: string,
-    replyText: string
+    replyText: string,
   ) => Promise<boolean>;
   onDeleteMessage?: (messageId: string, replyIds?: string[]) => Promise<void>;
-  onStatusChange: (messageId: string, newStatus: MessageStatus) => Promise<void>;
+  onStatusChange: (
+    messageId: string,
+    newStatus: MessageStatus,
+  ) => Promise<void>;
   isAdmin?: boolean; // ★ 追加: 管理者フラグをオプショナルで受け取る
 }
 
@@ -60,9 +63,9 @@ export default function InquiryList({
       const raw = item as ReceivedMessage & RawSheetFields;
       const isDeleted =
         raw.delete_flag === true ||
-        raw.delete_flag === 'true' ||
+        raw.delete_flag === "true" ||
         raw.deleteFlag === true ||
-        raw.deleteFlag === 'true' ||
+        raw.deleteFlag === "true" ||
         raw.isDeleted === true;
 
       return !isDeleted;
@@ -70,11 +73,12 @@ export default function InquiryList({
     .sort((a, b) => {
       // 親メッセージと全返信の中から最も新しい日時を取得
       const getLatestTime = (item: ReceivedMessage & RawSheetFields) => {
-        let latest = item.createdAt || item.created_at || '';
+        let latest = item.createdAt || item.created_at || "";
         if (item.replies && Array.isArray(item.replies)) {
           item.replies.forEach((reply) => {
             const replyTime =
-              reply.createdAt || (reply as typeof reply & RawSheetFields).created_at;
+              reply.createdAt ||
+              (reply as typeof reply & RawSheetFields).created_at;
             if (replyTime && replyTime > latest) {
               latest = replyTime;
             }
@@ -96,7 +100,7 @@ export default function InquiryList({
   const safePage = Math.min(currentPage, Math.max(pageCount - 1, 0));
   const pagedInquiries = activeInquiries.slice(
     safePage * ITEMS_PER_PAGE,
-    (safePage + 1) * ITEMS_PER_PAGE
+    (safePage + 1) * ITEMS_PER_PAGE,
   );
 
   const handleToggle = (inquiry: ReceivedMessage) => {
@@ -104,7 +108,9 @@ export default function InquiryList({
     setExpandedId(isOpening ? inquiry.id : null);
 
     if (isOpening) {
-      const hasUnread = !inquiry.isRead || (inquiry.replies && inquiry.replies.some((r) => !r.isRead));
+      const hasUnread =
+        !inquiry.isRead ||
+        (inquiry.replies && inquiry.replies.some((r) => !r.isRead));
       if (hasUnread) {
         onMarkAsRead(inquiry);
       }
@@ -115,20 +121,28 @@ export default function InquiryList({
     <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-3">
-          <h3 className="text-base font-bold text-slate-800">受信メッセージ（問い合わせ）</h3>
+          <h3 className="text-base font-bold text-slate-800">
+            受信メッセージ（問い合わせ）
+          </h3>
           {unreadCountTotal > 0 && (
             <span className="px-2.5 py-0.5 item-center bg-red-500 text-white text-xs font-bold rounded-full animate-pulse">
               未読{unreadCountTotal}件
             </span>
           )}
         </div>
-        {lastUpdated && <span className="text-xs text-slate-400">最終更新: {lastUpdated}</span>}
+        {lastUpdated && (
+          <span className="text-xs text-slate-400">
+            最終更新: {lastUpdated}
+          </span>
+        )}
       </div>
 
       {isLoading ? (
         <p className="text-sm text-slate-500 py-4">読み込み中...</p>
       ) : activeInquiries.length === 0 ? (
-        <p className="text-sm text-slate-500 py-4">管理者宛てのメッセージはありません</p>
+        <p className="text-sm text-slate-500 py-4">
+          管理者宛てのメッセージはありません
+        </p>
       ) : (
         <div className="space-y-4">
           {pagedInquiries.map((item) => (
@@ -147,7 +161,11 @@ export default function InquiryList({
         </div>
       )}
 
-      <PagerControls pageCount={pageCount} currentPage={safePage} onPageChange={setCurrentPage} />
+      <PagerControls
+        pageCount={pageCount}
+        currentPage={safePage}
+        onPageChange={setCurrentPage}
+      />
     </section>
   );
 }

@@ -19,10 +19,7 @@ export default async function GroupsPage() {
       {/* ヘッダー */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">グループ管理</h1>
-        <Link
-          href="/admin/groups/new"
-          className="btn btn-primary"
-        >
+        <Link href="/admin/groups/new" className="btn btn-primary">
           ＋ グループ作成
         </Link>
       </div>

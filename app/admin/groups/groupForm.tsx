@@ -14,20 +14,27 @@ type Props = {
   initialData?: {
     group_id?: string;
     group_name: string;
-    members:  Member[];
+    members: Member[];
   };
   allUsers: Member[];
   action: (
     prevState: { error: string } | null,
-    formData: FormData
+    formData: FormData,
   ) => Promise<{ error: string } | null>;
   isEdit?: boolean;
 };
 
-export default function GroupForm({ initialData, allUsers, action, isEdit = false }: Props) {
+export default function GroupForm({
+  initialData,
+  allUsers,
+  action,
+  isEdit = false,
+}: Props) {
   const [state, formAction, isPending] = useActionState(action, null);
   const [groupName, setGroupName] = useState(initialData?.group_name || "");
-  const [selectedMembers, setSelectedMembers] = useState< Member[]>(initialData?.members || []);
+  const [selectedMembers, setSelectedMembers] = useState<Member[]>(
+    initialData?.members || [],
+  );
   const [searchQuery, setSearchQuery] = useState("");
 
   // 検索クエリで未選択ユーザーを絞り込み
@@ -35,21 +42,27 @@ export default function GroupForm({ initialData, allUsers, action, isEdit = fals
     ? allUsers.filter(
         (u) =>
           !selectedMembers.some((sm) => sm.member_id === u.member_id) &&
-          (u.user_name.includes(searchQuery) || u.email.toLowerCase().includes(searchQuery.toLowerCase()))
+          (u.user_name.includes(searchQuery) ||
+            u.email.toLowerCase().includes(searchQuery.toLowerCase())),
       )
     : [];
 
-  const handleAddMember = (user:  Member) => {
+  const handleAddMember = (user: Member) => {
     setSelectedMembers([...selectedMembers, user]);
     setSearchQuery("");
   };
 
   const handleRemoveMember = (member_id: string) => {
-    setSelectedMembers(selectedMembers.filter((m) => m.member_id !== member_id));
+    setSelectedMembers(
+      selectedMembers.filter((m) => m.member_id !== member_id),
+    );
   };
 
   return (
-    <form action={formAction} className="space-y-6 max-w-2xl mx-auto p-6 border rounded-lg bg-white shadow-sm">
+    <form
+      action={formAction}
+      className="space-y-6 max-w-2xl mx-auto p-6 border rounded-lg bg-white shadow-sm"
+    >
       <h1 className="text-2xl font-bold border-b pb-3">
         {isEdit ? "グループ編集" : "新規グループ作成"}
       </h1>
@@ -60,8 +73,14 @@ export default function GroupForm({ initialData, allUsers, action, isEdit = fals
         </div>
       )}
 
-      {isEdit && <input type="hidden" name="group_id" value={initialData?.group_id} />}
-      <input type="hidden" name="member_ids" value={JSON.stringify(selectedMembers.map((m) => m.member_id))} />
+      {isEdit && (
+        <input type="hidden" name="group_id" value={initialData?.group_id} />
+      )}
+      <input
+        type="hidden"
+        name="member_ids"
+        value={JSON.stringify(selectedMembers.map((m) => m.member_id))}
+      />
 
       {/* グループ名 */}
       <div>
@@ -99,7 +118,9 @@ export default function GroupForm({ initialData, allUsers, action, isEdit = fals
                 onClick={() => handleAddMember(u)}
                 className="p-2 text-sm hover:bg-blue-50 cursor-pointer flex justify-between items-center"
               >
-                <span>{u.user_name} ({u.email})</span>
+                <span>
+                  {u.user_name} ({u.email})
+                </span>
                 <span className="text-xs text-brand font-medium">追加</span>
               </div>
             ))}
@@ -133,17 +154,10 @@ export default function GroupForm({ initialData, allUsers, action, isEdit = fals
 
       {/* ボタン操作 */}
       <div className="pt-4 flex gap-3 border-t">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="btn btn-primary"
-        >
+        <button type="submit" disabled={isPending} className="btn btn-primary">
           {isPending ? "保存中..." : isEdit ? "更新する" : "作成する"}
         </button>
-        <Link
-          href="/admin/groups"
-          className="btn btn-secondary"
-        >
+        <Link href="/admin/groups" className="btn btn-secondary">
           キャンセル
         </Link>
       </div>

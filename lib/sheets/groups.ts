@@ -89,11 +89,13 @@ export const getCachedGroupsWithMembers = unstable_cache(
   {
     tags: ["groups"],
     revalidate: 60,
-  }
+  },
 );
 
 // 2. 単一グループの取得
-export async function getGroupById(group_id: string): Promise<GroupWithMembers | null> {
+export async function getGroupById(
+  group_id: string,
+): Promise<GroupWithMembers | null> {
   const all = await getCachedGroupsWithMembers();
   return all.find((g) => g.group_id === group_id) || null;
 }
@@ -123,7 +125,7 @@ export async function addGroupToSheet(data: {
         created_by: data.created_by,
         created_at: data.created_at,
       },
-      { raw: true }
+      { raw: true },
     );
 
     if (data.member_ids.length > 0) {
@@ -144,18 +146,19 @@ export async function addGroupToSheet(data: {
 }
 
 // delete row bottom up ↑
-async function deleteRowsBottomUp(rows:
-  { rowNumber: number; delete: () => Promise<void> }[]) {
-    const sorted = [...rows].sort((a, b) => b.rowNumber - a.rowNumber);
-    for (const row of sorted){
-        await row.delete();
-    }
+async function deleteRowsBottomUp(
+  rows: { rowNumber: number; delete: () => Promise<void> }[],
+) {
+  const sorted = [...rows].sort((a, b) => b.rowNumber - a.rowNumber);
+  for (const row of sorted) {
+    await row.delete();
+  }
 }
 
 // 4. グループ更新（一括削除＆一括追加で高速化）
 export async function updateGroupInSheet(
   group_id: string,
-  data: { group_name: string; member_ids: string[]; updated_at: string }
+  data: { group_name: string; member_ids: string[]; updated_at: string },
 ) {
   try {
     const doc = await getGoogleDoc();
@@ -163,16 +166,23 @@ export async function updateGroupInSheet(
     const groupMembersSheet = doc.sheetsByTitle["GroupMembers"];
 
     const groupRows = await groupsSheet.getRows();
-    const targetGroup = groupRows.find((r) => sameId(r.get("group_id"), group_id));
+    const targetGroup = groupRows.find((r) =>
+      sameId(r.get("group_id"), group_id),
+    );
     if (!targetGroup) {
-      return { success: false, error: "対象のグループが見つかりませんでした。" };
+      return {
+        success: false,
+        error: "対象のグループが見つかりませんでした。",
+      };
     }
     targetGroup.set("group_name", data.group_name);
     await targetGroup.save({ raw: true });
 
     // 旧メンバーの削除 bottom up ↑
     const memberRows = await groupMembersSheet.getRows();
-    const oldRows = memberRows.filter((r) => sameId(r.get("group_id"), group_id));
+    const oldRows = memberRows.filter((r) =>
+      sameId(r.get("group_id"), group_id),
+    );
     await deleteRowsBottomUp(oldRows);
 
     // ★ addRows で新メンバーを一括追加
@@ -201,11 +211,15 @@ export async function deleteGroupFromSheet(group_id: string) {
     const groupMembersSheet = doc.sheetsByTitle["GroupMembers"];
 
     const groupRows = await groupsSheet.getRows();
-    const targetGroup = groupRows.find((r) => sameId(r.get("group_id"), group_id));
+    const targetGroup = groupRows.find((r) =>
+      sameId(r.get("group_id"), group_id),
+    );
     if (targetGroup) await targetGroup.delete();
 
     const memberRows = await groupMembersSheet.getRows();
-    const targetMembers = memberRows.filter((r) => sameId(r.get("group_id"), group_id));
+    const targetMembers = memberRows.filter((r) =>
+      sameId(r.get("group_id"), group_id),
+    );
     await deleteRowsBottomUp(targetMembers);
 
     updateTag("groups");

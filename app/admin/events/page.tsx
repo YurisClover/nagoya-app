@@ -3,7 +3,10 @@ import { auth } from "@/auth";
 import { getEventsFromSheet } from "@/lib/sheets/events";
 import { isEventFinished } from "@/lib/event-order";
 import { nowJST } from "@/lib/datetime";
-import { getCalendarRecords, type CalendarSyncStatus,} from "@/lib/sheets/calendar";
+import {
+  getCalendarRecords,
+  type CalendarSyncStatus,
+} from "@/lib/sheets/calendar";
 import Link from "next/link";
 import { EventList } from "./eventsList";
 import SyncEventResponsesButton from "@/components/SyncEventResponsesButton";
@@ -21,7 +24,10 @@ export default async function EventsPage() {
     redirect("/admin");
   }
 
-  const [events, calendarRecords] = await Promise.all([ getEventsFromSheet(), getCalendarRecords(), ]);
+  const [events, calendarRecords] = await Promise.all([
+    getEventsFromSheet(),
+    getCalendarRecords(),
+  ]);
 
   // "Finished" is decided HERE (server, JST via isEventFinished) and passed
   // down as data. Client-side new Date() runs in the viewer's timezone, so
@@ -32,14 +38,14 @@ export default async function EventsPage() {
   const finishedEventIds = events
     .filter((event) => isEventFinished(event, todayJst))
     .map((event) => event.event_id);
-  const calendarSyncStatuses: Record< string, CalendarSyncStatus > = {};
+  const calendarSyncStatuses: Record<string, CalendarSyncStatus> = {};
   for (const record of calendarRecords) {
-    const hasCalendarEvent = Boolean( record.google_calendar_event_id && record.google_calendar_id, );
-    if ( record.calendar_sync_status === "synced" && hasCalendarEvent ) {
+    const hasCalendarEvent = Boolean(
+      record.google_calendar_event_id && record.google_calendar_id,
+    );
+    if (record.calendar_sync_status === "synced" && hasCalendarEvent) {
       calendarSyncStatuses[record.event_id] = "synced";
-    } else if (
-      record.calendar_sync_status === "error"
-    ) {
+    } else if (record.calendar_sync_status === "error") {
       calendarSyncStatuses[record.event_id] = "error";
     } else {
       calendarSyncStatuses[record.event_id] = "";
@@ -52,19 +58,14 @@ export default async function EventsPage() {
       <div className="border-b border-line pb-5">
         <div className="flex items-start justify-between gap-6">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              イベント管理
-            </h1>
+            <h1 className="text-2xl font-bold tracking-tight">イベント管理</h1>
 
             <p className="mt-1 text-sm text-ink-muted">
               イベントの公開状態や申込状況を管理します。
             </p>
           </div>
 
-          <Link
-            href="/admin/events/new"
-            className="btn btn-primary shrink-0"
-          >
+          <Link href="/admin/events/new" className="btn btn-primary shrink-0">
             ＋ イベント作成
           </Link>
         </div>
@@ -107,7 +108,11 @@ export default async function EventsPage() {
         </div>
 
         {/* イベントカード一覧 */}
-        <EventList events={events} calendarSyncStatuses={calendarSyncStatuses} finishedEventIds={finishedEventIds}/>
+        <EventList
+          events={events}
+          calendarSyncStatuses={calendarSyncStatuses}
+          finishedEventIds={finishedEventIds}
+        />
       </section>
     </main>
   );

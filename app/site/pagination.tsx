@@ -5,12 +5,12 @@ import ReactPaginate from "react-paginate";
 import PdfList from "./pdfList";
 import PdfFile from "./type";
 
-type Props = { 
-    //親コンポーネントから渡される、すべてのPDFが入った配列
-    pdfList: PdfFile[] 
+type Props = {
+  //親コンポーネントから渡される、すべてのPDFが入った配列
+  pdfList: PdfFile[];
 };
 
-const ITEMS_PER_PAGE = 10;  // 1ページあたりに表示したいPDFの件数（10件）
+const ITEMS_PER_PAGE = 10; // 1ページあたりに表示したいPDFの件数（10件）
 const pageBtn =
   "flex h-8 min-w-8 items-center justify-center rounded-control px-2 text-sm text-ink-muted transition hover:bg-surface-muted";
 

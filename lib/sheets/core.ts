@@ -10,18 +10,22 @@ import { getServiceAccountCredentials } from "@/lib/google-auth";
 const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
 
 export function getSheetAuth() {
-    const {client_email, private_key} = getServiceAccountCredentials();
-    return new JWT({ email: client_email, key: private_key, scopes: SHEETS_SCOPE});
+  const { client_email, private_key } = getServiceAccountCredentials();
+  return new JWT({
+    email: client_email,
+    key: private_key,
+    scopes: SHEETS_SCOPE,
+  });
 }
 
 export async function getUsersSheet() {
-    const sheetId = process.env.GOOGLE_SHEETS_ID;
-    if (!sheetId) throw new Error("GOOGLE_SHEETS_ID is not set");
-    const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
-    await doc.loadInfo();
-    const sheet = doc.sheetsByTitle["Users"];
-    if (!sheet) throw new Error("'Users' sheet not found");
-    return sheet;
+  const sheetId = process.env.GOOGLE_SHEETS_ID;
+  if (!sheetId) throw new Error("GOOGLE_SHEETS_ID is not set");
+  const doc = new GoogleSpreadsheet(sheetId, getSheetAuth());
+  await doc.loadInfo();
+  const sheet = doc.sheetsByTitle["Users"];
+  if (!sheet) throw new Error("'Users' sheet not found");
+  return sheet;
 }
 
 export async function getGoogleDoc() {

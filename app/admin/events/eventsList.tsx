@@ -9,7 +9,7 @@ import type {
 } from "@/lib/sheets/events";
 
 type CalendarSyncStatus = "" | "synced" | "error";
-type CalendarSyncResult = { success: boolean; error?: string;};
+type CalendarSyncResult = { success: boolean; error?: string };
 type EventListProps = {
   events: SheetEvent[];
   calendarSyncStatuses: Record<string, CalendarSyncStatus>;
@@ -113,7 +113,12 @@ function EventDeleteControl({
 
   return (
     <div>
-      <button className="btn btn-danger px-3 py-1.5 text-xs disabled:opacity-50" type="button" disabled={isAnyUpdating} onClick={handleDelete}>
+      <button
+        className="btn btn-danger px-3 py-1.5 text-xs disabled:opacity-50"
+        type="button"
+        disabled={isAnyUpdating}
+        onClick={handleDelete}
+      >
         {isDeleting ? "削除しています..." : "削除"}
       </button>
 
@@ -137,7 +142,7 @@ type EventPositionControlProps = {
   tryStartUpdate: (eventId: string) => boolean;
   finishUpdate: () => void;
   onUpdated: (event: SheetEvent) => void;
-  onCalendarSyncChanged: ( eventId: string, status: CalendarSyncStatus, ) => void;
+  onCalendarSyncChanged: (eventId: string, status: CalendarSyncStatus) => void;
 };
 
 function EventPositionControl({
@@ -201,8 +206,11 @@ function EventPositionControl({
 
       onUpdated(updatedEvent);
       if (result.calendarSync) {
-          onCalendarSyncChanged( event.event_id, result.calendarSync.success ? "synced" : "error", );
-        }
+        onCalendarSyncChanged(
+          event.event_id,
+          result.calendarSync.success ? "synced" : "error",
+        );
+      }
       setMessage("イベント対象者を変更しました。");
     } catch (error) {
       const detail =
@@ -218,9 +226,13 @@ function EventPositionControl({
   return (
     <div>
       <div className="flex items-center gap-2">
-        <div className="flex gap-1.5" role="group" aria-label={`${event.title}の対象者`}>
+        <div
+          className="flex gap-1.5"
+          role="group"
+          aria-label={`${event.title}の対象者`}
+        >
           {(["general", "executive"] as const).map((value) => (
-            <button 
+            <button
               key={value}
               type="button"
               disabled={isAnyUpdating || value === event.position}
@@ -239,9 +251,16 @@ function EventPositionControl({
         {isUpdating && <span className="text-meta">反映中...</span>}
       </div>
 
-      {message && <p role="status" className="mt-2 text-xs text-ink-muted">{message}</p>}
+      {message && (
+        <p role="status" className="mt-2 text-xs text-ink-muted">
+          {message}
+        </p>
+      )}
       {errorMessage && (
-        <p role="alert" className="mt-2 whitespace-pre-wrap text-xs text-danger" >
+        <p
+          role="alert"
+          className="mt-2 whitespace-pre-wrap text-xs text-danger"
+        >
           {errorMessage}
         </p>
       )}
@@ -255,7 +274,7 @@ type EventStatusControlProps = {
   tryStartUpdate: (eventId: string) => boolean;
   finishUpdate: () => void;
   onUpdated: (event: SheetEvent) => void;
-  onCalendarSyncChanged: ( eventId: string, status: CalendarSyncStatus, ) => void;
+  onCalendarSyncChanged: (eventId: string, status: CalendarSyncStatus) => void;
 };
 
 function EventStatusControl({
@@ -314,9 +333,13 @@ function EventStatusControl({
 
       onUpdated(updatedEvent);
       if (result.calendarSync) {
-        const nextCalendarStatus: CalendarSyncStatus = updatedEvent.status === "draft"
-            ? "" : result.calendarSync.success ? "synced" : "error";
-        onCalendarSyncChanged( event.event_id, nextCalendarStatus, );
+        const nextCalendarStatus: CalendarSyncStatus =
+          updatedEvent.status === "draft"
+            ? ""
+            : result.calendarSync.success
+              ? "synced"
+              : "error";
+        onCalendarSyncChanged(event.event_id, nextCalendarStatus);
       }
 
       setMessage("GoogleフォームとEventsシートへ反映しました。");
@@ -336,7 +359,11 @@ function EventStatusControl({
   return (
     <div>
       <div className="flex items-center gap-2">
-        <div className="flex gap-1.5" role="group" aria-label={`${event.title}のステータス`}>
+        <div
+          className="flex gap-1.5"
+          role="group"
+          aria-label={`${event.title}のステータス`}
+        >
           {(["published", "closed", "draft"] as const).map((value) => (
             <button
               key={value}
@@ -356,9 +383,16 @@ function EventStatusControl({
         </div>
         {isUpdating && <span className="text-meta">反映中...</span>}
       </div>
-      {message && <p role="status" className="mt-2 text-xs text-ink-muted">{message}</p>}
+      {message && (
+        <p role="status" className="mt-2 text-xs text-ink-muted">
+          {message}
+        </p>
+      )}
       {errorMessage && (
-        <p role="alert" className="mt-2 whitespace-pre-wrap text-xs text-danger">
+        <p
+          role="alert"
+          className="mt-2 whitespace-pre-wrap text-xs text-danger"
+        >
           {errorMessage}
         </p>
       )}
@@ -366,15 +400,19 @@ function EventStatusControl({
   );
 }
 
-export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStatuses, finishedEventIds, }: EventListProps) {
+export function EventList({
+  events,
+  calendarSyncStatuses: initialCalendarSyncStatuses,
+  finishedEventIds,
+}: EventListProps) {
   const finishedIds = new Set(finishedEventIds);
   const [displayedEvents, setDisplayedEvents] = useState<SheetEvent[]>(events);
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
   const [updatingEventId, setUpdatingEventId] = useState<string | null>(null);
-  const [calendarSyncStatuses, setCalendarSyncStatuses, ] = useState<Record<string, CalendarSyncStatus>>(
-        initialCalendarSyncStatuses,
-       );
+  const [calendarSyncStatuses, setCalendarSyncStatuses] = useState<
+    Record<string, CalendarSyncStatus>
+  >(initialCalendarSyncStatuses);
   /*
    * stateの反映前に別のボタンを
    * 素早く押された場合にも、
@@ -429,8 +467,14 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
     currentPage * PAGE_SIZE,
   );
 
-  function handleCalendarSyncChanged( eventId: string, status: CalendarSyncStatus, ) {
-    setCalendarSyncStatuses((currentStatuses) => ({ ...currentStatuses, [eventId]: status, }));
+  function handleCalendarSyncChanged(
+    eventId: string,
+    status: CalendarSyncStatus,
+  ) {
+    setCalendarSyncStatuses((currentStatuses) => ({
+      ...currentStatuses,
+      [eventId]: status,
+    }));
   }
 
   if (displayedEvents.length === 0) {
@@ -456,8 +500,9 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
             responseSpreadsheetId && event.response_sheet_id
               ? `https://docs.google.com/spreadsheets/d/${responseSpreadsheetId}/edit#gid=${event.response_sheet_id}`
               : "";
-              const isCalendarMissing = (event.status === "published" || event.status === "closed") &&
-                 calendarSyncStatuses[event.event_id] !== "synced";
+          const isCalendarMissing =
+            (event.status === "published" || event.status === "closed") &&
+            calendarSyncStatuses[event.event_id] !== "synced";
           const isFinished = finishedIds.has(event.event_id);
           return (
             <article
@@ -466,44 +511,45 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
               // dimmed + desaturated, restored on hover so the admin can
               // still work with them comfortably.
               className={`card transition hover:shadow-md ${
-                isFinished ? "opacity-70 saturate-50 hover:opacity-100 hover:saturate-100" : ""
+                isFinished
+                  ? "opacity-70 saturate-50 hover:opacity-100 hover:saturate-100"
+                  : ""
               }`}
             >
               {/* イベント名・状態 */}
               <div className="border-b border-line pb-4">
                 <div className="flex items-start justify-between gap-4">
-                  <h2 className="text-lg font-bold truncate">
-                    {event.title}
-                  </h2>
+                  <h2 className="text-lg font-bold truncate">{event.title}</h2>
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                  {/* 開催終了 = the event date has passed. Distinct from the
+                    {/* 開催終了 = the event date has passed. Distinct from the
                       受付終了 status chip (reception closed but not yet held). */}
-                  {isFinished && (
-                    <span className="rounded-full bg-slate-700 px-3 py-1 text-xs font-semibold text-white">
-                      開催終了
+                    {isFinished && (
+                      <span className="rounded-full bg-slate-700 px-3 py-1 text-xs font-semibold text-white">
+                        開催終了
+                      </span>
+                    )}
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        event.status === "published"
+                          ? "bg-blue-100 text-blue-800"
+                          : event.status === "closed"
+                            ? "bg-slate-200"
+                            : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {STATUS_LABELS[event.status]}
                     </span>
-                  )}
-                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${  event.status === "published"
-                         ? "bg-blue-100 text-blue-800"  : event.status === "closed"
-                         ? "bg-slate-200" : "bg-amber-100 text-amber-800"
-                          }`}
-                         >
-                           {STATUS_LABELS[event.status]}
-                            </span>
 
-                  {isCalendarMissing && (
-                 <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-                    カレンダー未表示
-                 </span>
+                    {isCalendarMissing && (
+                      <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                        カレンダー未表示
+                      </span>
                     )}
                   </div>
-                </div>               
-                  <p className="mt-2 flex items-center gap-1.5 truncate text-sm text-ink-muted">
+                </div>
+                <p className="mt-2 flex items-center gap-1.5 truncate text-sm text-ink-muted">
                   <CalendarDays size={14} className="shrink-0" />
-                  {formatEventPeriod(
-                    event.event_date,
-                    event.event_end_date,
-                  )}
+                  {formatEventPeriod(event.event_date, event.event_end_date)}
                 </p>
 
                 <p className="mt-1 flex items-center gap-1.5 truncate text-sm text-ink-muted">
@@ -527,7 +573,7 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
                     tryStartUpdate={tryStartUpdate}
                     finishUpdate={finishUpdate}
                     onUpdated={handleEventUpdated}
-                    onCalendarSyncChanged={ handleCalendarSyncChanged}
+                    onCalendarSyncChanged={handleCalendarSyncChanged}
                   />
                 </div>
 
@@ -596,7 +642,7 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
                     tryStartUpdate={tryStartUpdate}
                     finishUpdate={finishUpdate}
                     onUpdated={handleEventUpdated}
-                    onCalendarSyncChanged={ handleCalendarSyncChanged}
+                    onCalendarSyncChanged={handleCalendarSyncChanged}
                   />
                 </div>
 
@@ -612,7 +658,7 @@ export function EventList({ events,calendarSyncStatuses: initialCalendarSyncStat
           );
         })}
       </div>
-            {totalPages > 1 && (
+      {totalPages > 1 && (
         <div className="mt-4 flex items-center justify-end gap-3 text-xs">
           <button
             type="button"

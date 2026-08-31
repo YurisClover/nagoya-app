@@ -72,7 +72,9 @@ export async function removeDeadFcmTokens(deadTokens: string[]): Promise<void> {
       spreadsheetId,
       requestBody: { valueInputOption: "RAW", data },
     });
-    console.log(`Cleared ${data.length} dead FCM token(s) from the Users sheet`);
+    console.log(
+      `Cleared ${data.length} dead FCM token(s) from the Users sheet`,
+    );
   } catch (error) {
     console.warn("Failed to clear dead FCM tokens:", error);
   }

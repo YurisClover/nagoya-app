@@ -6,12 +6,15 @@
  * All API access for this page funnels through here; child components
  * receive data + callbacks only.
  */
-'use client';
+"use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
-import MessageForm from '@/components/messages/MessageForm';
-import InquiryList from '@/components/messages/InquiryList';
-import { ReceivedMessage, MessageStatus } from '@/components/messages/InquiryItem';
+import React, { useState, useEffect, useCallback } from "react";
+import MessageForm from "@/components/messages/MessageForm";
+import InquiryList from "@/components/messages/InquiryList";
+import {
+  ReceivedMessage,
+  MessageStatus,
+} from "@/components/messages/InquiryItem";
 
 type Group = {
   group_id: string;
@@ -26,18 +29,19 @@ type AdminMessagesClientProps = {
 
 export default function AdminMessagesClient({
   currentUserId,
-  initialGroupId = '',
+  initialGroupId = "",
 }: AdminMessagesClientProps) {
-
   const [groups, setGroups] = useState<Group[]>([]);
   const [inquiries, setInquiries] = useState<ReceivedMessage[]>([]);
   const [isLoadingInquiries, setIsLoadingInquiries] = useState<boolean>(true);
-  const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [lastUpdated, setLastUpdated] = useState<string>("");
 
   const notifyUnreadCountChange = useCallback((count: number) => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       window.dispatchEvent(
-        new CustomEvent('unread-count-updated', { detail: { unreadCount: count } })
+        new CustomEvent("unread-count-updated", {
+          detail: { unreadCount: count },
+        }),
       );
     }
   }, []);
@@ -45,18 +49,26 @@ export default function AdminMessagesClient({
   useEffect(() => {
     async function fetchGroups() {
       try {
-        const res = await fetch('/api/groups', { cache: 'no-store' });
-        const data = (await res.json()) as { success: boolean; groups?: Array<{ group_id?: string; id?: string; group_name?: string; name?: string }> };
+        const res = await fetch("/api/groups", { cache: "no-store" });
+        const data = (await res.json()) as {
+          success: boolean;
+          groups?: Array<{
+            group_id?: string;
+            id?: string;
+            group_name?: string;
+            name?: string;
+          }>;
+        };
         if (data.success && Array.isArray(data.groups)) {
           setGroups(
             data.groups.map((g) => ({
-              group_id: g.group_id || g.id || '',
-              group_name: g.group_name || g.name || '名称未設定グループ',
-            }))
+              group_id: g.group_id || g.id || "",
+              group_name: g.group_name || g.name || "名称未設定グループ",
+            })),
           );
         }
       } catch (err: unknown) {
-        console.error('グループ一覧の取得に失敗しました:', err);
+        console.error("グループ一覧の取得に失敗しました:", err);
       }
     }
     fetchGroups();
@@ -66,26 +78,31 @@ export default function AdminMessagesClient({
     async (isSilent = false) => {
       try {
         // cache: 'no-store' がキャッシュを無効化するので、キャッシュバスター(?t=)は不要
-        const res = await fetch('/api/admin/inquiries', { cache: 'no-store' });
-        const data = (await res.json()) as { success: boolean; inquiries?: ReceivedMessage[] };
+        const res = await fetch("/api/admin/inquiries", { cache: "no-store" });
+        const data = (await res.json()) as {
+          success: boolean;
+          inquiries?: ReceivedMessage[];
+        };
         if (data.success && Array.isArray(data.inquiries)) {
           const filteredInquiries = data.inquiries.filter((item) => {
             const isDeleted =
               item.deleteFlag === true ||
-              item.deleteFlag === 'true' ||
-              (item as unknown as { deleteFlag?: boolean | string }).deleteFlag === true ||
-              (item as unknown as { deleteFlag?: boolean | string }).deleteFlag === 'true' ||
+              item.deleteFlag === "true" ||
+              (item as unknown as { deleteFlag?: boolean | string })
+                .deleteFlag === true ||
+              (item as unknown as { deleteFlag?: boolean | string })
+                .deleteFlag === "true" ||
               (item as unknown as { isDeleted?: boolean }).isDeleted === true;
             return !isDeleted;
           });
 
           setInquiries(filteredInquiries);
           setLastUpdated(
-            new Date().toLocaleTimeString('ja-JP', {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-            })
+            new Date().toLocaleTimeString("ja-JP", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            }),
           );
 
           let unreadTotal = 0;
@@ -100,12 +117,12 @@ export default function AdminMessagesClient({
           notifyUnreadCountChange(unreadTotal);
         }
       } catch (err: unknown) {
-        console.error('受信メッセージの取得に失敗しました:', err);
+        console.error("受信メッセージの取得に失敗しました:", err);
       } finally {
         if (!isSilent) setIsLoadingInquiries(false);
       }
     },
-    [notifyUnreadCountChange]
+    [notifyUnreadCountChange],
   );
 
   useEffect(() => {
@@ -122,34 +139,42 @@ export default function AdminMessagesClient({
     };
   }, [fetchInquiries]);
 
-  const handleStatusChange = async (messageId: string, newStatus: MessageStatus): Promise<void> => {
+  const handleStatusChange = async (
+    messageId: string,
+    newStatus: MessageStatus,
+  ): Promise<void> => {
     try {
-      const res = await fetch('/api/admin/inquiries/status', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/admin/inquiries/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messageId, status: newStatus }),
       });
       const data = (await res.json()) as { success: boolean; error?: string };
       if (data.success) {
         await fetchInquiries(true);
       } else {
-        alert('ステータスの更新に失敗しました: ' + (data.error ?? '不明なエラー'));
+        alert(
+          "ステータスの更新に失敗しました: " + (data.error ?? "不明なエラー"),
+        );
       }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error(errorMsg);
-      alert('通信エラーが発生しました');
+      alert("通信エラーが発生しました");
     }
   };
 
   const handleMarkAsRead = async (target: ReceivedMessage | string) => {
-    const inquiry = typeof target === 'string'
-      ? inquiries.find((item) => item.id === target)
-      : target;
+    const inquiry =
+      typeof target === "string"
+        ? inquiries.find((item) => item.id === target)
+        : target;
 
     if (!inquiry) return;
 
-    const replyIds = inquiry.replies ? inquiry.replies.map((r) => r.id).filter(Boolean) : [];
+    const replyIds = inquiry.replies
+      ? inquiry.replies.map((r) => r.id).filter(Boolean)
+      : [];
 
     const newInquiries = inquiries.map((item) => {
       if (item.id === inquiry.id) {
@@ -177,16 +202,16 @@ export default function AdminMessagesClient({
     notifyUnreadCountChange(remainingUnread);
 
     try {
-      await fetch('/api/messages/read', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/messages/read", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messageId: inquiry.id,
           replyIds: replyIds,
         }),
       });
     } catch (err: unknown) {
-      console.error('既読更新エラー:', err);
+      console.error("既読更新エラー:", err);
     }
   };
 
@@ -194,15 +219,15 @@ export default function AdminMessagesClient({
     parentMessageId: string,
     recipientId: string,
     replyTitle: string,
-    replyText: string
+    replyText: string,
   ): Promise<boolean> => {
     try {
       // Shared reply endpoint (same as the member side): it derives the
       // recipient and title from the parent when omitted, writes real
       // boolean cells, and auto-reopens the thread only for member replies.
-      const res = await fetch('/api/messages/reply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/messages/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           parentMessageId,
           recipientId,
@@ -214,11 +239,11 @@ export default function AdminMessagesClient({
       const data = (await res.json()) as { success: boolean; error?: string };
 
       if (res.ok && data.success) {
-        alert('送信が完了しました');
+        alert("送信が完了しました");
         await fetchInquiries(true);
         return true;
       } else {
-        alert(`送信エラー: ${data.error || '返信の送信に失敗しました'}`);
+        alert(`送信エラー: ${data.error || "返信の送信に失敗しました"}`);
         return false;
       }
     } catch (err: unknown) {
@@ -234,19 +259,19 @@ export default function AdminMessagesClient({
     try {
       const res = await fetch(
         `/api/messages/delete?messageId=${encodeURIComponent(messageId)}`,
-        { method: 'DELETE' },
+        { method: "DELETE" },
       );
 
       const data = (await res.json()) as { success: boolean; error?: string };
       if (res.ok && data.success) {
-        alert('メッセージを削除しました');
+        alert("メッセージを削除しました");
         await fetchInquiries(true);
       } else {
-        alert(`削除失敗: ${data.error || 'メッセージの削除に失敗しました'}`);
+        alert(`削除失敗: ${data.error || "メッセージの削除に失敗しました"}`);
       }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error('削除エラー:', err);
+      console.error("削除エラー:", err);
       alert(`通信エラー: ${errorMsg}`);
     }
   };
@@ -263,10 +288,17 @@ export default function AdminMessagesClient({
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <h2 className="text-xl sm:text-2xl font-bold text-slate-900">メッセージ管理</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+        メッセージ管理
+      </h2>
 
       {/* 送信フォーム */}
-      <MessageForm groups={groups} currentUserId={currentUserId} initialGroupId={initialGroupId} onSuccess={() => fetchInquiries(true)} />
+      <MessageForm
+        groups={groups}
+        currentUserId={currentUserId}
+        initialGroupId={initialGroupId}
+        onSuccess={() => fetchInquiries(true)}
+      />
 
       {/* 受信一覧 */}
       <InquiryList

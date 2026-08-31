@@ -10,7 +10,7 @@
 import type { NextConfig } from "next";
 import withPWAInit from "@ducanh2912/next-pwa";
 
-const withPWA = withPWAInit({ 
+const withPWA = withPWAInit({
   dest: "public",
   // NotificationInitializer 側で手動登録するため自動登録はしない
   register: false,
@@ -24,5 +24,3 @@ const withPWA = withPWAInit({
 });
 const nextConfig: NextConfig = {};
 export default withPWA(nextConfig);
-
-

@@ -19,9 +19,6 @@ export async function GET() {
     // 2. Google API 認証情報の確認
     const { sheets, spreadsheetId } = getSheetsClient(true);
 
-
-
-
     // 3. Messages シートを取得
     const messagesRes = await sheets.spreadsheets.values.get({
       spreadsheetId,
@@ -36,19 +33,28 @@ export async function GET() {
     // 4. ヘッダー行から各列のインデックスを取得
     const headerRow = messageRows[0] || [];
     const msgHeader = headerRow.map((h: unknown) =>
-      String(h).toLowerCase().replace(/[_-\s]/g, "").trim()
+      String(h)
+        .toLowerCase()
+        .replace(/[_-\s]/g, "")
+        .trim(),
     );
 
-    let recipientIdIdx = msgHeader.findIndex((h) => h === "recipientid" || h === "recipient");
-    let senderIdIdx = msgHeader.findIndex((h) => h === "senderid" || h === "sender");
+    let recipientIdIdx = msgHeader.findIndex(
+      (h) => h === "recipientid" || h === "recipient",
+    );
+    let senderIdIdx = msgHeader.findIndex(
+      (h) => h === "senderid" || h === "sender",
+    );
     let isReadIdx = msgHeader.findIndex((h) => h === "isread" || h === "read");
-    let deleteFlagIdx = msgHeader.findIndex((h) => h === "deleteflag" || h === "deleted");
+    let deleteFlagIdx = msgHeader.findIndex(
+      (h) => h === "deleteflag" || h === "deleted",
+    );
 
     // フォールバック（スプレッドシートの列構成に合わせて適宜調整してください）
     if (recipientIdIdx === -1) recipientIdIdx = 2; // C列付近の想定
-    if (senderIdIdx === -1) senderIdIdx = 1;       // B列付近の想定
-    if (isReadIdx === -1) isReadIdx = 5;           // F列付近の想定
-    if (deleteFlagIdx === -1) deleteFlagIdx = 7;   // H列付近の想定
+    if (senderIdIdx === -1) senderIdIdx = 1; // B列付近の想定
+    if (isReadIdx === -1) isReadIdx = 5; // F列付近の想定
+    if (deleteFlagIdx === -1) deleteFlagIdx = 7; // H列付近の想定
 
     let unreadCount = 0;
 
@@ -57,10 +63,12 @@ export async function GET() {
       const recipientId = row[recipientIdIdx]?.toString().trim() || "";
       const senderId = row[senderIdIdx]?.toString().trim() || "";
       const isReadRaw = row[isReadIdx]?.toString().trim().toLowerCase() || "";
-      const deleteFlagRaw = row[deleteFlagIdx]?.toString().trim().toLowerCase() || "";
+      const deleteFlagRaw =
+        row[deleteFlagIdx]?.toString().trim().toLowerCase() || "";
 
       // 条件1: is_read が false かどうか ("true", "1", "既読" 以外を未読とする)
-      const isRead = isReadRaw === "true" || isReadRaw === "1" || isReadRaw === "既読";
+      const isRead =
+        isReadRaw === "true" || isReadRaw === "1" || isReadRaw === "既読";
       const isUnread = !isRead;
 
       // 条件2: delete_flag が false かどうか ("true", "1" 以外を未削除とする)

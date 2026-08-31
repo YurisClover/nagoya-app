@@ -3,4 +3,4 @@
 // Blank ('') means "no status / no badge". Renamed 2026-08 from
 // unsupported/pending; the sheet may still hold the old strings and every
 // read path maps them onto these values. Writes use these values only.
-export type MessageStatus = 'open' | 'in_progress' | 'closed';
+export type MessageStatus = "open" | "in_progress" | "closed";

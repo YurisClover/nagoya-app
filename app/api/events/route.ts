@@ -68,18 +68,20 @@ export async function GET(request: NextRequest) {
 
     let responseStatusMap: Map<string, boolean> | null = null;
     try {
-        responseStatusMap = await getEventResponseStatusMap({
-            eventIds: data.map((event) => event.event_id),
-            memberId,
-        });
+      responseStatusMap = await getEventResponseStatusMap({
+        eventIds: data.map((event) => event.event_id),
+        memberId,
+      });
     } catch (statusError) {
-        console.error("Failed to fetch response status:", statusError);
+      console.error("Failed to fetch response status:", statusError);
     }
-    
+
     const dataWithResponseStatus = data.map((event) => ({
       ...event,
 
-      is_answered: responseStatusMap ? (responseStatusMap.get(event.event_id) ?? false) : null,
+      is_answered: responseStatusMap
+        ? (responseStatusMap.get(event.event_id) ?? false)
+        : null,
     }));
 
     return NextResponse.json(dataWithResponseStatus);

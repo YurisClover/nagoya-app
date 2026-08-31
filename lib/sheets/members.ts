@@ -20,31 +20,31 @@ export type SheetUser = {
 };
 
 function findRowByEmail(rows: GoogleSpreadsheetRow[], email: string) {
-    const target = email.trim().toLowerCase();
-    return rows.find(
-        (r) =>
-        String(r.get("email") ?? "")
+  const target = email.trim().toLowerCase();
+  return rows.find(
+    (r) =>
+      String(r.get("email") ?? "")
         .trim()
         .toLowerCase() === target,
-    );
+  );
 }
 
 export function rowToUser(row: GoogleSpreadsheetRow): SheetUser {
-    return {
-        member_id: String(row.get("member_id") ?? ""),
-        user_name: String(row.get("user_name") ?? ""),
-        password_hash: String(row.get("password_hash") ?? ""),
-        email: String(row.get("email") ?? ""),
-        role: String(row.get("role") ?? ""),
-        status: String(row.get("status") ?? ""),
-    };
+  return {
+    member_id: String(row.get("member_id") ?? ""),
+    user_name: String(row.get("user_name") ?? ""),
+    password_hash: String(row.get("password_hash") ?? ""),
+    email: String(row.get("email") ?? ""),
+    role: String(row.get("role") ?? ""),
+    status: String(row.get("status") ?? ""),
+  };
 }
 
 export async function getUserByEmail(email: string): Promise<SheetUser | null> {
-    const sheet = await getUsersSheet();
-    const row = findRowByEmail(await sheet.getRows(), email);
-    if (!row || row.get("deleted_at")) return null;
-    return rowToUser(row);
+  const sheet = await getUsersSheet();
+  const row = findRowByEmail(await sheet.getRows(), email);
+  if (!row || row.get("deleted_at")) return null;
+  return rowToUser(row);
 }
 
 export type Member = Omit<SheetUser, "password_hash"> & {
@@ -87,7 +87,7 @@ export const getCachedMembers = unstable_cache(
   {
     revalidate: 60,
     tags: ["members"], // 新規登録や更新時に revalidateTag("members") で即時キャッシュ破棄が可能
-  }
+  },
 );
 
 // 4. 【サーバー側での検索・絞り込み・ページネーション処理】
@@ -159,17 +159,20 @@ export async function addMemberToSheet(newMember: {
     const sheet = await getUsersSheet();
 
     // スプレッドシートの末尾に1行追加
-    await sheet.addRow({
-      member_id: newMember.member_id,
-      user_name: newMember.user_name,
-      password_hash: newMember.password_hash, // ハッシュ化された文字列を書き込む
-      email: newMember.email,
-      role: newMember.role,
-      status: newMember.status,
-      created_at: newMember.created_at,
-      updated_at: newMember.updated_at,
-      deleted_at: "",
-    }, { raw: true }); // id must be raw (string)
+    await sheet.addRow(
+      {
+        member_id: newMember.member_id,
+        user_name: newMember.user_name,
+        password_hash: newMember.password_hash, // ハッシュ化された文字列を書き込む
+        email: newMember.email,
+        role: newMember.role,
+        status: newMember.status,
+        created_at: newMember.created_at,
+        updated_at: newMember.updated_at,
+        deleted_at: "",
+      },
+      { raw: true },
+    ); // id must be raw (string)
 
     // キャッシュを破棄して即時反映
     updateTag("members");
@@ -183,44 +186,41 @@ export async function addMemberToSheet(newMember: {
 
 // Edit user
 export async function updateMemberInSheet(
-    memberId: string,
-    fields: {
-        user_name: string;
-        email: string;
-        role: string;
-        status: string;
-        updated_at: string;
-        password_hash?: string;
-    }
+  memberId: string,
+  fields: {
+    user_name: string;
+    email: string;
+    role: string;
+    status: string;
+    updated_at: string;
+    password_hash?: string;
+  },
 ) {
-    try {
-        const sheet = await getUsersSheet();
-        const rows = await sheet.getRows();
-        const target = memberId.trim();
-        const row = rows.find(
-            (r) => sameId(r.get("member_id"), target)
-        );
-        if(!row) {
-            return {success: false, error: "対象の会員が見つかりませんでした。"};
-        }
-
-        row.set("user_name", fields.user_name);
-        row.set("email", fields.email);
-        row.set("role", fields.role);
-        row.set("status", fields.status);
-        row.set("updated_at", fields.updated_at);
-        if(fields.password_hash) row.set("password_hash", fields.password_hash);
-        await row.save({ raw: true }); //raw
-
-        updateTag("members");
-        return { success: true };
-    } catch (error) {
-        console.error("Failed to update member in sheet:", error);
-        return { success: false, error: "スプレッドシートの更新に失敗しました。"};
+  try {
+    const sheet = await getUsersSheet();
+    const rows = await sheet.getRows();
+    const target = memberId.trim();
+    const row = rows.find((r) => sameId(r.get("member_id"), target));
+    if (!row) {
+      return { success: false, error: "対象の会員が見つかりませんでした。" };
     }
+
+    row.set("user_name", fields.user_name);
+    row.set("email", fields.email);
+    row.set("role", fields.role);
+    row.set("status", fields.status);
+    row.set("updated_at", fields.updated_at);
+    if (fields.password_hash) row.set("password_hash", fields.password_hash);
+    await row.save({ raw: true }); //raw
+
+    updateTag("members");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update member in sheet:", error);
+    return { success: false, error: "スプレッドシートの更新に失敗しました。" };
+  }
 }
 
 // ====================================================
 // グループ管理関連の最適化版コード
 // ====================================================
-

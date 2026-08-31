@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/guards";
 export default async function PdfViewPage({
   params,
 }: {
-  params: Promise<{ fileId: string }>; 
+  params: Promise<{ fileId: string }>;
 }) {
   await requireUser();
 

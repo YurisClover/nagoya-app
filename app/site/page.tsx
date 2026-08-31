@@ -6,8 +6,12 @@ import { requireUser } from "@/lib/guards";
 
 function OfficialSiteCard() {
   return (
-    <a href="https://www.taxnaka.com/" target="_blank" rel="noopener noreferrer"
-       className="card-tap flex items-center gap-3">
+    <a
+      href="https://www.taxnaka.com/"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="card-tap flex items-center gap-3"
+    >
       <span className="icon-tile tone-navy mb-0 shrink-0">
         <Building2 size={20} />
       </span>
@@ -34,7 +38,9 @@ export default async function PdfListPage() {
           <h1 className="mb-6 text-lg font-bold">中支部サイト・支部報</h1>
           <OfficialSiteCard />
           <div className="card mt-6 text-center">
-            <p className="text-sm text-danger">支部報の一覧を取得できませんでした。</p>
+            <p className="text-sm text-danger">
+              支部報の一覧を取得できませんでした。
+            </p>
             <p className="text-meta mt-1">時間をおいて再度お試しください。</p>
           </div>
         </div>
@@ -51,7 +57,9 @@ export default async function PdfListPage() {
 
         <h2 className="section-title mt-8">支部報（PDF）</h2>
         {pdfList.length === 0 ? (
-          <p className="text-meta py-6 text-center">公開されている支部報はまだありません。</p>
+          <p className="text-meta py-6 text-center">
+            公開されている支部報はまだありません。
+          </p>
         ) : (
           <Pagination pdfList={pdfList} />
         )}

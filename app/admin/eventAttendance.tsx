@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { useState } from "react";
 import { EventAttendanceItem } from "@/lib/sheets";
@@ -32,68 +32,81 @@ export default function EventAttendance({ items }: EventAttendanceProps) {
           <table className="w-full table-fixed text-left text-sm text-gray-600 border-collapse">
             <thead className="bg-gray-50 text-xs text-gray-500 uppercase border-b border-gray-100">
               <tr>
-                <th scope="col" className="py-3 px-4 font-semibold whitespace-nowrap">
-                イベント名
-              </th>
-              <th scope="col" className="py-3 px-4 font-semibold whitespace-nowrap">
-                開催日
-              </th>
-              <th scope="col" className="w-20 py-3 px-4 font-semibold text-center whitespace-nowrap">
-                登録数
-              </th>
-            </tr>
-          </thead>
+                <th
+                  scope="col"
+                  className="py-3 px-4 font-semibold whitespace-nowrap"
+                >
+                  イベント名
+                </th>
+                <th
+                  scope="col"
+                  className="py-3 px-4 font-semibold whitespace-nowrap"
+                >
+                  開催日
+                </th>
+                <th
+                  scope="col"
+                  className="w-20 py-3 px-4 font-semibold text-center whitespace-nowrap"
+                >
+                  登録数
+                </th>
+              </tr>
+            </thead>
             <tbody className="divide-y divide-gray-100">
-                {pageItems.map((item) => {
+              {pageItems.map((item) => {
                 const linkable = Boolean(item.formUrl);
-                const schedule = formatEventSchedule(item.eventDate, undefined, {
+                const schedule = formatEventSchedule(
+                  item.eventDate,
+                  undefined,
+                  {
                     yearHint: "current",
-                });
+                  },
+                );
                 return (
-                    <tr key={item.eventId} className="hover:bg-gray-50/50">
+                  <tr key={item.eventId} className="hover:bg-gray-50/50">
                     {/* 1. イベント名（クリックでフォームへ） */}
                     <td className="py-1 px-4 font-medium">
-                        {linkable ? (
+                      {linkable ? (
                         <a
-                            href={item.formUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block max-w-[350px] truncate py-2.5 text-brand underline-offset-2 hover:underline"
+                          href={item.formUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block max-w-[350px] truncate py-2.5 text-brand underline-offset-2 hover:underline"
                         >
-                            {item.title}
+                          {item.title}
                         </a>
-                        ) : (
+                      ) : (
                         <span className="block max-w-[350px] truncate py-2.5 text-gray-900">
-                            {item.title}
+                          {item.title}
                         </span>
-                        )}
+                      )}
                     </td>
 
                     {/* 2. 開催日（同じくクリック可） */}
                     <td className="py-1 px-4 text-gray-500 whitespace-nowrap">
-                        {linkable ? (
+                      {linkable ? (
                         <a
-                            href={item.formUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block truncate py-2.5 underline-offset-2 hover:underline"
+                          href={item.formUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block truncate py-2.5 underline-offset-2 hover:underline"
                         >
-                            {schedule}
+                          {schedule}
                         </a>
-                        ) : (
+                      ) : (
                         <span className="block py-2.5">{schedule}</span>
-                        )}
+                      )}
                     </td>
 
                     {/* 3. 登録数 */}
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
                         {item.registrationCount} 名
-                        </span>
+                      </span>
                     </td>
-                    </tr>
+                  </tr>
                 );
-                })}
+              })}
             </tbody>
           </table>
           {totalPages > 1 && (
